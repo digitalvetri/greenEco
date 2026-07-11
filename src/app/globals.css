@@ -225,6 +225,25 @@ body {
 .gc-animate-in {
   animation: gc-fade-in var(--dur) var(--ease);
 }
+
+/* Live "monitor" heartbeat line (Site Health) — two tiled halves scroll seamlessly */
+@keyframes gc-ecg-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.gc-ecg-track {
+  width: 200%;
+  animation: gc-ecg-scroll 5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gc-ecg-track {
+    animation: none;
+  }
+}
 .gc-skeleton {
   position: relative;
   overflow: hidden;

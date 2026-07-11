@@ -8,14 +8,12 @@ import {
   ArrowRight,
   HeartPulse,
   AlertTriangle,
-  ShieldAlert,
   Droplets,
   Leaf,
   Recycle,
   UsersRound,
   CalendarClock,
   Activity as ActivityIcon,
-  Waves,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { getRichDashboard, getOpsKpis } from "@/server/services/dashboard-rich";
@@ -25,6 +23,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { formatINR } from "@/lib/money";
 import { DonutChart, RevenueArea } from "./rich-charts";
 import { GreetingMeta } from "./greeting";
+import { SiteHealthMonitor } from "./site-health";
 
 export const dynamic = "force-dynamic";
 
@@ -125,17 +124,12 @@ export default async function DashboardPage() {
                 <CardTitle>Site Health Monitor</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="relative flex h-[190px] items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-sky-100 via-emerald-50 to-teal-100 dark:from-sky-950 dark:via-emerald-950 dark:to-teal-950">
-                  <Waves className="size-20 text-teal-500/50" />
-                  <div className="absolute bottom-3 right-3 rounded-lg bg-card/80 px-2 py-1 text-[11px] font-medium text-muted backdrop-blur">
-                    {d.health.total} active sites
-                  </div>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <Health icon={HeartPulse} tone="ok" value={d.health.healthy} label="Healthy" />
-                  <Health icon={AlertTriangle} tone="warn" value={d.health.warning} label="Warning" />
-                  <Health icon={ShieldAlert} tone="danger" value={d.health.critical} label="Critical" />
-                </div>
+                <SiteHealthMonitor
+                  total={d.health.total}
+                  healthy={d.health.healthy}
+                  warning={d.health.warning}
+                  critical={d.health.critical}
+                />
               </CardContent>
             </Card>
           </div>
@@ -307,8 +301,13 @@ export default async function DashboardPage() {
 
 function OpsKpi({ label, value, hint, href, tone }: { label: string; value: string | number; hint?: string; href: string; tone: "ok" | "warn" | "danger" | "default" }) {
   const t = tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "danger" ? "text-danger" : "text-foreground";
+  const accent = tone === "ok" ? "bg-ok" : tone === "warn" ? "bg-warn" : tone === "danger" ? "bg-danger" : "bg-border";
   return (
-    <Link href={href} className="rounded-xl border border-border bg-card p-3 transition-colors hover:border-primary/40">
+    <Link
+      href={href}
+      className="group relative overflow-hidden rounded-xl border border-border bg-card p-3 pl-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+    >
+      <span className={`absolute inset-y-0 left-0 w-1 ${accent} opacity-70 transition-opacity group-hover:opacity-100`} />
       <div className="text-[11px] text-muted">{label}</div>
       <div className={`mt-0.5 text-lg font-bold tabular-nums ${t}`}>{value}</div>
       {hint && <div className="text-[11px] text-muted">{hint}</div>}
@@ -331,31 +330,21 @@ function HeroStat({
 }) {
   return (
     <Link href={href} className="block">
-      <div className={`gc-hero ${HERO[tone]} rounded-2xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md`}>
+      <div className={`gc-hero ${HERO[tone]} group rounded-2xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-current/25 hover:shadow-lg`}>
         <div className="relative flex items-start justify-between">
           <div>
             <div className="text-xs font-medium text-muted">{label}</div>
             <div className="mt-1.5 text-2xl font-bold leading-none tracking-tight tabular-nums text-foreground">{value}</div>
           </div>
-          <span className="flex size-11 items-center justify-center rounded-xl" style={{ background: "color-mix(in srgb, currentColor 14%, transparent)" }}>
+          <span
+            className="flex size-11 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3"
+            style={{ background: "color-mix(in srgb, currentColor 14%, transparent)" }}
+          >
             <Icon className="size-5" />
           </span>
         </div>
       </div>
     </Link>
-  );
-}
-
-function Health({ icon: Icon, tone, value, label }: { icon: typeof HeartPulse; tone: "ok" | "warn" | "danger"; value: number; label: string }) {
-  const c = tone === "ok" ? "text-ok bg-ok-soft" : tone === "warn" ? "text-warn bg-warn-soft" : "text-danger bg-danger-soft";
-  return (
-    <div className="rounded-lg border border-border bg-card p-2">
-      <span className={`mx-auto flex size-8 items-center justify-center rounded-full ${c}`}>
-        <Icon className="size-4" />
-      </span>
-      <div className="mt-1 text-lg font-bold leading-none tabular-nums">{value}</div>
-      <div className="text-[10px] text-muted">{label}</div>
-    </div>
   );
 }
 

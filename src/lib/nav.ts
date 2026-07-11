@@ -42,6 +42,18 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/settings", label: "Settings", icon: "settings", adminOnly: true },
 ];
 
+/**
+ * Sidebar / drawer grouping (desktop + mobile). Empty groups are skipped, so
+ * role-filtered nav (EMPLOYEE has no Finance/System) collapses cleanly.
+ */
+export const NAV_SECTIONS: { label: string | null; hrefs: string[] }[] = [
+  { label: null, hrefs: ["/dashboard"] },
+  { label: "Sales", hrefs: ["/leads", "/proposals", "/clients"] },
+  { label: "Operations", hrefs: ["/projects", "/service", "/materials", "/erection"] },
+  { label: "Finance", hrefs: ["/invoices", "/reports"] },
+  { label: "System", hrefs: ["/settings"] },
+];
+
 export function navFor(role: Role): NavItem[] {
   return NAV_ITEMS.filter((i) => !i.adminOnly || role === "ADMIN");
 }

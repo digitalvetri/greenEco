@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/auth";
 import { getNotifications } from "@/server/services/notifications";
-import { navFor, mobileNavFor } from "@/lib/nav";
+import { navFor, mobileNavFor, NAV_SECTIONS } from "@/lib/nav";
 import { SidebarLink, BottomLink } from "@/components/shell/nav-link";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { GlobalSearch } from "@/components/shell/global-search";
@@ -16,16 +16,6 @@ import { Toaster } from "@/components/ui/toast";
 // The dashboard is per-request (auth + tenant data) — never statically prerendered,
 // so getSession()'s fail-closed 401 can't fire at build time.
 export const dynamic = "force-dynamic";
-
-// Sidebar grouping (desktop only; mobile stays flat). Empty groups are skipped,
-// so role-filtered nav (EMPLOYEE has no Finance/System) collapses cleanly.
-const NAV_SECTIONS: { label: string | null; hrefs: string[] }[] = [
-  { label: null, hrefs: ["/dashboard"] },
-  { label: "Sales", hrefs: ["/leads", "/proposals", "/clients"] },
-  { label: "Operations", hrefs: ["/projects", "/service", "/materials", "/erection"] },
-  { label: "Finance", hrefs: ["/invoices", "/reports"] },
-  { label: "System", hrefs: ["/settings"] },
-];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
