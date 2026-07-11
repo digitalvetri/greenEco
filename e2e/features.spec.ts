@@ -48,7 +48,7 @@ test("credentials login: sign-in page works and admin lands on the dashboard", a
   await page.goto("/sign-in", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await page.getByLabel("Email").fill("admin@greeneco.in");
-  await page.getByLabel("Password").fill("Admin@123");
+  await page.getByLabel("Password", { exact: true }).fill("Admin@123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/dashboard/);
   await expect(page.getByText("Revenue Collected")).toBeVisible(); // admin role from credentials
@@ -60,7 +60,7 @@ test("credentials login: wrong password is rejected with a generic error", async
   const page = await ctx.newPage();
   await page.goto("/sign-in", { waitUntil: "networkidle" });
   await page.getByLabel("Email").fill("admin@greeneco.in");
-  await page.getByLabel("Password").fill("nope");
+  await page.getByLabel("Password", { exact: true }).fill("nope");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Invalid email or password")).toBeVisible();
   await ctx.close();
