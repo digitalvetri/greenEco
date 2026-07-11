@@ -1,5 +1,6 @@
-import { CalendarDays, Droplets, Sparkles } from "lucide-react";
+import { CalendarDays, Sparkles } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { getSession } from "@/lib/auth";
 import { getNotifications } from "@/server/services/notifications";
 import { navFor, mobileNavFor } from "@/lib/nav";
@@ -37,11 +38,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Persistent sidebar — laptop & desktop (>=1024px) */}
       <aside className="gc-sidebar hidden w-[264px] shrink-0 flex-col lg:flex">
         <div className="relative z-10 flex items-center gap-2.5 px-5 py-5">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/20 backdrop-blur">
-            <Droplets className="size-5" />
+          <span className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-white/30">
+            <Image src="/brand/logo-mark.png" alt="Green Ecocare" width={40} height={40} className="size-8 object-contain" />
           </span>
           <div className="leading-tight text-white">
-            <div className="text-base font-bold tracking-tight">GreenEco CRM</div>
+            <div className="text-base font-bold tracking-tight">Green Ecocare</div>
             <div className="text-[10px] font-medium uppercase tracking-widest text-white/60">Wastewater Ops</div>
           </div>
         </div>
@@ -94,8 +95,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
               href="/settings"
               className="ml-1 hidden items-center gap-2 rounded-xl border border-border bg-surface py-1 pl-2 pr-2.5 transition-colors hover:border-primary/40 xl:flex"
             >
-              <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Droplets className="size-4" />
+              <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg bg-white ring-1 ring-border">
+                <Image src="/brand/logo-mark.png" alt="" width={28} height={28} className="size-6 object-contain" />
               </span>
               <span className="text-xs font-semibold">Green Ecocare</span>
             </Link>

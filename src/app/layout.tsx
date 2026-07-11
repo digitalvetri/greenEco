@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GreenEco CRM",
-  description: "CRM for Green Ecocare — wastewater treatment plant projects",
+  title: "Green Ecocare CRM",
+  description: "CRM for Green Ecocare Private Limited — wastewater treatment plant projects",
   manifest: "/manifest.webmanifest",
 };
 

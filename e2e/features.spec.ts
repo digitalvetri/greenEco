@@ -46,7 +46,7 @@ test("credentials login: sign-in page works and admin lands on the dashboard", a
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto("/sign-in", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "GreenEco CRM" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await page.getByLabel("Email").fill("admin@greeneco.in");
   await page.getByLabel("Password").fill("Admin@123");
   await page.getByRole("button", { name: "Sign in" }).click();

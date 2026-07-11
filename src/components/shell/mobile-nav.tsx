@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Droplets } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { IconName } from "@/lib/nav";
 import { NavIcon } from "./icons";
@@ -63,11 +64,11 @@ export function MobileNav({
           <aside className="gc-sidebar absolute inset-y-0 left-0 flex w-[80%] max-w-[300px] flex-col shadow-2xl">
             <div className="relative z-10 flex items-center justify-between px-5 py-5">
               <div className="flex items-center gap-2.5">
-                <span className="flex size-10 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/20">
-                  <Droplets className="size-5" />
+                <span className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-white/30">
+                  <Image src="/brand/logo-mark.png" alt="Green Ecocare" width={40} height={40} className="size-8 object-contain" />
                 </span>
                 <div className="leading-tight text-white">
-                  <div className="text-base font-bold tracking-tight">GreenEco CRM</div>
+                  <div className="text-base font-bold tracking-tight">Green Ecocare</div>
                   <div className="text-[10px] font-medium uppercase tracking-widest text-white/60">Wastewater Ops</div>
                 </div>
               </div>

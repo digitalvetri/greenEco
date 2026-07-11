@@ -41,6 +41,24 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v22 — Brand identity: real Green Ecocare logo + redesigned login
+
+Integrated the client's actual logo (source `Green Ecocare/Final Logo File/Green Ecocare.jpg`) across the app
+and rebuilt the sign-in page. **Gate: tsc 0 · lint 0 · 72 unit · build clean · 69 Playwright · browser-verified
+(login desktop + mobile, dashboard sidebar, end-to-end admin login).**
+- **Brand assets** (`public/brand/`, generated with `sharp`) — `logo-mark.png` (the droplet-with-leaves mark,
+  cropped from the source + centered on white, 512px), `logo-full.png/.jpg`, `favicon.png`; plus `src/app/icon.png`
+  (256px) so Next auto-serves the browser-tab favicon. Note: sharp's `background` needs `alpha`, not `a`.
+- **Logo everywhere** — replaced the generic `Droplets` lucide icon with a `next/image` of `logo-mark.png` in the
+  sidebar header, the top-bar company chip (`(dashboard)/layout.tsx`), and the mobile drawer header
+  (`mobile-nav.tsx`). "GreenEco CRM" → "Green Ecocare" in the shell; root metadata title → "Green Ecocare CRM".
+- **Redesigned `/sign-in`** — premium split-screen: left brand panel (green→blue gradient `#0b5e39→#158a53→#1560bd`
+  with brand-tinted blur glows, the logo mark in a white badge, headline + 3-feature list + "It's our future."
+  tagline), right form panel (Welcome back + email/password `Field`s + Sign-in `Button` + error alert). Mobile
+  collapses to a centered logo + form. Wired to the existing `loginAction` (credentials → signed session cookie).
+- **e2e fix** — `features.spec.ts` asserted the old "GreenEco CRM" login heading; retargeted to "Welcome back"
+  (rename-breaks-tests, same class as earlier waves).
+
 ### v2 — Design overhaul + production hardening (built with the GreenEco skills/agents)
 
 - **Design system** (`product-team/skills/ui-design-system`): WCAG token set in `globals.css`
