@@ -569,12 +569,14 @@ export async function setOrderGst(ctx: Ctx, orderId: string, data: { clientState
   requireAdmin(ctx);
   const order = await prisma.order.findFirst({ where: { id: orderId, companyId: ctx.companyId, deletedAt: null } });
   if (!order) throw new Error("Project not found");
+  const gstin = data.clientGstin?.trim().toUpperCase() || null;
+  let stateCode = data.clientStateCode?.trim() || null;
+  // A GSTIN's first two characters ARE the state code (GST rule) — derive it when the
+  // state code wasn't entered explicitly, so place-of-supply is never left ambiguous.
+  if (!stateCode && gstin && /^\d{2}/.test(gstin)) stateCode = gstin.slice(0, 2);
   const updated = await prisma.order.update({
     where: { id: orderId },
-    data: {
-      clientStateCode: data.clientStateCode?.trim() || null,
-      clientGstin: data.clientGstin?.trim().toUpperCase() || null,
-    },
+    data: { clientStateCode: stateCode, clientGstin: gstin },
   });
   await logAudit(ctx, { action: "UPDATE", entity: "Order", entityId: orderId, after: { clientStateCode: updated.clientStateCode, clientGstin: updated.clientGstin } });
   return { ok: true };

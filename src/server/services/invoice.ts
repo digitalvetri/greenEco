@@ -27,9 +27,14 @@ export async function createInvoiceFromMilestone(
   if (!milestone) throw new Error("Milestone not found");
   if (milestone.invoice) return { invoiceId: milestone.invoice.id, already: true };
 
-  // Place-of-supply = the customer's state (order.clientStateCode) → real IGST for
-  // inter-state supply; falls back to the company state (intra-state) when unset.
-  const pos = opts?.placeOfSupplyStateCode ?? milestone.order.clientStateCode ?? env.companyStateCode;
+  // Place-of-supply = the customer's state → real IGST for inter-state supply.
+  // Priority: explicit override → order.clientStateCode → state code derived from the
+  // client GSTIN (its first 2 digits) → the company state (intra-state) as last resort.
+  const gstinState =
+    milestone.order.clientGstin && /^\d{2}/.test(milestone.order.clientGstin)
+      ? milestone.order.clientGstin.slice(0, 2)
+      : undefined;
+  const pos = opts?.placeOfSupplyStateCode ?? milestone.order.clientStateCode ?? gstinState ?? env.companyStateCode;
   const gst = computeGst({
     taxableAmount: milestone.amount,
     supplierStateCode: env.companyStateCode,

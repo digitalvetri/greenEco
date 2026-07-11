@@ -153,6 +153,7 @@ export function LeadForm({ mode = "create", leadId, initial }: {
                 value={form.address}
                 onChange={(e) => set("address", e.target.value)}
                 placeholder="Site address"
+                aria-label="Address"
                 className="min-h-16"
               />
               <Button type="button" variant="outline" size="sm" onClick={pinLocation} className="h-auto shrink-0">
@@ -200,6 +201,7 @@ export function LeadForm({ mode = "create", leadId, initial }: {
               value={form.requirement}
               onChange={(e) => set("requirement", e.target.value)}
               placeholder="Anything else about the requirement… (or Speak)"
+              aria-label="Notes"
             />
           </div>
         </CardContent>
@@ -209,75 +211,68 @@ export function LeadForm({ mode = "create", leadId, initial }: {
         <CardContent className="space-y-4 pt-4">
           <span className="text-sm font-semibold">Plant sizing</span>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div>
-              <Label>Plant type</Label>
+            <Field label="Plant type">
               <Select value={form.plantType} onChange={(e) => set("plantType", e.target.value)}>
                 <option value="">—</option>
                 {PLANT_TYPES.map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </Select>
-            </div>
-            <div>
-              <Label>Technology</Label>
+            </Field>
+            <Field label="Technology">
               <Select value={form.technology} onChange={(e) => set("technology", e.target.value)}>
                 <option value="">—</option>
                 {TECHNOLOGIES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </Select>
-            </div>
-            <div>
-              <Label>Capacity (KLD)</Label>
+            </Field>
+            <Field label="Capacity (KLD)">
               <Input
                 value={form.capacityKLD}
                 inputMode="decimal"
                 onChange={(e) => set("capacityKLD", e.target.value.replace(/[^\d.]/g, ""))}
                 placeholder="e.g. 50"
               />
-            </div>
-            <div>
-              <Label>Segment</Label>
+            </Field>
+            <Field label="Segment">
               <Select value={form.segment} onChange={(e) => set("segment", e.target.value)}>
                 <option value="">—</option>
                 {SEGMENTS.map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </Select>
-            </div>
-            <div>
-              <Label>Budget band</Label>
+            </Field>
+            <Field label="Budget band">
               <Select value={form.budgetBand} onChange={(e) => set("budgetBand", e.target.value)}>
                 <option value="">—</option>
                 {BUDGET_BANDS.map((b) => (
                   <option key={b} value={b}>{b}</option>
                 ))}
               </Select>
-            </div>
-            <div>
-              <Label>Decision timeline</Label>
+            </Field>
+            <Field label="Decision timeline">
               <Select value={form.decisionTimeline} onChange={(e) => set("decisionTimeline", e.target.value)}>
                 <option value="">—</option>
                 {DECISION_TIMELINES.map((d) => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </Select>
-            </div>
+            </Field>
           </div>
 
           <div className="border-t border-border pt-3">
             <Label>Inlet water quality (mg/l)</Label>
             <div className="mt-1 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {(["inletBOD", "inletCOD", "inletTSS", "inletTDS"] as const).map((k) => (
-                <div key={k}>
-                  <Label>{k.replace("inlet", "")}</Label>
+                <Field key={k} label={k.replace("inlet", "")}>
                   <Input
                     value={form[k]}
                     inputMode="decimal"
                     onChange={(e) => set(k, e.target.value.replace(/[^\d.]/g, ""))}
                     placeholder="—"
                   />
-                </div>
+                </Field>
               ))}
             </div>
           </div>
@@ -339,21 +334,19 @@ export function LeadForm({ mode = "create", leadId, initial }: {
           ))}
 
           <div className="grid grid-cols-2 gap-2 border-t border-border pt-3">
-            <div>
-              <Label>Reference (name)</Label>
+            <Field label="Reference (name)">
               <Input
                 value={reference.name}
                 onChange={(e) => setReference((r) => ({ ...r, name: e.target.value }))}
                 placeholder="Who referred this lead"
               />
-            </div>
-            <div>
-              <Label>Reference phone</Label>
+            </Field>
+            <Field label="Reference phone">
               <Input
                 value={reference.phone}
                 onChange={(e) => setReference((r) => ({ ...r, phone: e.target.value }))}
               />
-            </div>
+            </Field>
           </div>
         </CardContent>
       </Card>
