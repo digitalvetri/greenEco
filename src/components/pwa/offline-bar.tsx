@@ -14,7 +14,14 @@ export function OfflineBar() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      if (process.env.NODE_ENV === "production") {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      } else {
+        // Dev: never let a cached service worker serve stale JS chunks (it causes
+        // "module factory is not available" after a rebuild). Tear it down.
+        navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister())).catch(() => {});
+        if ("caches" in window) caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
+      }
     }
     setOnline(navigator.onLine);
     const refresh = () => count().then(setPending).catch(() => {});
