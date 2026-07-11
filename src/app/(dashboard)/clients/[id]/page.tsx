@@ -29,7 +29,7 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
   const isAdmin = session.role === "ADMIN";
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div>
       <PageHeader title={lead.customerName} subtitle="Client 360" />
 
       <div className="grid gap-4 md:grid-cols-2">

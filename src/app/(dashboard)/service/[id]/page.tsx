@@ -29,7 +29,7 @@ export default async function ContractDetail({ params }: { params: Promise<{ id:
   const hasPhone = Boolean(c.order); // phone resolves via order→proposal→lead
 
   return (
-    <div className="mx-auto max-w-5xl gc-animate-in">
+    <div className="gc-animate-in">
       <PageHeader
         title={c.clientName}
         subtitle={`${c.contractNo} · ${c.siteAddress}`}
