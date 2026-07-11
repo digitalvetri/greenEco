@@ -245,17 +245,21 @@ body {
   animation: gc-shimmer 1.4s infinite;
 }
 
-/* Premium sidebar gradient + subtle texture (reference-style) */
+/* Premium sidebar: layered water gradient + ambient glows (matches the login) */
 .gc-sidebar {
-  background: linear-gradient(180deg, var(--sidebar-from) 0%, var(--sidebar-to) 100%);
+  background:
+    radial-gradient(90% 38% at 100% 0%, rgba(52, 211, 153, 0.22), transparent 60%),
+    radial-gradient(85% 45% at 0% 100%, rgba(45, 212, 191, 0.20), transparent 55%),
+    radial-gradient(70% 40% at 50% 60%, rgba(21, 96, 189, 0.13), transparent 62%),
+    linear-gradient(168deg, #06392a 0%, #0a5a43 42%, #0f766e 78%, #0d6b76 100%);
   position: relative;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07);
 }
 .gc-sidebar::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 60% at 100% 0%, rgba(255, 255, 255, 0.08), transparent 60%),
-    radial-gradient(80% 50% at 0% 100%, rgba(45, 212, 191, 0.18), transparent 60%);
+  background: radial-gradient(55% 26% at 100% 10%, rgba(255, 255, 255, 0.10), transparent 60%);
   pointer-events: none;
 }
 /* Frosted stat-card wash */
