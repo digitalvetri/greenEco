@@ -1,26 +1,277 @@
 @import "tailwindcss";
 
+/* Bind Tailwind's `dark:` variant to our theme toggle (data-theme) instead of
+   the OS preference, so `dark:` utilities flip with the in-app switch. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * GreenEco CRM design tokens (built with product-team/skills/ui-design-system).
+ * Brand green #0f7a4d. WCAG-AA contrast for text/links. 8pt spacing (Tailwind
+ * base), modular type scale, consistent radius + elevation + motion.
+ * Existing semantic names are preserved so components keep working.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand green ramp */
+  --primary-50: #ecfdf5;
+  --primary-100: #d1fae5;
+  --primary-200: #a7f3d0;
+  --primary-300: #6ee7b7;
+  --primary-400: #34d399;
+  --primary-500: #10b981;
+  --primary-600: #0f7a4d; /* brand */
+  --primary-700: #0b5f3c;
+  --primary-800: #094c30;
+  --primary-900: #073d27;
+
+  /* Surfaces & text (light) */
+  --background: #f5f8f6;
+  --foreground: #0f1c16;
+  --card: #ffffff;
+  --surface: #fbfdfc;
+  --border: #e6ece8;
+  --border-strong: #d3ddd7;
+  --muted: #5c6b63;
+
+  --primary: var(--primary-600);
+  --primary-foreground: #ffffff;
+  --accent: #0ea5e9;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --warn: #d97706;
+  --warn-soft: #fffbeb;
+  --ok: #16a34a;
+  --ok-soft: #f0fdf4;
+  --ring: color-mix(in srgb, var(--primary) 45%, transparent);
+
+  /* Multicolor accents (hero stat cards, charts) */
+  --c-blue: #2563eb;
+  --c-emerald: #10b981;
+  --c-violet: #7c3aed;
+  --c-amber: #f59e0b;
+  --c-cyan: #06b6d4;
+  --c-rose: #e11d48;
+
+  /* Premium gradient sidebar (deep emerald → teal) */
+  --sidebar-from: #064e3b;
+  --sidebar-to: #0f766e;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(15, 28, 22, 0.06), 0 1px 1px rgba(15, 28, 22, 0.04);
+  --shadow-md: 0 2px 10px rgba(15, 28, 22, 0.07), 0 1px 3px rgba(15, 28, 22, 0.05);
+  --shadow-lg: 0 10px 30px rgba(15, 28, 22, 0.1), 0 4px 10px rgba(15, 28, 22, 0.06);
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur: 160ms;
+}
+
+:root[data-theme="dark"],
+.dark {
+  --background: #0b1310;
+  --foreground: #e6efe9;
+  --card: #12201a;
+  --surface: #0f1b16;
+  --border: #23342b;
+  --border-strong: #2e433896;
+  --muted: #8ba295;
+  --primary: #34d399;
+  --primary-foreground: #06231a;
+  /* Dark-friendly tints so chips/nav-pills/icon-backdrops don't render as light blobs */
+  --primary-50: color-mix(in srgb, var(--primary) 15%, transparent);
+  --primary-100: color-mix(in srgb, var(--primary) 26%, transparent);
+  --primary-700: #a7f3d0;
+  --danger: #f87171;
+  --danger-soft: #2a1616;
+  --warn: #fbbf24;
+  --warn-soft: #2a2110;
+  --ok: #4ade80;
+  --ok-soft: #10231a;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 34px rgba(0, 0, 0, 0.55);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-c-blue: var(--c-blue);
+  --color-c-emerald: var(--c-emerald);
+  --color-c-violet: var(--c-violet);
+  --color-c-amber: var(--c-amber);
+  --color-c-cyan: var(--c-cyan);
+  --color-c-rose: var(--c-rose);
+
+  --radius-sm: var(--radius-sm);
+  --radius-DEFAULT: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Type scale (modular ~1.2, tuned for dense business UI) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+/* Accessible focus ring everywhere (spec §a11y). */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Refined scrollbars (desktop). */
+@media (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 8px;
+    border: 3px solid var(--background);
+  }
+}
+
+/* Large touch targets on mobile (spec §UI — min 44px). */
+@media (max-width: 768px) {
+  button,
+  a[role="button"],
+  .touch-target {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Reusable animation utilities. */
+@keyframes gc-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes gc-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.gc-animate-in {
+  animation: gc-fade-in var(--dur) var(--ease);
+}
+.gc-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border-radius: var(--radius-sm);
+}
+.gc-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--card) 60%, transparent),
+    transparent
+  );
+  animation: gc-shimmer 1.4s infinite;
+}
+
+/* Premium sidebar gradient + subtle texture (reference-style) */
+.gc-sidebar {
+  background: linear-gradient(180deg, var(--sidebar-from) 0%, var(--sidebar-to) 100%);
+  position: relative;
+}
+.gc-sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 60% at 100% 0%, rgba(255, 255, 255, 0.08), transparent 60%),
+    radial-gradient(80% 50% at 0% 100%, rgba(45, 212, 191, 0.18), transparent 60%);
+  pointer-events: none;
+}
+/* Frosted stat-card wash */
+.gc-hero {
+  position: relative;
+  overflow: hidden;
+}
+.gc-hero::before {
+  content: "";
+  position: absolute;
+  right: -20%;
+  top: -40%;
+  width: 60%;
+  height: 180%;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.1;
+  filter: blur(4px);
 }

@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE "Lead" ADD COLUMN     "budgetBand" TEXT,
+ADD COLUMN     "capacityKLD" DOUBLE PRECISION,
+ADD COLUMN     "decisionTimeline" TEXT,
+ADD COLUMN     "inletBOD" DOUBLE PRECISION,
+ADD COLUMN     "inletCOD" DOUBLE PRECISION,
+ADD COLUMN     "inletTDS" DOUBLE PRECISION,
+ADD COLUMN     "inletTSS" DOUBLE PRECISION,
+ADD COLUMN     "plantType" TEXT,
+ADD COLUMN     "segment" TEXT,
+ADD COLUMN     "technology" TEXT;

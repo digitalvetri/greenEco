@@ -1,0 +1,158 @@
+import Link from "next/link";
+import { Plus, Sparkles, CalendarClock, Snowflake, CheckCircle2, BarChart3 } from "lucide-react";
+import { getSession } from "@/lib/auth";
+import { listLeads, leadStats, listCompanyUsers } from "@/server/services/lead";
+import { PageHeader, StatTile } from "@/components/ui/stat";
+import { Button } from "@/components/ui/button";
+import { LeadImportExport } from "./lead-import";
+import { LeadsList, type LeadRow } from "./leads-list";
+import { LeadsFilters } from "./leads-filters";
+
+export const dynamic = "force-dynamic";
+
+const STATUS_TABS = [
+  { key: "", label: "All" },
+  { key: "NEW", label: "New" },
+  { key: "IN_FOLLOWUP", label: "In Follow-up" },
+  { key: "QUOTE_REQUESTED", label: "Quote Req." },
+  { key: "cold", label: "Going Cold" },
+  { key: "CONVERTED", label: "Converted" },
+  { key: "LOST", label: "Lost" },
+];
+
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; search?: string; source?: string; assignee?: string }>;
+}) {
+  const { status, search, source, assignee } = await searchParams;
+  const session = await getSession();
+  const isAdmin = session.role === "ADMIN";
+  const cold = status === "cold";
+
+  const [{ items, nextCursor }, stats, members] = await Promise.all([
+    listLeads(session, {
+      status: cold ? undefined : status || undefined,
+      cold,
+      search: search || undefined,
+      source: source || undefined,
+      assignedToId: assignee || undefined,
+      take: 50,
+    }),
+    leadStats(session),
+    isAdmin ? listCompanyUsers(session) : Promise.resolve([]),
+  ]);
+
+  // Non-status filters persist across tab switches and drive "Load more".
+  const persist: Record<string, string> = {};
+  if (search) persist.search = search;
+  if (source) persist.source = source;
+  if (assignee) persist.assignee = assignee;
+
+  const query = new URLSearchParams({
+    ...persist,
+    ...(cold ? { cold: "1" } : status ? { status } : {}),
+  }).toString();
+
+  const tabHref = (key: string) => {
+    const p = new URLSearchParams(persist);
+    if (key) p.set("status", key);
+    const s = p.toString();
+    return s ? `/leads?${s}` : "/leads";
+  };
+
+  const rows: LeadRow[] = items.map((l) => ({
+    id: l.id,
+    customerName: l.customerName,
+    status: l.status,
+    source: l.source,
+    address: l.address,
+    phone: l.phone,
+    assignedToName: l.assignedToName,
+    urgency: l.urgency,
+    temperature: l.score.temperature,
+    followUps: l.followUps.map((f) => ({ nextDate: f.nextDate })),
+  }));
+
+  return (
+    <div>
+      <PageHeader
+        title="Leads"
+        subtitle={`${items.length}${nextCursor ? "+" : ""} shown`}
+        action={
+          <div className="flex items-center gap-2">
+            <Link
+              href="/leads/analytics"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted"
+            >
+              <BarChart3 className="size-4" /> Analytics
+            </Link>
+            <LeadImportExport filters={{ status, source, assignee, cold, search }} />
+            <Link href="/leads/new">
+              <Button>
+                <Plus className="size-4" /> New Lead
+              </Button>
+            </Link>
+          </div>
+        }
+      />
+
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="New leads" value={stats.newCount} icon={Sparkles} tone="primary" href={tabHref("NEW")} />
+        <StatTile
+          label="Follow-ups due today"
+          value={stats.dueToday}
+          icon={CalendarClock}
+          tone={stats.dueToday > 0 ? "warn" : "default"}
+        />
+        <StatTile
+          label="Going cold"
+          value={stats.cold}
+          icon={Snowflake}
+          tone={stats.cold > 0 ? "danger" : "default"}
+          href={tabHref("cold")}
+        />
+        <StatTile
+          label="Converted this month"
+          value={stats.convertedThisMonth}
+          icon={CheckCircle2}
+          tone="ok"
+          href={tabHref("CONVERTED")}
+        />
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {STATUS_TABS.map((t) => {
+          const active = (t.key === "" && !status) || status === t.key;
+          return (
+            <Link
+              key={t.key}
+              href={tabHref(t.key)}
+              className={
+                "rounded-full px-3 py-1 text-xs font-medium " +
+                (active
+                  ? "bg-primary text-primary-foreground"
+                  : "border border-border bg-card text-muted")
+              }
+            >
+              {t.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      <LeadsFilters members={members} isAdmin={isAdmin} currentUserId={session.userId} />
+
+      {/* key on the filter query so a soft navigation (filter change) remounts the
+          list with fresh state instead of keeping the previous view's rows. */}
+      <LeadsList
+        key={query}
+        initialItems={rows}
+        initialCursor={nextCursor}
+        query={query}
+        members={members}
+        isAdmin={isAdmin}
+      />
+    </div>
+  );
+}

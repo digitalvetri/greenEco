@@ -1,0 +1,87 @@
+name: CI
+
+# Runs the full gate on every push / PR: lint · typecheck · unit · build · e2e.
+# Host-agnostic in shape (standard npm + a Postgres service); written for GitHub
+# Actions but trivially portable to GitLab CI / CircleCI — swap the `services`
+# block and the `on:` trigger.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: greeneco
+          POSTGRES_PASSWORD: greeneco
+          POSTGRES_DB: greeneco_crm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U greeneco"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # AUTH_MODE=dev so no Clerk keys are needed in CI; storage stays local.
+      DATABASE_URL: postgresql://greeneco:greeneco@localhost:5432/greeneco_crm
+      AUTH_MODE: dev
+      STORAGE_DRIVER: local
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      PRINT_TOKEN_SECRET: ci-only-insecure-secret-not-used-in-prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Chromium for both Playwright tests AND the PDF renderer (playwright-core).
+      - run: npx playwright install --with-deps chromium
+
+      - name: Prisma migrate + seed
+        run: |
+          npx prisma migrate deploy
+          npm run db:seed
+
+      # Populate runtime data (invoices/proposals/orders/contracts) the e2e needs.
+      # Order matters: sell → execute → control → amc build on each other.
+      - name: Seed runtime fixtures
+        run: |
+          npx tsx scripts/verify-sell.ts
+          npx tsx scripts/verify-execute.ts
+          npx tsx scripts/verify-control.ts
+          npx tsx scripts/verify-amc.ts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npx next build
+
+      - name: E2E (Playwright)
+        run: npx playwright test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
