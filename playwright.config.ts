@@ -24,5 +24,7 @@ export default defineConfig({
     port: 3000,
     reuseExistingServer: true,
     timeout: 120_000,
+    // e2e authenticates via the dev_role cookie / default admin — keep the dev bypass on.
+    env: { AUTH_DEV_BYPASS: "1" },
   },
 });

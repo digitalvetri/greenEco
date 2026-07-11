@@ -65,8 +65,15 @@ Phase verification: `npx tsx scripts/verify-{sell,execute,control}.ts` (append t
 ## Deviations from the spec (intentional, don't "fix" them)
 
 Real local **PostgreSQL 18** (keeps the Postgres-locked schema); **Prisma 6** (v7 needs a different
-config model); **Next 16** async params; **dual auth modes** (`AUTH_MODE=dev` shim locally,
-`AUTH_MODE=clerk` in prod — `getSession()` shape is identical; never add a third branch);
+config model); **Next 16** async params; **dual auth modes** (`AUTH_MODE=dev`, `AUTH_MODE=clerk` —
+`getSession()` shape is identical; never add a third branch). The `dev` mode now supports a **real
+credentials login** (email + scrypt hash on `User`, signed httpOnly session cookie via `lib/session.ts`,
+`/sign-in` page) — this is *within* the dev branch, not a third mode. It **fails closed in production**:
+`AUTH_DEV_BYPASS` (ON in dev/test, OFF when `NODE_ENV=production`) gates the old `dev_role`/`DEV_ROLE`
+fallback, so a deployed app authenticates only via a valid session cookie (a `dev_role=ADMIN` cookie is
+denied → `/sign-in`). Set **`SESSION_SECRET`** (and keep `AUTH_DEV_BYPASS` unset/`0`) in prod. e2e keeps
+`AUTH_DEV_BYPASS=1` (playwright `webServer.env`). Seeded logins: `admin@greeneco.in` / `Admin@123`,
+`employee@greeneco.in` / `Employee@123`.
 **storage adapter** (`STORAGE_DRIVER=local|s3`) — write files through `src/lib/storage.ts`, never
 straight to disk; branded PDFs via `/print/*` routes.
 

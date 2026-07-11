@@ -8,9 +8,14 @@ import { SidebarLink, BottomLink } from "@/components/shell/nav-link";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { GlobalSearch } from "@/components/shell/global-search";
 import { MobileNav } from "@/components/shell/mobile-nav";
+import { LogoutButton } from "@/components/shell/logout-button";
 import { NotificationsMenu } from "@/components/shell/notifications-menu";
 import { OfflineBar } from "@/components/pwa/offline-bar";
 import { Toaster } from "@/components/ui/toast";
+
+// The dashboard is per-request (auth + tenant data) — never statically prerendered,
+// so getSession()'s fail-closed 401 can't fire at build time.
+export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -63,7 +68,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <div className="truncate text-sm font-semibold text-white">{session.name}</div>
             <div className="text-[11px] text-white/60">{session.role === "ADMIN" ? "Owner / Admin" : "Field Staff"}</div>
           </div>
-          {env.authMode === "dev" && <RoleSwitcher current={session.role} />}
+          {env.authMode === "dev" && env.authDevBypass && <RoleSwitcher current={session.role} />}
+          <LogoutButton />
         </div>
       </aside>
 

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../src/lib/password";
 
 const prisma = new PrismaClient();
 
@@ -29,25 +30,31 @@ async function main() {
   });
 
   // --- Dev users (dev-shim auth signs in as one of these) ---
+  const adminHash = hashPassword("Admin@123");
+  const employeeHash = hashPassword("Employee@123");
   await prisma.user.upsert({
     where: { id: "dev-admin" },
-    update: {},
+    update: { email: "admin@greeneco.in", passwordHash: adminHash },
     create: {
       id: "dev-admin",
       companyId: COMPANY_ID,
       name: "Dev Admin (Owner)",
       phone: "9600759304",
+      email: "admin@greeneco.in",
+      passwordHash: adminHash,
       role: "ADMIN",
     },
   });
   await prisma.user.upsert({
     where: { id: "dev-employee" },
-    update: {},
+    update: { email: "employee@greeneco.in", passwordHash: employeeHash },
     create: {
       id: "dev-employee",
       companyId: COMPANY_ID,
       name: "Dev Employee (Field)",
       phone: "9600700000",
+      email: "employee@greeneco.in",
+      passwordHash: employeeHash,
       role: "EMPLOYEE",
     },
   });

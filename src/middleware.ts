@@ -50,9 +50,24 @@ const clerkHandler = clerkMiddleware(async (auth, req) => {
   return withSecurityHeaders(NextResponse.next());
 });
 
+// Credentials-login gate for AUTH_MODE=dev. When the dev bypass is OFF (production),
+// a protected PAGE with no session cookie redirects to /sign-in; API routes pass
+// through so getSession() answers 401. When bypass is ON (dev/test), pass through.
+const authDevBypass = process.env.AUTH_DEV_BYPASS
+  ? process.env.AUTH_DEV_BYPASS === "1"
+  : process.env.NODE_ENV !== "production";
+
 export default function middleware(req: NextRequest, ev: NextFetchEvent) {
   if (process.env.AUTH_MODE === "clerk") {
     return clerkHandler(req, ev);
+  }
+  if (!authDevBypass && isProtected(req) && !req.nextUrl.pathname.startsWith("/api")) {
+    if (!req.cookies.get("gc_session")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/sign-in";
+      url.search = "";
+      return withSecurityHeaders(NextResponse.redirect(url));
+    }
   }
   return withSecurityHeaders(NextResponse.next());
 }

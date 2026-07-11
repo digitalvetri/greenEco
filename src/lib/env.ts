@@ -71,6 +71,11 @@ const schema = z
      * Must be set in prod: the dev default is public and forgeable.
      */
     PRINT_TOKEN_SECRET: z.string().default("dev-insecure-print-secret"),
+    SESSION_SECRET: z.string().default("dev-insecure-session-secret"),
+    // Dev/test bypass: when on, an unauthenticated request falls back to the dev_role
+    // cookie / DEV_ROLE (the pre-login behaviour). Defaults ON in dev, OFF in prod so the
+    // real deployment FAILS CLOSED — only a valid signed session authenticates.
+    AUTH_DEV_BYPASS: z.enum(["0", "1"]).optional(),
   })
   .superRefine((v, ctx) => {
     if (v.AUTH_MODE === "clerk") {
@@ -152,6 +157,9 @@ export const env = {
   emailFrom: e.EMAIL_FROM,
   errorWebhookUrl: e.ERROR_WEBHOOK_URL,
   printTokenSecret: e.PRINT_TOKEN_SECRET,
+  sessionSecret: e.SESSION_SECRET,
+  // ON in dev, OFF in production unless explicitly set — the real login fails closed.
+  authDevBypass: e.AUTH_DEV_BYPASS ? e.AUTH_DEV_BYPASS === "1" : process.env.NODE_ENV !== "production",
 } as const;
 
 export const DEV_ADMIN_ID = "dev-admin";

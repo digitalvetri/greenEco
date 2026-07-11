@@ -113,13 +113,15 @@ enum EntryStatus {
 }
 
 model User {
-  id        String   @id // Clerk userId (or dev-shim id)
-  companyId String
-  name      String
-  phone     String
-  role      Role     @default(EMPLOYEE)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id           String   @id // Clerk userId (or dev-shim id)
+  companyId    String
+  name         String
+  phone        String
+  email        String?  @unique // credentials-login identity
+  passwordHash String? // scrypt hash (credentials login)
+  role         Role     @default(EMPLOYEE)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
 
   @@index([companyId])
 }

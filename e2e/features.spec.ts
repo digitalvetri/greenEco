@@ -41,6 +41,31 @@ test("materials list has KPI tiles, category tabs, search, export (Materials P0)
   await expect(page.getByRole("link", { name: "All", exact: true })).toBeVisible();
 });
 
+test("credentials login: sign-in page works and admin lands on the dashboard", async ({ browser }) => {
+  // Fresh context (no dev_role cookie) — the real session cookie takes precedence.
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto("/sign-in", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "GreenEco CRM" })).toBeVisible();
+  await page.getByLabel("Email").fill("admin@greeneco.in");
+  await page.getByLabel("Password").fill("Admin@123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/dashboard/);
+  await expect(page.getByText("Revenue Collected")).toBeVisible(); // admin role from credentials
+  await ctx.close();
+});
+
+test("credentials login: wrong password is rejected with a generic error", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto("/sign-in", { waitUntil: "networkidle" });
+  await page.getByLabel("Email").fill("admin@greeneco.in");
+  await page.getByLabel("Password").fill("nope");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("Invalid email or password")).toBeVisible();
+  await ctx.close();
+});
+
 test("reports has collection tiles + GST-filing summary (Reports P1)", async ({ context, page }) => {
   await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
   await page.goto("/reports", { waitUntil: "networkidle" });
