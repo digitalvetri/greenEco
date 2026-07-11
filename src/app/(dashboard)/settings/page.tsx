@@ -22,7 +22,7 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageHeader title="Settings" subtitle={isAdmin ? "Your profile, team & workspace" : "Your profile & account"} />
 
       {/* Available to every role — your own account. */}
