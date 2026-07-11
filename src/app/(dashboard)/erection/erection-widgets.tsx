@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import { Uploader, Thumb } from "@/components/mobile/uploader";
 import { formatINR } from "@/lib/money";
-import { createEntryAction, reviewEntryAction } from "./actions";
+import { submitOrQueue } from "@/lib/offline-queue";
+import { reviewEntryAction } from "./actions";
 
 function useRun() {
   const router = useRouter();
@@ -31,11 +32,41 @@ function useRun() {
 }
 
 export function EntryForm({ projects }: { projects: { id: string; label: string }[] }) {
-  const { run, pending } = useRun();
+  const router = useRouter();
+  const [pending, start] = useTransition();
   const [f, setF] = useState({ orderId: "", type: "LABOUR", description: "", gangOrShop: "", amount: "", paymentMode: "CASH" });
   const [bills, setBills] = useState<{ url: string; name: string }[]>([]);
 
   const needsBill = f.type === "SITE_PURCHASE";
+
+  // Offline-tolerant: network-first, else queued in IndexedDB and replayed on reconnect
+  // (bill-required Site Purchases still need a connection to upload the photo first).
+  function submit() {
+    start(async () => {
+      const res = await submitOrQueue(
+        "/api/erection",
+        {
+          orderId: f.orderId,
+          type: f.type,
+          date: new Date().toISOString(),
+          description: f.description,
+          gangOrShop: f.gangOrShop || undefined,
+          amount: Number(f.amount),
+          paymentMode: f.paymentMode,
+          billImages: bills.map((b) => ({ url: b.url })),
+        },
+        "Erection entry",
+      );
+      if (res.ok) {
+        toast(res.queued ? "Saved offline — will sync when you reconnect" : "Entry submitted");
+        setF({ ...f, description: "", gangOrShop: "", amount: "" });
+        setBills([]);
+        router.refresh();
+      } else {
+        toast(res.error ?? "Could not submit entry", "error");
+      }
+    });
+  }
 
   return (
     <Card className="mb-4">
@@ -89,29 +120,7 @@ export function EntryForm({ projects }: { projects: { id: string; label: string 
             ))}
           </div>
         </div>
-        <Button
-          disabled={pending || !f.orderId || !f.amount || (needsBill && bills.length === 0)}
-          onClick={() =>
-            run(
-              () =>
-                createEntryAction({
-                  orderId: f.orderId,
-                  type: f.type,
-                  date: new Date(),
-                  description: f.description,
-                  gangOrShop: f.gangOrShop || undefined,
-                  amount: Number(f.amount),
-                  paymentMode: f.paymentMode,
-                  billImages: bills.map((b) => ({ url: b.url })),
-                }),
-              "Entry submitted",
-              () => {
-                setF({ ...f, description: "", gangOrShop: "", amount: "" });
-                setBills([]);
-              },
-            )
-          }
-        >
+        <Button disabled={pending || !f.orderId || !f.amount || (needsBill && bills.length === 0)} onClick={submit}>
           {pending ? "Saving…" : "Submit entry"}
         </Button>
       </CardContent>
