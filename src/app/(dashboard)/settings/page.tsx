@@ -3,9 +3,11 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { getMyProfile } from "@/server/services/profile";
+import { getSystemStatus, type SystemStatusItem } from "@/server/services/system";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, MinusCircle } from "lucide-react";
 import { DEFAULT_STAGES } from "@/lib/constants";
 import { ProfileCard } from "./profile-card";
 
@@ -20,6 +22,7 @@ export default async function SettingsPage() {
       ? prisma.user.findMany({ where: { companyId: session.companyId }, orderBy: { role: "asc" } })
       : Promise.resolve([]),
   ]);
+  const status = isAdmin ? getSystemStatus(session) : null;
 
   return (
     <div>
@@ -31,6 +34,26 @@ export default async function SettingsPage() {
       {!isAdmin ? null : (
       <>
       <h2 className="mb-3 mt-6 text-sm font-semibold text-muted">Workspace (admin)</h2>
+
+      {status && (
+        <Card className="mb-4">
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>System readiness</CardTitle>
+            <Badge variant={status.liveCount === status.total ? "ok" : "warn"}>
+              {status.liveCount}/{status.total} live
+            </Badge>
+          </CardHeader>
+          <CardContent className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+            {[...status.auth, ...status.integrations, ...status.observability].map((s) => (
+              <StatusRow key={s.key} item={s} />
+            ))}
+            <p className="mt-2 text-[11px] text-muted sm:col-span-2">
+              Derived from environment config (no secrets shown). Unset integrations fail safe — messages are logged, not sent.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -79,7 +102,10 @@ export default async function SettingsPage() {
               </Badge>
             ))}
           </div>
-          <p className="mt-2 text-xs text-muted">Default payment terms: 50% advance / 30% delivery / 20% commissioning.</p>
+          <p className="mt-2 text-xs text-muted">
+            Default payment terms: 50% advance / 30% delivery / 20% commissioning — confirm with client;
+            overridable per proposal. See <code>GO-LIVE.md</code>.
+          </p>
         </CardContent>
       </Card>
 
@@ -104,6 +130,22 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between gap-3">
       <span className="text-muted">{label}</span>
       <span className="text-right font-medium">{value}</span>
+    </div>
+  );
+}
+
+function StatusRow({ item }: { item: SystemStatusItem }) {
+  return (
+    <div className="flex items-start gap-2 py-1">
+      {item.ok ? (
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" />
+      ) : (
+        <MinusCircle className="mt-0.5 size-4 shrink-0 text-muted/60" />
+      )}
+      <div className="min-w-0">
+        <div className="font-medium">{item.label}</div>
+        <div className="text-[11px] text-muted">{item.detail}</div>
+      </div>
     </div>
   );
 }
