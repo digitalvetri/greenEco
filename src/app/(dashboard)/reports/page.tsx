@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatTile } from "@/components/ui/stat";
 import { ExportButton } from "@/components/ui/export-button";
 import { formatINR } from "@/lib/money";
+import { FileDown } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -50,11 +51,20 @@ export default async function ReportsPage() {
       <Card className="mb-5">
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>GST summary (for GSTR filing)</CardTitle>
-          <ExportButton
-            rows={gst.groups as unknown as Record<string, unknown>[]}
-            filename="gst-summary"
-            label="Export GST"
-          />
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/exports/tally"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-muted transition-colors hover:border-primary/40 hover:text-foreground"
+              title="Export all GST invoices as Tally vouchers (XML)"
+            >
+              <FileDown className="size-4" /> Export Tally
+            </a>
+            <ExportButton
+              rows={gst.groups as unknown as Record<string, unknown>[]}
+              filename="gst-summary"
+              label="Export GST"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
