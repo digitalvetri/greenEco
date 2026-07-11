@@ -88,7 +88,7 @@ export default async function ErectionPage({
   };
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <PageHeader
         title="Erection & Site Cost"
         subtitle={isAdmin ? "Verification, actuals & budget" : "Log site labour & purchases"}

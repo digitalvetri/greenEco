@@ -131,7 +131,7 @@ export function LeadForm({ mode = "create", leadId, initial }: {
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="space-y-4">
       {error && (
         <div className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>
       )}

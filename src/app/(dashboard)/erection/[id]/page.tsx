@@ -40,7 +40,7 @@ export default async function ProjectErectionDetail({ params }: { params: Promis
   ]);
 
   return (
-    <div className="max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <PageHeader
         title={order.clientName}
         subtitle={`${order.orderNo} · ${order.siteAddress}`}

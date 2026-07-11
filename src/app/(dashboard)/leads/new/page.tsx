@@ -3,7 +3,7 @@ import { LeadForm } from "../lead-form";
 
 export default function NewLeadPage() {
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <PageHeader title="New Lead" subtitle="Capture a new enquiry" />
       <LeadForm />
     </div>

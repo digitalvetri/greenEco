@@ -29,7 +29,7 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
   const vendorPrices = "vendorPrices" in data ? (data as { vendorPrices: { vendor: string; rate: string; date: Date }[] }).vendorPrices : [];
 
   return (
-    <div className="max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <PageHeader
         title={item.name}
         subtitle={`${item.category}${item.specification ? ` · ${item.specification}` : ""}`}

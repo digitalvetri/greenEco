@@ -2,29 +2,35 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { getMyProfile } from "@/server/services/profile";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DEFAULT_STAGES } from "@/lib/constants";
+import { ProfileCard } from "./profile-card";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await getSession();
-  if (session.role !== "ADMIN") {
-    return (
-      <div>
-        <PageHeader title="Settings" />
-        <Card className="p-8 text-center text-sm text-muted">Settings are available to admins only.</Card>
-      </div>
-    );
-  }
-  const users = await prisma.user.findMany({ where: { companyId: session.companyId }, orderBy: { role: "asc" } });
+  const isAdmin = session.role === "ADMIN";
+  const [profile, users] = await Promise.all([
+    getMyProfile(session),
+    isAdmin
+      ? prisma.user.findMany({ where: { companyId: session.companyId }, orderBy: { role: "asc" } })
+      : Promise.resolve([]),
+  ]);
 
   return (
-    <div className="max-w-3xl">
-      <PageHeader title="Settings" subtitle="Users, thresholds & masters" />
+    <div className="mx-auto max-w-3xl">
+      <PageHeader title="Settings" subtitle={isAdmin ? "Your profile, team & workspace" : "Your profile & account"} />
 
+      {/* Available to every role — your own account. */}
+      <ProfileCard profile={profile} />
+
+      {!isAdmin ? null : (
+      <>
+      <h2 className="mb-3 mt-6 text-sm font-semibold text-muted">Workspace (admin)</h2>
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -87,6 +93,8 @@ export default async function SettingsPage() {
           <a href="/api/cron?job=all" target="_blank" rel="noreferrer" className="text-primary">Run cron digest →</a>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

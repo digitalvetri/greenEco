@@ -1,0 +1,46 @@
+"use server";
+
+import { ZodError } from "zod";
+import { revalidatePath } from "next/cache";
+import { getSession } from "@/lib/auth";
+import { updateProfile, changePassword } from "@/server/services/profile";
+
+export interface ActionState {
+  ok?: boolean;
+  message?: string;
+  error?: string;
+}
+
+function toMessage(e: unknown): string {
+  if (e instanceof ZodError) return e.issues[0]?.message ?? "Invalid input";
+  if (e instanceof Error) return e.message;
+  return "Something went wrong";
+}
+
+export async function updateProfileAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const session = await getSession();
+  try {
+    await updateProfile(session, {
+      name: String(formData.get("name") ?? ""),
+      phone: String(formData.get("phone") ?? ""),
+    });
+    revalidatePath("/settings");
+    return { ok: true, message: "Profile updated" };
+  } catch (e) {
+    return { ok: false, error: toMessage(e) };
+  }
+}
+
+export async function changePasswordAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const session = await getSession();
+  try {
+    await changePassword(session, {
+      currentPassword: String(formData.get("currentPassword") ?? ""),
+      newPassword: String(formData.get("newPassword") ?? ""),
+      confirmPassword: String(formData.get("confirmPassword") ?? ""),
+    });
+    return { ok: true, message: "Password changed" };
+  } catch (e) {
+    return { ok: false, error: toMessage(e) };
+  }
+}

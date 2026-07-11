@@ -37,7 +37,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
   const userName = new Map(users.map((u) => [u.id, u.name]));
 
   return (
-    <div className="max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <PageHeader
         title={order.clientName}
         subtitle={`${order.orderNo} · ${order.siteAddress}`}

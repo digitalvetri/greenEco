@@ -41,6 +41,33 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v23 — Layout width sweep + working profile/settings + sidebar cleanup
+
+Two threads: (a) fix the "content hugs the left, empty gutter on the right" imbalance on every detail/form
+page; (b) turn the read-only Settings page into a real, working account area and drop the dev-only role pill.
+**Gate: tsc 0 · lint 0 · 72 unit · 68 Playwright · build clean · profile save + password change verified
+end-to-end (old pw rejected / new pw works / wrong-current guarded) then reseeded to restore `Admin@123`.**
+
+- **Width sweep** — narrow left-hugging containers rebalanced so wide screens are used, not wasted:
+  - **Leads detail** — header rebuilt as one summary card (status + owner, divider, a single uniform action
+    toolbar — removed the `justify-between` dead gap), then a 2-column layout (`max-w-6xl`): details/forms on
+    the left, **Activity timeline in a sticky right sidebar** on `xl`, stacking below on smaller screens.
+  - **Proposal editor** — `max-w-4xl` → `mx-auto max-w-5xl` (BOQ table gets room, margins balanced).
+  - **Detail pages** (`projects/[id]`, `service/[id]`, `materials/[id]`, `clients/[id]`, `erection/[id]`) →
+    `mx-auto max-w-5xl`. **Erection list** dropped its `max-w-3xl` to match the other full-width list pages.
+  - **Forms** — the lead create/edit form: centering moved to the *page* wrapper (`mx-auto max-w-3xl`) so the
+    PageHeader and the form share one centered column (they were misaligned when only the form was centered);
+    `settings` centered too. `documents-card` lost its hardcoded `mt-4` (parent `space-y-4` owns spacing).
+- **Working profile / settings** — new `server/services/profile.ts` (`getMyProfile` / `updateProfile` /
+  `changePassword`, all scoped to `session.userId`, Zod-validated, audited; password change verifies the
+  current scrypt hash, rejects reuse, never logs material) + `settings/actions.ts` + `settings/profile-card.tsx`
+  (edit name/phone, change password with confirm). Settings restructured: **My Profile + Password shown to
+  every role**; the Users / Company&Thresholds / Milestone-template / Masters cards are gated under a
+  "Workspace (admin)" section. Employees can now maintain their own account.
+- **Sidebar** — removed the dev-only **"as EMPLOYEE" role-switch pill** (`RoleSwitcher`) now that real
+  credentials login exists; the profile block is a clickable link to `/settings`. Dropped the unused `env`
+  import from the dashboard layout. (The `/api/dev/role` route is left in place, just unreferenced.)
+
 ### v22 — Brand identity: real Green Ecocare logo + redesigned login
 
 Integrated the client's actual logo (source `Green Ecocare/Final Logo File/Green Ecocare.jpg`) across the app

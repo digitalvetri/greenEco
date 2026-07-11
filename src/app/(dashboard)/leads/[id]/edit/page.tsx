@@ -13,7 +13,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
   if (!lead) notFound();
 
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <PageHeader title="Edit Lead" subtitle={lead.customerName} />
       <LeadForm
         mode="edit"

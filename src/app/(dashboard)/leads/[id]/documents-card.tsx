@@ -48,7 +48,7 @@ export function DocumentsCard({ leadId, documents }: { leadId: string; documents
   }
 
   return (
-    <Card className="mt-4">
+    <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Documents</CardTitle>
         <Uploader accept="image/*,application/pdf,.dwg,.dxf" onUploaded={onUploaded} label="Add" />

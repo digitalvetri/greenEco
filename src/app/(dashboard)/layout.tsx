@@ -4,7 +4,6 @@ import Image from "next/image";
 import { getSession } from "@/lib/auth";
 import { getNotifications } from "@/server/services/notifications";
 import { navFor, mobileNavFor } from "@/lib/nav";
-import { env } from "@/lib/env";
 import { SidebarLink, BottomLink } from "@/components/shell/nav-link";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { GlobalSearch } from "@/components/shell/global-search";
@@ -61,15 +60,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <p className="mt-0.5 text-[11px] text-white/70">AI-assisted proposals, AMC & compliance.</p>
         </div>
 
-        <div className="relative z-10 flex shrink-0 items-center gap-2.5 border-t border-white/10 px-4 py-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-bold text-white ring-1 ring-white/20">
-            {initials}
-          </span>
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-sm font-semibold text-white">{session.name}</div>
-            <div className="text-[11px] text-white/60">{session.role === "ADMIN" ? "Owner / Admin" : "Field Staff"}</div>
-          </div>
-          {env.authMode === "dev" && env.authDevBypass && <RoleSwitcher current={session.role} />}
+        <div className="relative z-10 flex shrink-0 items-center gap-1 border-t border-white/10 px-3 py-3">
+          <Link
+            href="/settings"
+            title="Profile & settings"
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-1 transition-colors hover:bg-white/10"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-bold text-white ring-1 ring-white/20">
+              {initials}
+            </span>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate text-sm font-semibold text-white">{session.name}</div>
+              <div className="text-[11px] text-white/60">{session.role === "ADMIN" ? "Owner / Admin" : "Field Staff"}</div>
+            </div>
+          </Link>
           <LogoutButton />
         </div>
       </aside>
@@ -118,15 +122,3 @@ export default async function DashboardLayout({ children }: { children: React.Re
   );
 }
 
-function RoleSwitcher({ current }: { current: string }) {
-  const other = current === "ADMIN" ? "EMPLOYEE" : "ADMIN";
-  return (
-    <Link
-      href={`/api/dev/role?role=${other}`}
-      className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-medium text-white/80 transition-colors hover:bg-white/20"
-      title="Dev-only: switch role"
-    >
-      as {other}
-    </Link>
-  );
-}
