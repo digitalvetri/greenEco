@@ -9,6 +9,8 @@ import { dailySiteDigest } from "./daily-site-digest";
 import { budgetAlerts } from "./budget-alerts";
 import { delayDetection } from "./delay-detection";
 import { billVerificationAssist } from "./bill-verification-assist";
+import { lowStockPo } from "./low-stock-po";
+import { materialRequestRouting } from "./material-request-routing";
 
 /**
  * Registers every automation into the engine. Idempotent — safe to call on each
@@ -29,6 +31,8 @@ export function registerAll(): void {
   register(budgetAlerts); // A8
   register(delayDetection); // A9
   register(billVerificationAssist); // A10 (event-driven stub)
+  register(lowStockPo); // A11
+  register(materialRequestRouting); // A12 (event-driven stub)
   registered = true;
 }
 

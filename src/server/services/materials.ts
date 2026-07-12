@@ -538,6 +538,14 @@ export async function createMaterialRequest(ctx: Ctx, orderId: string, items: { 
     data: { orderId, items: items as Prisma.InputJsonValue, requestedById: ctx.userId, status: "PENDING" },
   });
   await logAudit(ctx, { action: "CREATE", entity: "MaterialRequest", entityId: req.id, after: { orderId } });
+
+  // A12 — event-driven: suggest transfer/PO routing + notify admin. Best-effort.
+  try {
+    const { onMaterialRequestCreated } = await import("@/server/automations/material-request-routing");
+    await onMaterialRequestCreated(ctx, req.id);
+  } catch {
+    /* automation is best-effort */
+  }
   return req;
 }
 
@@ -582,7 +590,17 @@ export async function lowStockItems(ctx: Ctx) {
   const reorder = new Map(items.map((i) => [i.id, new Decimal(i.reorderLevel)]));
   const low = belowReorder(balances, reorder);
   const nameOf = new Map(items.map((i) => [i.id, i.name]));
-  return low.map((l) => ({ item: nameOf.get(l.itemId) ?? l.itemId, balance: l.balance.toString(), reorderLevel: l.reorderLevel.toString() }));
+  return low.map((l) => ({ itemId: l.itemId, item: nameOf.get(l.itemId) ?? l.itemId, balance: l.balance.toString(), reorderLevel: l.reorderLevel.toString() }));
+}
+
+/** Per-location on-hand balances for one item (A11/A12 routing). Positive = available there. */
+export async function itemLocationBalances(companyId: string, itemId: string): Promise<{ locationId: string; qty: string }[]> {
+  const movements = await prisma.stockMovement.findMany({
+    where: { companyId, itemId },
+    select: { itemId: true, qty: true, type: true, fromLocationId: true, toLocationId: true },
+  });
+  const byLoc = deriveItemBalances(movements as MovementLike[]).byLocation;
+  return [...byLoc.entries()].map(([locationId, qty]) => ({ locationId, qty: qty.toString() })).filter((r) => Number(r.qty) > 0);
 }
 
 // ---------- Stock audit (variance → ADJUST) ----------
