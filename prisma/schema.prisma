@@ -819,3 +819,47 @@ model Company {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 }
+
+// ─── Automation Engine (AUTOMATION-ENGINE-SPEC-v1.0) ───────────────────────────
+
+model AutomationLog {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String // "payment-reminders"
+  dedupeKey String // e.g. "A4:milestone:xyz:offset-3"
+  channel   String // WHATSAPP | PUSH | EMAIL | INAPP | NONE
+  target    String? // phone / userId
+  payload   Json?
+  status    String // SENT | FAILED | SKIPPED | DRY_RUN
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@unique([dedupeKey])
+  @@index([companyId, name, createdAt])
+}
+
+model AutomationSetting {
+  id        String @id @default(cuid())
+  companyId String
+  key       String // "A4.enabled", "A4.escalationDays", "A11.enabled"...
+  value     Json
+
+  @@unique([companyId, key])
+}
+
+model AutomationTask {
+  id         String    @id @default(cuid())
+  companyId  String
+  type       String // STALE_PROPOSAL | STAGE_DELAY | BUDGET_OVERRUN | ...
+  title      String
+  entity     String
+  entityId   String
+  assigneeId String
+  status     String    @default("OPEN") // OPEN | DONE | DISMISSED
+  note       String?
+  dueDate    DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([companyId, assigneeId, status])
+  @@index([companyId, type, entityId])
+}
