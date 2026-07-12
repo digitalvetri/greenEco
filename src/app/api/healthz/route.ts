@@ -13,8 +13,18 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const startedAt = Date.now();
   let db: "ok" | "down" = "ok";
+  let lastCronAt: string | null = null;
+  let recentFailures = 0;
   try {
     await prisma.$queryRaw`SELECT 1`;
+    // Automation Engine liveness: last delivery + failures in the last 24h.
+    const since = new Date(startedAt - 24 * 60 * 60 * 1000);
+    const [last, fails] = await Promise.all([
+      prisma.automationLog.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+      prisma.automationLog.count({ where: { status: "FAILED", createdAt: { gte: since } } }),
+    ]);
+    lastCronAt = last?.createdAt.toISOString() ?? null;
+    recentFailures = fails;
   } catch (e) {
     db = "down";
     log.error("healthz: db check failed", errFields(e));
@@ -23,6 +33,7 @@ export async function GET() {
   const body = {
     status: db === "ok" ? "ok" : "degraded",
     checks: { db },
+    automations: { lastCronAt, recentFailures },
     version: process.env.APP_VERSION ?? "dev",
     uptimeSec: Math.round(process.uptime()),
     latencyMs: Date.now() - startedAt,

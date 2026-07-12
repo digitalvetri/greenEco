@@ -41,6 +41,29 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v25 — Automation Engine (AUTOMATION-ENGINE-SPEC-v1.0 — all 15 automations)
+
+Full automation engine + 15 automations across 6 waves. **Gate: tsc 0 · lint 0 · 72 unit · 68 e2e ·
+7 automation verify scripts (engine + w1–w5 + idempotency) · sell/control/invoices regressions green.**
+See `AUTOMATIONS-MODULE-REPORT.md`.
+
+- **Engine** (`src/server/automations/`, `automation_engine` migration): `AutomationLog` (unique
+  `dedupeKey` idempotency), `AutomationSetting` (kill switch/params), `AutomationTask` (auto to-dos);
+  `engine.ts` (registry + `runAutomation` + kill switch), `deliver.ts` (single choke point — skip if
+  `SENT`, dry-run under a `dry:` namespace, logs every attempt), `util.ts`. `/api/cron` rewritten to
+  dispatch through the engine + `?dryRun=1` (amc/purgeAudio stay inline; A4 replaced dueDates/whatsapp,
+  A11 replaced lowstock). **Settings → Automations** page (toggle + dry-run + last-run + admin phones).
+- **A1–A15** (waves 1–5): follow-up digest, auto-next-followup, stale-deal nudges · payment reminders
+  (quiet hours), stage→draft-invoice, monthly receivables · site digest, budget alerts, delay detection,
+  bill vision (Claude) · low-stock draft PO, request routing · weekly brief (Groq), win/loss loop,
+  reference mining. Event-driven ones fire from lead/order/erection/materials/proposal services + register
+  a stub for the Settings row.
+- **Schema:** `Order.clientPhone`, `Invoice.status` (DRAFT|ISSUED — excluded from every money aggregate
+  until issued), `ErectionEntry.aiExtract/aiMatch`, `ProposalOutcome`. **Env:** `GROQ_API_KEY`, `ADMIN_PHONES`
+  + `.env.example` created; `/api/healthz` gains `automations.lastCronAt` + recent-failure count.
+- **Gated + degrades:** WhatsApp/email/Claude/Groq unset → logged, never sent; A10/A13/A14 fall back
+  cleanly with no key. AI ones untested-live (no keys here). Cross-cutting docs point to the spec + report.
+
 ### v24 — Premium animated login + full-width pages + transparent logo
 
 - **Login redesign** (`(auth)/sign-in`) — brand panel is now a living "aeration tank": a self-contained
