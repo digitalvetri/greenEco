@@ -5,10 +5,10 @@ import { Mic, MicOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * SpeakButton (spec §7.1). Web Speech API on-device, attempts ta-IN then en-IN
- * (Tanglish). When unsupported, it degrades to a disabled hint — the audio-record
- * + Sarvam/Whisper fallback route lands in Phase 4. Inserts editable text via
- * onTranscript; the caller keeps the raw transcript too.
+ * SpeakButton (spec §7.1). Web Speech API on-device in Indian English (en-IN) so the
+ * transcript comes out in Latin script — English, or Tanglish (Tamil-English mix)
+ * romanized — not Tamil script (ta-IN garbles mixed/English speech). When unsupported,
+ * it degrades to a disabled hint. Inserts editable text via onTranscript.
  */
 type SpeechRecognitionLike = {
   lang: string;
@@ -47,7 +47,8 @@ export function SpeakButton({
     const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
     const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as new () => SpeechRecognitionLike;
     const rec = new Ctor();
-    rec.lang = "ta-IN";
+    // Indian English → Latin-script output (English / romanized Tanglish), not Tamil script.
+    rec.lang = "en-IN";
     rec.interimResults = true;
     rec.continuous = true;
     let finalText = "";
@@ -61,9 +62,9 @@ export function SpeakButton({
       onTranscript((finalText + interim).trim(), (finalText + interim).trim());
     };
     rec.onerror = () => {
-      // Retry once in en-IN if Tamil recognition errors out.
-      if (rec.lang === "ta-IN") {
-        rec.lang = "en-IN";
+      // Retry once in generic English if en-IN errors out on this browser.
+      if (rec.lang === "en-IN") {
+        rec.lang = "en-US";
         try {
           rec.start();
           return;
@@ -84,7 +85,7 @@ export function SpeakButton({
       type="button"
       onClick={toggle}
       disabled={!supported}
-      title={supported ? "Speak (Tamil/English)" : "Voice input not supported on this browser"}
+      title={supported ? "Speak (English / Tanglish)" : "Voice input not supported on this browser"}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
         listening
