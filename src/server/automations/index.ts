@@ -5,6 +5,10 @@ import { staleDealNudge } from "./stale-deal-nudge";
 import { paymentReminders } from "./payment-reminders";
 import { stageMilestoneTrigger } from "./stage-milestone-trigger";
 import { monthlyReceivables } from "./monthly-receivables";
+import { dailySiteDigest } from "./daily-site-digest";
+import { budgetAlerts } from "./budget-alerts";
+import { delayDetection } from "./delay-detection";
+import { billVerificationAssist } from "./bill-verification-assist";
 
 /**
  * Registers every automation into the engine. Idempotent — safe to call on each
@@ -21,6 +25,10 @@ export function registerAll(): void {
   register(paymentReminders); // A4
   register(stageMilestoneTrigger); // A5 (event-driven stub)
   register(monthlyReceivables); // A6
+  register(dailySiteDigest); // A7
+  register(budgetAlerts); // A8
+  register(delayDetection); // A9
+  register(billVerificationAssist); // A10 (event-driven stub)
   registered = true;
 }
 

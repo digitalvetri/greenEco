@@ -497,6 +497,13 @@ export async function updateStage(
       /* automation is best-effort */
     }
   }
+  // A9 — a recorded delay reason closes any open stage-delay task.
+  if (data.delayReason) {
+    await prisma.automationTask.updateMany({
+      where: { companyId: ctx.companyId, type: "STAGE_DELAY", entityId: stageId, status: "OPEN" },
+      data: { status: "DONE" },
+    });
+  }
   return updated;
 }
 

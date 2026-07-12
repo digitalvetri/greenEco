@@ -29,7 +29,10 @@ export async function createErectionEntry(
     throw new Error("Site purchase requires at least one bill image");
   }
   const hasBill = data.billImages && data.billImages.length > 0;
-  const autoApprove = env.autoApproveLimit > 0 && data.amount <= env.autoApproveLimit && hasBill;
+  // A10: when Claude vision is available, defer auto-approval to the vision check
+  // (PASS + within limit). Without a key, keep the existing amount-based auto-approve.
+  const visionOn = !!env.anthropicApiKey;
+  const autoApprove = env.autoApproveLimit > 0 && data.amount <= env.autoApproveLimit && !!hasBill && !visionOn;
 
   const entry = await prisma.erectionEntry.create({
     data: {
@@ -47,6 +50,16 @@ export async function createErectionEntry(
     },
   });
   await logAudit(ctx, { action: "CREATE", entity: "ErectionEntry", entityId: entry.id, after: { auto: autoApprove } });
+
+  // A10 — vision bill check (assistive; may auto-approve a PASS within limit). Best-effort.
+  if (hasBill && visionOn) {
+    try {
+      const { assistBillVerification } = await import("@/server/automations/bill-verification-assist");
+      await assistBillVerification(ctx, entry.id);
+    } catch {
+      /* vision is best-effort — never blocks entry creation */
+    }
+  }
   return entry;
 }
 
@@ -183,6 +196,16 @@ export async function reviewEntry(
     data: { status, adminNote: note, reviewedById: ctx.userId },
   });
   await logAudit(ctx, { action: "APPROVE", entity: "ErectionEntry", entityId: entryId, before: { status: existing.status }, after: { status } });
+
+  // A8 — an approved cost may cross a budget threshold. Best-effort, non-blocking.
+  if (status === "APPROVED") {
+    try {
+      const { checkBudgetThreshold } = await import("@/server/automations/budget-alerts");
+      await checkBudgetThreshold(ctx, entry.orderId);
+    } catch {
+      /* automation is best-effort */
+    }
+  }
   return entry;
 }
 

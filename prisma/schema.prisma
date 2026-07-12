@@ -642,6 +642,8 @@ model ErectionEntry {
   adminNote    String?
   createdById  String
   reviewedById String?
+  aiExtract    Json?   // A10 Claude-vision bill extract {amount,shopName,date,items,confidence}
+  aiMatch      String? // PASS | MISMATCH | UNREADABLE
   createdAt    DateTime     @default(now())
 
   order Order @relation(fields: [orderId], references: [id])
