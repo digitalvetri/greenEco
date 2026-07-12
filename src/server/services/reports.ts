@@ -51,6 +51,7 @@ export async function getGstSummary(ctx: Ctx, range?: { from?: Date; to?: Date }
   const invoices = await prisma.invoice.findMany({
     where: {
       companyId: ctx.companyId,
+      status: { not: "DRAFT" }, // draft (A5 auto) invoices are excluded until issued
       ...(range?.from || range?.to ? { date: { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) } } : {}),
     },
     select: { gstBreakup: true, total: true, taxType: true },
@@ -97,7 +98,7 @@ export async function getGstSummary(ctx: Ctx, range?: { from?: Date; to?: Date }
 export async function getCollectionSummary(ctx: Ctx) {
   requireAdmin(ctx);
   const [invoiceAgg, receiptAgg, recv] = await Promise.all([
-    prisma.invoice.aggregate({ where: { companyId: ctx.companyId }, _sum: { total: true } }),
+    prisma.invoice.aggregate({ where: { companyId: ctx.companyId, status: { not: "DRAFT" } }, _sum: { total: true } }),
     prisma.receipt.aggregate({ where: { milestone: { order: { companyId: ctx.companyId } } }, _sum: { amount: true } }),
     getReceivables(ctx),
   ]);
@@ -135,4 +136,51 @@ export async function getReferenceAnalytics(ctx: Ctx) {
     })
     .filter((r) => r.leads > 0)
     .sort((a, b) => Number(b.value) - Number(a.value));
+}
+
+/**
+ * A6 · Monthly receivables report data for a given calendar month (0-indexed month).
+ * Collected/invoiced for the month + a point-in-time aging snapshot + top-5 overdue
+ * clients + collection efficiency (collected ÷ due-this-month). Admin only.
+ */
+export async function getMonthlyReceivables(ctx: Ctx, year: number, month: number) {
+  requireAdmin(ctx);
+  const start = new Date(Date.UTC(year, month, 1));
+  const end = new Date(Date.UTC(year, month + 1, 1));
+  const label = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const [receipts, invoices, receivables, due] = await Promise.all([
+    prisma.receipt.aggregate({ where: { date: { gte: start, lt: end }, milestone: { order: { companyId: ctx.companyId } } }, _sum: { amount: true } }),
+    prisma.invoice.aggregate({ where: { date: { gte: start, lt: end }, companyId: ctx.companyId, status: { not: "DRAFT" } }, _sum: { total: true } }),
+    getReceivables(ctx),
+    prisma.paymentMilestone.aggregate({ where: { dueDate: { gte: start, lt: end }, order: { companyId: ctx.companyId } }, _sum: { amount: true } }),
+  ]);
+  const collected = new Decimal(receipts._sum.amount ?? 0);
+  const invoiced = new Decimal(invoices._sum.total ?? 0);
+  const dueThisMonth = new Decimal(due._sum.amount ?? 0);
+
+  const buckets: Record<string, Decimal> = { "0-30": new Decimal(0), "31-60": new Decimal(0), "61-90": new Decimal(0), "90+": new Decimal(0) };
+  const byClient = new Map<string, Decimal>();
+  for (const r of receivables.rows) {
+    const bal = new Decimal(r.balance);
+    const d = r.daysOverdue;
+    const key = d <= 30 ? "0-30" : d <= 60 ? "31-60" : d <= 90 ? "61-90" : "90+";
+    buckets[key] = buckets[key].plus(bal);
+    if (d > 0) byClient.set(r.client, (byClient.get(r.client) ?? new Decimal(0)).plus(bal));
+  }
+  const topOverdue = [...byClient.entries()]
+    .map(([client, bal]) => ({ client, balance: bal.toFixed(2) }))
+    .sort((a, b) => Number(b.balance) - Number(a.balance))
+    .slice(0, 5);
+  const efficiencyPct = dueThisMonth.gt(0) ? collected.div(dueThisMonth).times(100).toFixed(1) : null;
+
+  return {
+    label,
+    collected: collected.toFixed(2),
+    invoiced: invoiced.toFixed(2),
+    outstanding: receivables.totalOutstanding,
+    dueThisMonth: dueThisMonth.toFixed(2),
+    efficiencyPct,
+    aging: Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, v.toFixed(2)])) as Record<string, string>,
+    topOverdue,
+  };
 }

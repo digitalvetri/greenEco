@@ -359,6 +359,7 @@ model Order {
   siteAddress     String
   clientStateCode String? // 2-digit GSTIN state prefix for place-of-supply (IGST vs CGST/SGST)
   clientGstin     String? // customer GSTIN for the B2B tax invoice
+  clientPhone     String? // client WhatsApp for payment reminders (A4); backfilled from the lead
   projectValue    Decimal     @db.Decimal(14, 2)
   startDate    DateTime?
   targetDate   DateTime?
@@ -489,6 +490,7 @@ model Invoice {
   amountWords  String
   pdfUrl         String
   isCreditNote   Boolean  @default(false)
+  status         String   @default("ISSUED") // DRAFT | ISSUED — A5 auto-drafts get a real number on issue
   creditNoteOfId String? // the original invoice this credit note reverses
 
   milestone   PaymentMilestone? @relation(fields: [milestoneId], references: [id])

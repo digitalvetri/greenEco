@@ -21,7 +21,8 @@ import type { AutomationContext } from "@/server/automations/types";
  */
 registerAll();
 
-const LEGACY_ALL = ["dueDates", "whatsapp", "lowstock", "amc", "purgeAudio"];
+// A4 replaced dueDates+whatsapp; A11 will replace lowstock. amc/purgeAudio stay inline.
+const LEGACY_ALL = ["lowstock", "amc", "purgeAudio"];
 
 export async function GET(req: Request) {
   const url = new URL(req.url);

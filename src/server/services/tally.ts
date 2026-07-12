@@ -36,6 +36,7 @@ export async function buildTallyXml(ctx: Ctx, range?: { from?: Date; to?: Date }
     prisma.invoice.findMany({
       where: {
         companyId: ctx.companyId,
+        status: { not: "DRAFT" }, // never export unissued drafts to Tally
         ...(range?.from || range?.to
           ? { date: { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) } }
           : {}),

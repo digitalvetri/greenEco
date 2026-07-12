@@ -78,6 +78,62 @@ export async function createInvoiceFromMilestone(
   });
 }
 
+/**
+ * A5 · Auto-generate a DRAFT invoice for a milestone (no sequential number until issued).
+ * System-triggered (not requireAdmin) — tenant-scoped by companyId. One invoice per
+ * milestone; a no-op if one already exists. DRAFT rows are excluded from every money
+ * aggregate (GST summary, collections, stats, Tally) until issued.
+ */
+export async function draftInvoiceForMilestone(ctx: Ctx, milestoneId: string): Promise<{ invoiceId: string; draft?: boolean; already?: boolean } | null> {
+  const milestone = await prisma.paymentMilestone.findFirst({
+    where: { id: milestoneId, order: { companyId: ctx.companyId } },
+    include: { order: true, invoice: true },
+  });
+  if (!milestone) return null;
+  if (milestone.invoice) return { invoiceId: milestone.invoice.id, already: true };
+
+  const gstinState = milestone.order.clientGstin && /^\d{2}/.test(milestone.order.clientGstin) ? milestone.order.clientGstin.slice(0, 2) : undefined;
+  const pos = milestone.order.clientStateCode ?? gstinState ?? env.companyStateCode;
+  const gst = computeGst({ taxableAmount: milestone.amount, supplierStateCode: env.companyStateCode, placeOfSupplyStateCode: pos, rate: 18 });
+  const lineItems = [{ description: `${milestone.description} — ${milestone.order.clientName}`, sac: WORKS_CONTRACT_SAC, amount: gst.taxable }];
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      companyId: ctx.companyId,
+      invoiceNo: `DRAFT-${milestoneId}`, // placeholder — real number assigned on issue
+      orderId: milestone.orderId,
+      milestoneId,
+      date: new Date(),
+      lineItems: lineItems as Prisma.InputJsonValue,
+      taxType: gst.taxType,
+      gstBreakup: { cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, rate: gst.rate } as Prisma.InputJsonValue,
+      total: gst.total,
+      amountWords: amountInWords(gst.total),
+      pdfUrl: "",
+      status: "DRAFT",
+    },
+  });
+  await logAudit(ctx, { action: "CREATE", entity: "Invoice", entityId: invoice.id, after: { draft: true, milestoneId } });
+  return { invoiceId: invoice.id, draft: true };
+}
+
+/** Issue a DRAFT invoice: assign the real sequential number + set status ISSUED. Admin, audited. */
+export async function issueDraftInvoice(ctx: Ctx, invoiceId: string): Promise<{ invoiceNo: string; already?: boolean }> {
+  requireAdmin(ctx);
+  const inv = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId: ctx.companyId } });
+  if (!inv) throw new Error("Invoice not found");
+  if (inv.status !== "DRAFT") return { invoiceNo: inv.invoiceNo, already: true };
+  return prisma.$transaction(async (tx) => {
+    const invoiceNo = await allocateNumber(tx, ctx.companyId, "INVOICE", inv.date.getFullYear());
+    const updated = await tx.invoice.update({
+      where: { id: invoiceId },
+      data: { invoiceNo, status: "ISSUED", pdfUrl: `/print/invoice/${invoiceNo}` },
+    });
+    await logAudit(ctx, { action: "UPDATE", entity: "Invoice", entityId: invoiceId, after: { invoiceNo, status: "ISSUED" } }, tx);
+    return { invoiceNo: updated.invoiceNo };
+  });
+}
+
 export async function getInvoice(ctx: Ctx, invoiceNo: string) {
   requireAdmin(ctx);
   return prisma.invoice.findFirst({
@@ -124,7 +180,7 @@ export interface InvoiceStats {
 export async function invoiceStats(ctx: Ctx): Promise<InvoiceStats> {
   requireAdmin(ctx);
   const invoices = await prisma.invoice.findMany({
-    where: { companyId: ctx.companyId },
+    where: { companyId: ctx.companyId, status: { not: "DRAFT" } },
     select: { total: true, isCreditNote: true, milestone: { select: { amount: true, status: true, receipts: { select: { amount: true } } } } },
   });
   let invoicedTotal = new Decimal(0);

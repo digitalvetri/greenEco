@@ -17,6 +17,7 @@ export const GET = api(async (session, req) => {
       total: inv.total.toString(),
       date: inv.date.toISOString(),
       isCreditNote: inv.isCreditNote,
+      status: inv.status,
     })),
     nextCursor,
   };

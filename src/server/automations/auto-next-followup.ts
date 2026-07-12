@@ -1,4 +1,5 @@
 import { getSetting, isEnabled } from "./engine";
+import type { Automation, AutomationContext, AutomationResult } from "./types";
 
 /**
  * A2 · Auto next-follow-up suggestion (event-driven, AUTOMATION-ENGINE-SPEC §3 A2).
@@ -29,3 +30,15 @@ export async function suggestNextFollowUpDate(
   d.setHours(10, 0, 0, 0);
   return d;
 }
+
+/** Registry stub — event-driven (called from lead.ts); present for the kill switch + Settings row. */
+async function run(_ctx: AutomationContext): Promise<AutomationResult> {
+  return { name: "auto-next-followup", sent: 0, skipped: 0, details: { eventDriven: "fires on follow-up create when no next date is set" } };
+}
+
+export const autoNextFollowup: Automation = {
+  id: "A2",
+  name: "auto-next-followup",
+  label: "Auto next-follow-up suggestion",
+  run,
+};

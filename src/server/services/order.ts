@@ -486,6 +486,17 @@ export async function updateStage(
     await logAudit(ctx, { action: "UPDATE", entity: "Stage", entityId: stageId, after: { status: data.status } }, tx);
     return s;
   });
+
+  // A5 — event-driven: auto-draft the invoice for any STAGE_COMPLETION milestone now due
+  // + notify admin. Best-effort — never fail the stage update on an automation error.
+  if (data.status === "DONE") {
+    try {
+      const { onStageCompleted } = await import("@/server/automations/stage-milestone-trigger");
+      await onStageCompleted(ctx, stageId);
+    } catch {
+      /* automation is best-effort */
+    }
+  }
   return updated;
 }
 
