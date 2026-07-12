@@ -136,6 +136,7 @@ export function LeadForm({ mode = "create", leadId, initial }: {
         <div className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>
       )}
 
+      <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
       <Card>
         <CardContent className="space-y-4 pt-4">
           <Field label="Customer Name" required>
@@ -351,6 +352,7 @@ export function LeadForm({ mode = "create", leadId, initial }: {
         </CardContent>
       </Card>
       )}
+      </div>
 
       <div className="flex gap-2">
         <Button onClick={() => submit(false)} disabled={pending}>
