@@ -90,6 +90,7 @@ export interface LeadFilters {
   source?: string;
   assignedToId?: string;
   cold?: boolean; // going cold: no future follow-up + stale > 3 days
+  dueToday?: boolean; // has a follow-up whose nextDate is today
   search?: string;
   cursor?: string;
   take?: number;
@@ -127,6 +128,14 @@ export async function listLeads(ctx: Ctx, filters: LeadFilters = {}) {
     cutoff.setDate(cutoff.getDate() - 3);
     where.status = { in: ["NEW", "IN_FOLLOWUP", "QUOTE_REQUESTED"] };
     where.updatedAt = { lt: cutoff };
+  }
+
+  if (filters.dueToday) {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    where.followUps = { some: { nextDate: { gte: dayStart, lt: dayEnd } } };
   }
 
   // EMPLOYEE sees only leads assigned to them or created by them (spec RBAC intent).

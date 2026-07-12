@@ -23,17 +23,19 @@ const STATUS_TABS = [
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; search?: string; source?: string; assignee?: string }>;
+  searchParams: Promise<{ status?: string; search?: string; source?: string; assignee?: string; dueToday?: string }>;
 }) {
-  const { status, search, source, assignee } = await searchParams;
+  const { status, search, source, assignee, dueToday } = await searchParams;
   const session = await getSession();
   const isAdmin = session.role === "ADMIN";
   const cold = status === "cold";
+  const due = dueToday === "1";
 
   const [{ items, nextCursor }, stats, members] = await Promise.all([
     listLeads(session, {
-      status: cold ? undefined : status || undefined,
+      status: cold || due ? undefined : status || undefined,
       cold,
+      dueToday: due,
       search: search || undefined,
       source: source || undefined,
       assignedToId: assignee || undefined,
@@ -51,7 +53,7 @@ export default async function LeadsPage({
 
   const query = new URLSearchParams({
     ...persist,
-    ...(cold ? { cold: "1" } : status ? { status } : {}),
+    ...(due ? { dueToday: "1" } : cold ? { cold: "1" } : status ? { status } : {}),
   }).toString();
 
   const tabHref = (key: string) => {
@@ -59,6 +61,13 @@ export default async function LeadsPage({
     if (key) p.set("status", key);
     const s = p.toString();
     return s ? `/leads?${s}` : "/leads";
+  };
+
+  const dueHref = () => {
+    if (due) return tabHref(""); // toggle off
+    const p = new URLSearchParams(persist);
+    p.set("dueToday", "1");
+    return `/leads?${p.toString()}`;
   };
 
   const rows: LeadRow[] = items.map((l) => ({
@@ -104,6 +113,7 @@ export default async function LeadsPage({
           value={stats.dueToday}
           icon={CalendarClock}
           tone={stats.dueToday > 0 ? "warn" : "default"}
+          href={dueHref()}
         />
         <StatTile
           label="Going cold"

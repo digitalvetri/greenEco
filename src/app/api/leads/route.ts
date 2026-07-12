@@ -10,6 +10,7 @@ export const GET = api(async (session, req) => {
     source: p.get("source") ?? undefined,
     assignedToId: p.get("assignedToId") ?? undefined,
     cold: p.get("cold") === "1",
+    dueToday: p.get("dueToday") === "1",
     search: p.get("search") ?? undefined,
     cursor: p.get("cursor") ?? undefined,
     take: p.get("take") ? Number(p.get("take")) : undefined,
