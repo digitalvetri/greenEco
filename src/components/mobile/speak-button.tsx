@@ -51,15 +51,16 @@ export function SpeakButton({
     rec.lang = "en-IN";
     rec.interimResults = true;
     rec.continuous = true;
-    let finalText = "";
     rec.onresult = (e) => {
-      let interim = "";
+      // `e.results` already holds every result (final + the live interim) since the
+      // session started, so rebuild the full transcript each event — never accumulate
+      // into an outer variable (that re-adds earlier results and duplicates the text).
+      let text = "";
       for (let i = 0; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (i < e.results.length - 1) finalText += t;
-        else interim = t;
+        text += e.results[i][0].transcript;
       }
-      onTranscript((finalText + interim).trim(), (finalText + interim).trim());
+      const clean = text.trim().replace(/\s+/g, " ");
+      onTranscript(clean, clean);
     };
     rec.onerror = () => {
       // Retry once in generic English if en-IN errors out on this browser.
