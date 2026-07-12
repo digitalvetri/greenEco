@@ -11,6 +11,9 @@ import { delayDetection } from "./delay-detection";
 import { billVerificationAssist } from "./bill-verification-assist";
 import { lowStockPo } from "./low-stock-po";
 import { materialRequestRouting } from "./material-request-routing";
+import { weeklyBrief } from "./weekly-brief";
+import { winlossLearning } from "./winloss-learning";
+import { referenceMining } from "./reference-mining";
 
 /**
  * Registers every automation into the engine. Idempotent — safe to call on each
@@ -33,6 +36,9 @@ export function registerAll(): void {
   register(billVerificationAssist); // A10 (event-driven stub)
   register(lowStockPo); // A11
   register(materialRequestRouting); // A12 (event-driven stub)
+  register(weeklyBrief); // A13
+  register(winlossLearning); // A14 (event-driven stub)
+  register(referenceMining); // A15
   registered = true;
 }
 

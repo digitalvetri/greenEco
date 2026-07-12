@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { allocateNumber } from "./numbering";
+import { recordProposalOutcome } from "@/server/automations/winloss-learning";
 import { generateProposalDraft, type AiProposalInput } from "@/lib/ai";
 import { DEFAULT_STAGES } from "@/lib/constants";
 import { proposalExpiry } from "@/lib/domain/proposal-aging";
@@ -384,8 +385,14 @@ async function retrieveWonContext(ctx: Ctx, kld?: number): Promise<string> {
 
 /** Run the AI generator and write the draft into the current version. */
 export async function generateForProposal(ctx: Ctx, proposalId: string, input: AiProposalInput) {
-  const pastWon = await retrieveWonContext(ctx, input.capacityKLD);
-  const draft = await generateProposalDraft({ ...input, pastWon: pastWon || undefined });
+  let context = await retrieveWonContext(ctx, input.capacityKLD);
+  // A14 — calibrate on this plant-type + KLD-band win rate.
+  if (input.plantType && input.capacityKLD) {
+    const { bandWinRate } = await import("@/server/automations/winloss-learning");
+    const wr = await bandWinRate(ctx.companyId, input.plantType, input.capacityKLD);
+    if (wr.total > 0) context = `${context}\nWin rate in this ${input.plantType} ${input.capacityKLD} KLD band: ${Math.round(wr.rate * 100)}% (${wr.won}/${wr.total} won).`;
+  }
+  const draft = await generateProposalDraft({ ...input, pastWon: context || undefined });
   await saveVersion(ctx, proposalId, {
     technicalText: draft.technicalText,
     scopeOfWork: draft.scopeOfWork,
@@ -454,6 +461,7 @@ export async function markLost(ctx: Ctx, proposalId: string, reason: string) {
     where: { id: proposalId },
     data: { status: "LOST", lostReason: reason },
   });
+  await recordProposalOutcome(prisma, ctx.companyId, proposalId, "LOST", reason); // A14
   await logAudit(ctx, { action: "UPDATE", entity: "Proposal", entityId: proposalId, after: { status: "LOST" } });
   return { ok: true };
 }
@@ -530,6 +538,7 @@ export async function markWon(
     });
 
     await tx.proposal.update({ where: { id: proposalId }, data: { status: "WON" } });
+    await recordProposalOutcome(tx, ctx.companyId, proposalId, "WON", null); // A14
     await logAudit(
       ctx,
       { action: "APPROVE", entity: "Order", entityId: order.id, after: { orderNo } },

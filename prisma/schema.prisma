@@ -867,3 +867,23 @@ model AutomationTask {
   @@index([companyId, assigneeId, status])
   @@index([companyId, type, entityId])
 }
+
+/** A14 · Win/loss learning loop — a snapshot written when a proposal is decided, used as
+ *  few-shot context for the AI generator + quarterly win-rate analysis. */
+model ProposalOutcome {
+  id          String   @id @default(cuid())
+  companyId   String
+  proposalId  String   @unique
+  outcome     String // WON | LOST
+  reason      String?
+  capacityKLD Float
+  plantType   String
+  technology  String
+  grandTotal  Decimal  @db.Decimal(14, 2)
+  marginPct   Float?
+  boqSnapshot Json?
+  decidedAt   DateTime @default(now())
+
+  @@index([companyId, plantType])
+  @@index([companyId, outcome])
+}

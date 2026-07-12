@@ -58,6 +58,9 @@ const schema = z
 
     /** Transactional email via Resend HTTP API; empty = email is a no-op. */
     RESEND_API_KEY: z.string().default(""),
+    /** Groq (OpenAI-compatible) for the weekly brief; empty = numeric fallback. */
+    GROQ_API_KEY: z.string().default(""),
+    GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
     EMAIL_FROM: z.string().default(""),
 
     /**
@@ -154,6 +157,8 @@ export const env = {
   whatsappVerifyToken: e.WHATSAPP_VERIFY_TOKEN,
   whatsappAppSecret: e.WHATSAPP_APP_SECRET,
   resendApiKey: e.RESEND_API_KEY,
+  groqApiKey: e.GROQ_API_KEY,
+  groqModel: e.GROQ_MODEL,
   emailFrom: e.EMAIL_FROM,
   errorWebhookUrl: e.ERROR_WEBHOOK_URL,
   printTokenSecret: e.PRINT_TOKEN_SECRET,
