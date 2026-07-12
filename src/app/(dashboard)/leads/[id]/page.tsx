@@ -15,6 +15,7 @@ import { LeadStatusControl } from "./status-control";
 import { ActivityTimeline } from "./activity-timeline";
 import { CommPanel } from "./comm-panel";
 import { DocumentsCard } from "./documents-card";
+import { ContactsCard } from "./contacts-card";
 
 export const dynamic = "force-dynamic";
 
@@ -116,25 +117,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Contacts</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {lead.contacts.length === 0 && <span className="text-muted">No contacts</span>}
-                {lead.contacts.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between">
-                    <span>
-                      {c.name}
-                      {c.designation ? ` · ${c.designation}` : ""}
-                    </span>
-                    <a href={`tel:${c.mobile}`} className="text-primary">
-                      {c.mobile}
-                    </a>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <ContactsCard leadId={lead.id} contacts={lead.contacts} />
           </div>
 
           {(lead.plantType || lead.capacityKLD || lead.segment || lead.inletBOD) && (

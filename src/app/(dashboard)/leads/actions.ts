@@ -27,6 +27,8 @@ import {
   bulkAssign,
   bulkSetStatus,
   convertToProposal,
+  addLeadContact,
+  deleteLeadContact,
 } from "@/server/services/lead";
 import { manualStatusSchema } from "@/lib/validation";
 
@@ -132,6 +134,28 @@ export async function deleteFollowUpAction(leadId: string, followUpId: string) {
   await deleteFollowUp(session, followUpId);
   revalidatePath(`/leads/${leadId}`);
   return { ok: true };
+}
+
+export async function addLeadContactAction(leadId: string, data: { name: string; designation?: string; mobile: string }) {
+  const session = await getSession();
+  try {
+    await addLeadContact(session, leadId, data);
+    revalidatePath(`/leads/${leadId}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to add contact" };
+  }
+}
+
+export async function deleteLeadContactAction(leadId: string, contactId: string) {
+  const session = await getSession();
+  try {
+    await deleteLeadContact(session, contactId);
+    revalidatePath(`/leads/${leadId}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to remove contact" };
+  }
 }
 
 export async function addLeadDocumentAction(leadId: string, doc: { url: string; name: string }) {

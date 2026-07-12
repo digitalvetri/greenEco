@@ -987,6 +987,30 @@ export async function deleteFollowUp(ctx: Ctx, id: string) {
   return { ok: true };
 }
 
+/** Add a contact person to a lead (name / designation / mobile). RBAC via the lead; audited. */
+export async function addLeadContact(ctx: Ctx, leadId: string, data: { name: string; designation?: string; mobile: string }) {
+  await accessibleLead(ctx, leadId);
+  const name = data.name.trim();
+  const mobile = data.mobile.replace(/\D/g, "");
+  if (!name) throw new Error("Contact name is required");
+  if (mobile.length < 10) throw new Error("Enter a valid 10-digit mobile");
+  const contact = await prisma.contactPerson.create({
+    data: { leadId, name, designation: data.designation?.trim() || null, mobile },
+  });
+  await logAudit(ctx, { action: "CREATE", entity: "ContactPerson", entityId: contact.id, after: { leadId } });
+  return contact;
+}
+
+/** Remove a contact person from a lead. RBAC via the lead; audited. */
+export async function deleteLeadContact(ctx: Ctx, contactId: string) {
+  const contact = await prisma.contactPerson.findUnique({ where: { id: contactId }, select: { id: true, leadId: true } });
+  if (!contact?.leadId) throw new Error("Contact not found");
+  await accessibleLead(ctx, contact.leadId);
+  await prisma.contactPerson.delete({ where: { id: contactId } });
+  await logAudit(ctx, { action: "DELETE", entity: "ContactPerson", entityId: contactId, before: { leadId: contact.leadId } });
+  return { ok: true };
+}
+
 export async function convertToProposal(ctx: Ctx, leadId: string) {
   const lead = await prisma.lead.findFirst({
     where: { id: leadId, companyId: ctx.companyId, deletedAt: null },
