@@ -10,6 +10,7 @@ import { leadScore } from "@/lib/domain/lead-score";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
 import { allocateNumber } from "./numbering";
+import { suggestNextFollowUpDate } from "@/server/automations/auto-next-followup";
 import type { CreateLeadInput, UpdateLeadInput, CreateFollowUpInput } from "@/lib/validation";
 
 const OPEN_STATUSES: LeadStatus[] = ["NEW", "IN_FOLLOWUP", "QUOTE_REQUESTED"];
@@ -887,7 +888,19 @@ export async function addFollowUp(ctx: Ctx, input: CreateFollowUpInput) {
   if (!lead) throw new Error("Lead not found");
   if (lead.status === "CONVERTED") throw new Error("Converted leads are read-only");
 
-  return prisma.$transaction(async (tx) => {
+  // A2 — never leave an open lead without a next touch: when no nextDate was given and
+  // the lead isn't being closed, auto-fill a suggested date from the outcome.
+  let nextDate = input.nextDate;
+  let nextDateAutoSuggested = false;
+  if (!nextDate && !input.closeStatus) {
+    const suggested = await suggestNextFollowUpDate(ctx.companyId, input.outcome, new Date());
+    if (suggested) {
+      nextDate = suggested;
+      nextDateAutoSuggested = true;
+    }
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
     const fu = await tx.followUp.create({
       data: {
         leadId: input.leadId,
@@ -896,7 +909,7 @@ export async function addFollowUp(ctx: Ctx, input: CreateFollowUpInput) {
         rawTranscript: input.rawTranscript,
         audioUrl: input.audioUrl,
         outcome: input.outcome,
-        nextDate: input.nextDate,
+        nextDate,
         lat: input.lat,
         lng: input.lng,
         geoAddress: input.geoAddress,
@@ -916,11 +929,17 @@ export async function addFollowUp(ctx: Ctx, input: CreateFollowUpInput) {
 
     await logAudit(
       ctx,
-      { action: "CREATE", entity: "FollowUp", entityId: fu.id, after: { leadId: lead.id } },
+      {
+        action: "CREATE",
+        entity: "FollowUp",
+        entityId: fu.id,
+        after: { leadId: lead.id, ...(nextDateAutoSuggested ? { nextDateAutoSuggested: true, nextDate } : {}) },
+      },
       tx,
     );
     return fu;
   });
+  return { ...result, nextDateAutoSuggested };
 }
 
 /**
