@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Plus, Trash2, Check, AlertTriangle } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label, Field, Select } from "@/components/ui/input";
@@ -93,6 +93,8 @@ export function ProposalEditor({
     capacityKLD: view.capacityKLD,
   });
   const [boq, setBoq] = useState<BoqRow[]>(view.version?.boqItems ?? []);
+  const [techText, setTechText] = useState(view.version?.technicalText ?? "");
+  const [editingTech, setEditingTech] = useState(false);
   const [aiDesc, setAiDesc] = useState("");
   const [estCost, setEstCost] = useState(view.version?.estimatedCost ?? "");
   const [terms, setTerms] = useState(view.version?.paymentTerms ?? []);
@@ -204,65 +206,87 @@ export function ProposalEditor({
         <CardHeader>
           <CardTitle>Basics</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <Field label="Project name">
-              <Input
-                value={basics.projectName}
-                disabled={!editable}
-                onChange={(e) => setBasics({ ...basics, projectName: e.target.value })}
-              />
-            </Field>
-          </div>
-          <div className="col-span-2">
-            <Field label="Site address">
-              <Input
-                value={basics.siteAddress}
-                disabled={!editable}
-                onChange={(e) => setBasics({ ...basics, siteAddress: e.target.value })}
-              />
-            </Field>
-          </div>
-          <Field label="Plant type">
-            <Select
-              value={basics.plantType}
-              disabled={!editable}
-              onChange={(e) => setBasics({ ...basics, plantType: e.target.value })}
-            >
-              {PLANT_TYPES.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Technology">
-            <Select
-              value={basics.technology}
-              disabled={!editable}
-              onChange={(e) => setBasics({ ...basics, technology: e.target.value })}
-            >
-              {TECHNOLOGIES.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Capacity (KLD)">
-            <Input
-              type="number"
-              value={basics.capacityKLD}
-              disabled={!editable}
-              onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
-            />
-          </Field>
-          {editable && (
-            <div className="col-span-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                onClick={() => run(() => updateBasicsAction(view.id, basics), "Basics saved.")}
-              >
-                Save basics
-              </Button>
+        <CardContent>
+          {locked ? (
+            /* Read-only display when WON / LOST */
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+              <div className="col-span-2">
+                <span className="block text-xs font-medium text-muted">Project name</span>
+                <span className="font-medium text-foreground">{basics.projectName || "—"}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="block text-xs font-medium text-muted">Site address</span>
+                <span className="text-foreground">{basics.siteAddress || "—"}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-medium text-muted">Plant type</span>
+                <span className="text-foreground">{basics.plantType || "—"}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-medium text-muted">Technology</span>
+                <span className="text-foreground">{basics.technology || "—"}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-medium text-muted">Capacity</span>
+                <span className="text-foreground">{basics.capacityKLD ? `${basics.capacityKLD} KLD` : "—"}</span>
+              </div>
+            </div>
+          ) : (
+            /* Editable form */
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <Field label="Project name">
+                  <Input
+                    value={basics.projectName}
+                    onChange={(e) => setBasics({ ...basics, projectName: e.target.value })}
+                  />
+                </Field>
+              </div>
+              <div className="col-span-2">
+                <Field label="Site address">
+                  <Input
+                    value={basics.siteAddress}
+                    onChange={(e) => setBasics({ ...basics, siteAddress: e.target.value })}
+                  />
+                </Field>
+              </div>
+              <Field label="Plant type">
+                <Select
+                  value={basics.plantType}
+                  onChange={(e) => setBasics({ ...basics, plantType: e.target.value })}
+                >
+                  {PLANT_TYPES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Technology">
+                <Select
+                  value={basics.technology}
+                  onChange={(e) => setBasics({ ...basics, technology: e.target.value })}
+                >
+                  {TECHNOLOGIES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Capacity (KLD)">
+                <Input
+                  type="number"
+                  value={basics.capacityKLD}
+                  onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
+                />
+              </Field>
+              <div className="col-span-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => run(() => updateBasicsAction(view.id, basics), "Basics saved.")}
+                >
+                  Save basics
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -307,15 +331,75 @@ export function ProposalEditor({
       )}
 
       {/* Technical write-up */}
-      {view.version?.technicalText && (
+      {(techText || editable) && (
         <Card className="mb-4">
           <CardHeader>
-            <CardTitle>Technical Write-up {view.version.aiGenerated && "(AI)"}</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>
+                Technical Write-up{view.version?.aiGenerated && <span className="ml-1.5 text-xs font-normal text-primary">(AI)</span>}
+              </CardTitle>
+              {isAdmin && !editingTech && (
+                <button
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted hover:bg-surface"
+                  onClick={() => setEditingTech(true)}
+                >
+                  <Pencil className="size-3" /> Edit
+                </button>
+              )}
+              {isAdmin && editingTech && (
+                <button
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted hover:bg-surface"
+                  onClick={() => { setTechText(view.version?.technicalText ?? ""); setEditingTech(false); }}
+                >
+                  <X className="size-3" /> Cancel
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <p className="whitespace-pre-wrap text-sm text-foreground/90">
-              {view.version.technicalText}
-            </p>
+            {editingTech ? (
+              <div className="space-y-3">
+                <Textarea
+                  className="min-h-48 font-mono text-xs"
+                  value={techText}
+                  onChange={(e) => setTechText(e.target.value)}
+                  placeholder="Technical description of the proposed plant…"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => {
+                      startTransition(async () => {
+                        try {
+                          await saveVersionAction(view.id, {
+                            boqItems: boq.map((r) => ({
+                              category: r.category, item: r.item,
+                              specification: r.specification ?? undefined,
+                              unit: r.unit, qty: Number(r.qty), rate: Number(r.rate),
+                              amount: Number(r.amount), aiSuggested: r.aiSuggested,
+                            })),
+                            technicalText: techText,
+                            estimatedCost: isAdmin && estCost ? Number(estCost) : undefined,
+                            paymentTerms: terms,
+                            validityDays: Number(validity) || 30,
+                          });
+                          toast("Write-up saved.");
+                          setEditingTech(false);
+                          router.refresh();
+                        } catch (e) {
+                          toast(e instanceof Error ? e.message : "Save failed", "error");
+                        }
+                      });
+                    }}
+                  >
+                    Save write-up
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <TechnicalWriteUp text={techText} />
+            )}
           </CardContent>
         </Card>
       )}
@@ -663,6 +747,67 @@ function MarkLostButton({
         </div>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * Renders the AI technical write-up in a polished, structured format.
+ * Parses "Label: content" lines and multi-paragraph blocks into visual sections.
+ */
+function TechnicalWriteUp({ text }: { text: string }) {
+  if (!text.trim()) return <p className="text-sm text-muted italic">No technical write-up yet.</p>;
+
+  // Split into paragraphs on blank lines
+  const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+
+  return (
+    <div className="space-y-4 text-sm">
+      {paragraphs.map((para, i) => {
+        // Check if paragraph starts with a "Label:" pattern
+        const labelMatch = para.match(/^([A-Za-z ]+):\s*([\s\S]+)$/);
+
+        if (labelMatch) {
+          const label = labelMatch[1].trim();
+          const body = labelMatch[2].trim();
+          // Check if body contains sub-items (comma-separated stages or bullet-like)
+          const isStageList = body.includes(",") && body.length > 80;
+
+          return (
+            <div key={i} className="rounded-lg border border-border bg-surface/50 px-4 py-3">
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary">{label}</div>
+              {isStageList ? (
+                <ul className="space-y-1 text-foreground/90">
+                  {body.split(/,\s*(?=[A-Z])/).map((item, j) => (
+                    <li key={j} className="flex items-start gap-2">
+                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary/50" />
+                      <span>{item.trim().replace(/\.$/, "")}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="leading-relaxed text-foreground/90">{body}</p>
+              )}
+            </div>
+          );
+        }
+
+        // First paragraph → summary banner
+        if (i === 0) {
+          return (
+            <div key={i} className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+              <p className="font-medium leading-relaxed text-foreground">{para}</p>
+            </div>
+          );
+        }
+
+        // Plain paragraph
+        return (
+          <p key={i} className="leading-relaxed text-foreground/80">
+            {para}
+          </p>
+        );
+      })}
+    </div>
   );
 }
 
