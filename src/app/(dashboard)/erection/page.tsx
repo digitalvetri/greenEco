@@ -139,7 +139,7 @@ export default async function ErectionPage({
 
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-muted">Budget vs Actual</h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {activeOrders.length > BVA_LIMIT && <span className="text-xs text-muted">showing {BVA_LIMIT} of {activeOrders.length}</span>}
               <ExportButton
                 rows={bvas.map(({ order, bva }) => ({

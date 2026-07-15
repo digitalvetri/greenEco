@@ -1,61 +1,40 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Send, ClipboardList, ClipboardCheck, Plus, Trash2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeftRight, Send, ClipboardCheck } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Field } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Tabs } from "@/components/ui/tabs";
-import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
-import {
-  transferAction,
-  consumeAction,
-  materialRequestAction,
-  setRequestStatusAction,
-  stockAuditAction,
-} from "./actions";
+import { transferAction, consumeAction, stockAuditAction } from "./actions";
 
 interface Opt {
   id: string;
   name: string;
 }
-interface OrderOpt {
-  id: string;
-  orderNo: string;
-  clientName: string;
-}
-interface RequestView {
-  id: string;
-  orderNo: string;
-  status: string;
-  createdAt: string;
-  items: { itemId: string; qty: number }[];
-}
 
-type ToolKey = "transfer" | "consume" | "requests" | "audit";
+type ToolKey = "transfer" | "consume" | "audit";
 
-export function MaterialsTools({
+/**
+ * Stock operations — the daily "move material" jobs. Split out of the old
+ * `MaterialsTools`, which buried these below a 100-row PO list at the bottom of a
+ * ~3-screen page. Requests moved to their own route (employees need them; these are admin).
+ */
+export function OperationsPanel({
   items,
   locations,
   siteLocations,
-  orders,
-  requests,
 }: {
   items: Opt[];
-  locations: (Opt & { type: string })[];
+  locations: Opt[];
   siteLocations: Opt[];
-  orders: OrderOpt[];
-  requests: RequestView[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [tab, setTab] = useState<ToolKey>("transfer");
-
-  const itemName = useMemo(() => new Map(items.map((i) => [i.id, i.name])), [items]);
 
   const run = (key: string, fn: () => Promise<unknown>, ok: string) => {
     setBusy(key);
@@ -72,7 +51,6 @@ export function MaterialsTools({
     });
   };
 
-  // ---- Transfer state ----
   const [transfer, setTransfer] = useState({ itemId: "", qty: "1", fromLocationId: "", toLocationId: "", note: "" });
   const transferValid =
     !!transfer.itemId &&
@@ -81,21 +59,9 @@ export function MaterialsTools({
     !!transfer.toLocationId &&
     transfer.fromLocationId !== transfer.toLocationId;
 
-  // ---- Consume state ----
   const [consume, setConsume] = useState({ itemId: "", qty: "1", fromLocationId: "", note: "" });
   const consumeValid = !!consume.itemId && Number(consume.qty) > 0 && !!consume.fromLocationId;
 
-  // ---- Material request state ----
-  const [reqOrderId, setReqOrderId] = useState("");
-  const [reqLines, setReqLines] = useState<{ itemId: string; qty: string }[]>([{ itemId: "", qty: "1" }]);
-  const reqPayload = reqLines
-    .filter((l) => l.itemId && Number(l.qty) > 0)
-    .map((l) => ({ itemId: l.itemId, qty: Number(l.qty) }));
-  const reqValid = !!reqOrderId && reqPayload.length > 0;
-  const setReqLine = (idx: number, patch: Partial<{ itemId: string; qty: string }>) =>
-    setReqLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
-
-  // ---- Stock audit state ----
   const [auditLocationId, setAuditLocationId] = useState("");
   const [counts, setCounts] = useState<Record<string, string>>({});
   const auditPayload = Object.entries(counts)
@@ -105,22 +71,17 @@ export function MaterialsTools({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Stock Operations</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-5">
         <Tabs
           items={[
             { key: "transfer", label: "Transfer" },
             { key: "consume", label: "Issue to Site" },
-            { key: "requests", label: "Requests", count: requests.length || undefined },
-            { key: "audit", label: "Audit" },
+            { key: "audit", label: "Stock Audit" },
           ]}
           active={tab}
           onChange={(k) => setTab(k as ToolKey)}
         />
 
-        {/* ---------------- Transfer ---------------- */}
         {tab === "transfer" && (
           <div className="space-y-3">
             <p className="text-sm text-muted">Move stock between locations. Posts a paired transfer movement.</p>
@@ -144,7 +105,11 @@ export function MaterialsTools({
                   ))}
                 </Select>
               </Field>
-              <Field label="To location" required error={transfer.fromLocationId && transfer.fromLocationId === transfer.toLocationId ? "Pick a different location" : undefined}>
+              <Field
+                label="To location"
+                required
+                error={transfer.fromLocationId && transfer.fromLocationId === transfer.toLocationId ? "Pick a different location" : undefined}
+              >
                 <Select value={transfer.toLocationId} onChange={(e) => setTransfer({ ...transfer, toLocationId: e.target.value })}>
                   <option value="">To…</option>
                   {locations.map((l) => (
@@ -180,7 +145,6 @@ export function MaterialsTools({
           </div>
         )}
 
-        {/* ---------------- Consume ---------------- */}
         {tab === "consume" && (
           <div className="space-y-3">
             <p className="text-sm text-muted">Issue material to a site — records consumption against erection actuals.</p>
@@ -231,112 +195,6 @@ export function MaterialsTools({
           </div>
         )}
 
-        {/* ---------------- Material requests ---------------- */}
-        {tab === "requests" && (
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <p className="text-sm text-muted">Raise a material request for a project (no prices).</p>
-              <Field label="Project" required>
-                <Select value={reqOrderId} onChange={(e) => setReqOrderId(e.target.value)}>
-                  <option value="">Project…</option>
-                  {orders.map((o) => (
-                    <option key={o.id} value={o.id}>{o.orderNo} — {o.clientName}</option>
-                  ))}
-                </Select>
-              </Field>
-              <div className="space-y-2">
-                {reqLines.map((line, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_120px_auto] items-end gap-2">
-                    <Field label={idx === 0 ? "Item" : undefined}>
-                      <Select aria-label={`Item for line ${idx + 1}`} value={line.itemId} onChange={(e) => setReqLine(idx, { itemId: e.target.value })}>
-                        <option value="">Item…</option>
-                        {items.map((i) => (
-                          <option key={i.id} value={i.id}>{i.name}</option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label={idx === 0 ? "Qty" : undefined}>
-                      <Input aria-label={`Quantity for line ${idx + 1}`} type="number" min="0" step="0.001" inputMode="decimal" value={line.qty} onChange={(e) => setReqLine(idx, { qty: e.target.value })} />
-                    </Field>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Remove line"
-                      disabled={pending || reqLines.length === 1}
-                      onClick={() => setReqLines((ls) => ls.filter((_, i) => i !== idx))}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={pending} onClick={() => setReqLines((ls) => [...ls, { itemId: "", qty: "1" }])}>
-                  <Plus className="size-4" /> Add line
-                </Button>
-                <Button
-                  size="sm"
-                  loading={busy === "request"}
-                  disabled={pending || !reqValid}
-                  onClick={() =>
-                    run(
-                      "request",
-                      async () => {
-                        await materialRequestAction(reqOrderId, reqPayload);
-                        setReqLines([{ itemId: "", qty: "1" }]);
-                        setReqOrderId("");
-                      },
-                      "Material request submitted.",
-                    )
-                  }
-                >
-                  <ClipboardList className="size-4" /> Submit request
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Material requests</h4>
-              {requests.length === 0 ? (
-                <EmptyState icon={ClipboardList} title="No material requests" description="Requests raised for projects will appear here." />
-              ) : (
-                <div className="space-y-2">
-                  {requests.map((r) => (
-                    <div key={r.id} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs">{r.orderNo}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted">{new Date(r.createdAt).toLocaleDateString("en-IN")}</span>
-                          <Badge variant={r.status === "PENDING" ? "warn" : r.status === "REJECTED" ? "danger" : "ok"} dot>
-                            {r.status.replace(/_/g, " ")}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="mt-1 text-xs text-muted">
-                        {r.items.map((it) => `${itemName.get(it.itemId) ?? it.itemId} × ${it.qty}`).join(" · ")}
-                      </div>
-                      {r.status === "PENDING" && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(`req-t-${r.id}`, () => setRequestStatusAction(r.id, "TRANSFERRED"), "Marked transferred")}>
-                            Mark transferred
-                          </Button>
-                          <Button size="sm" variant="outline" disabled={pending} onClick={() => run(`req-c-${r.id}`, () => setRequestStatusAction(r.id, "CONVERTED_PO"), "Marked converted to PO")}>
-                            Convert to PO
-                          </Button>
-                          <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(`req-r-${r.id}`, () => setRequestStatusAction(r.id, "REJECTED"), "Request rejected")}>
-                            Reject
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ---------------- Stock audit ---------------- */}
         {tab === "audit" && (
           <div className="space-y-3">
             <p className="text-sm text-muted">Count sheet for a location. Variances post ADJUST movements.</p>
@@ -362,7 +220,7 @@ export function MaterialsTools({
                     <thead>
                       <tr className="text-left text-xs text-muted">
                         <th className="pb-2">Item</th>
-                        <th className="pb-2 w-40 text-right">Counted qty</th>
+                        <th className="w-40 pb-2 text-right">Counted qty</th>
                       </tr>
                     </thead>
                     <tbody>

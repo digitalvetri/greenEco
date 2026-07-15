@@ -4,6 +4,21 @@ import { hashPassword } from "../src/lib/password";
 const prisma = new PrismaClient();
 
 const COMPANY_ID = process.env.DEFAULT_COMPANY_ID ?? "green-ecocare";
+
+// Seed passwords come from the env in production so a publicly-documented default can never
+// reach a live DB. In dev they fall back to the known credentials for convenience.
+const IS_PROD = process.env.NODE_ENV === "production";
+const DEV_ADMIN_PW = "Admin@123";
+const DEV_EMPLOYEE_PW = "Employee@123";
+function seedPassword(envVar: string, devDefault: string): string {
+  const v = process.env[envVar];
+  if (IS_PROD && (!v || v === devDefault)) {
+    throw new Error(
+      `Refusing to seed a production DB with the public default password. Set ${envVar} to a strong value before running db:seed.`,
+    );
+  }
+  return v || devDefault;
+}
 const ITEM_CATEGORIES = [
   "Plumbing",
   "Civil",
@@ -30,11 +45,13 @@ async function main() {
   });
 
   // --- Dev users (dev-shim auth signs in as one of these) ---
-  const adminHash = hashPassword("Admin@123");
-  const employeeHash = hashPassword("Employee@123");
+  // NOTE: `update` deliberately does NOT reset passwordHash — re-running the seed must not clobber
+  // a password an admin has since rotated (previously it reset it back to the constant every run).
+  const adminHash = hashPassword(seedPassword("SEED_ADMIN_PASSWORD", DEV_ADMIN_PW));
+  const employeeHash = hashPassword(seedPassword("SEED_EMPLOYEE_PASSWORD", DEV_EMPLOYEE_PW));
   await prisma.user.upsert({
     where: { id: "dev-admin" },
-    update: { email: "admin@greeneco.in", passwordHash: adminHash },
+    update: { email: "admin@greeneco.in" },
     create: {
       id: "dev-admin",
       companyId: COMPANY_ID,
@@ -47,7 +64,7 @@ async function main() {
   });
   await prisma.user.upsert({
     where: { id: "dev-employee" },
-    update: { email: "employee@greeneco.in", passwordHash: employeeHash },
+    update: { email: "employee@greeneco.in" },
     create: {
       id: "dev-employee",
       companyId: COMPANY_ID,

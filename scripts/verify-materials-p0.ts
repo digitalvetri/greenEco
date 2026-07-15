@@ -16,8 +16,19 @@ import {
 
 const KEY = "VERIFY-P0-ITEM";
 
+/** Fixtures this run created — cleanup removes exactly these, never pre-existing rows. */
+const created: { requestIds: string[]; teamAssignment?: { orderId: string; userId: string } } = { requestIds: [] };
+
 async function cleanup() {
-  await prisma.materialRequest.deleteMany({ where: { requestedById: "verify-p0-req" } });
+  await prisma.materialRequest.deleteMany({
+    where: { OR: [{ requestedById: "verify-p0-req" }, { id: { in: created.requestIds } }] }, // legacy tag + this run
+  });
+  // Only drop the team assignment if WE added it — the employee may legitimately be on this project.
+  if (created.teamAssignment) {
+    await prisma.teamAssignment.deleteMany({ where: created.teamAssignment });
+    created.teamAssignment = undefined;
+  }
+  created.requestIds = [];
   await prisma.item.deleteMany({ where: { name: KEY } });
 }
 
@@ -31,7 +42,6 @@ async function main() {
   if (!admin || !emp) throw new Error("seed first");
   const A = { userId: admin.id, role: admin.role, companyId: admin.companyId };
   const E = { userId: emp.id, role: emp.role, companyId: emp.companyId };
-  const R = { userId: "verify-p0-req", role: emp.role, companyId: emp.companyId }; // request author tag
   let pass = 0;
   const check = (l: string, ok: boolean) => { console.log(`  ${ok ? "✓" : "✗"} ${l}`); if (!ok) throw new Error("FAIL: " + l); pass++; };
 
@@ -77,7 +87,25 @@ async function main() {
   // 5 — MaterialRequest lifecycle: the dead statuses are now reachable + audited.
   const order = await prisma.order.findFirst({ where: { companyId: A.companyId } });
   if (!order) throw new Error("need an order for the request fixture");
-  const req = await createMaterialRequest(R, order.id, [{ itemId: fixtureItem.id, qty: 2 }]);
+
+  // The request is the ONE materials flow open to EMPLOYEE (it carries no prices), so raise it
+  // as the real employee — which is only allowed on a project they're actually on. An unassigned
+  // employee must be refused (createMaterialRequest now tenant-checks the orderId + requires
+  // project access; the caller-supplied orderId was previously trusted outright).
+  check(
+    "EMPLOYEE off the team cannot raise a request for that project",
+    await expectThrow(() => createMaterialRequest(E, order.id, [{ itemId: fixtureItem.id, qty: 1 }])),
+  );
+  const preExisting = await prisma.teamAssignment.findUnique({
+    where: { orderId_userId: { orderId: order.id, userId: emp.id } },
+  });
+  if (!preExisting) {
+    await prisma.teamAssignment.create({ data: { orderId: order.id, userId: emp.id, role: "Field" } });
+    created.teamAssignment = { orderId: order.id, userId: emp.id };
+  }
+  const req = await createMaterialRequest(E, order.id, [{ itemId: fixtureItem.id, qty: 2 }]);
+  created.requestIds.push(req.id);
+  check("assigned EMPLOYEE CAN raise a material request (was unreachable in the UI)", !!req.id);
   const createAudit = await prisma.auditLog.findFirst({ where: { entity: "MaterialRequest", entityId: req.id, action: "CREATE" } });
   check("createMaterialRequest is audited (was unaudited)", !!createAudit);
   await setRequestStatus(A, req.id, "TRANSFERRED");

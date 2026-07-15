@@ -3,7 +3,7 @@ import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import type { Ctx } from "@/lib/rbac";
 import { stripPricing } from "@/lib/rbac";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireProjectAccess } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { allocateNumber } from "./numbering";
@@ -183,6 +183,7 @@ export interface MaterialsStats {
   lowStockCount: number;
   openPOs: number;
   stockValue: number | null; // Σ on-hand × purchasePrice — sell... cost-side, admin-only
+  pendingRequests: number; // badge on the Requests section — carries no prices, so role-agnostic
 }
 
 /**
@@ -194,13 +195,14 @@ export interface MaterialsStats {
  * is admin-only.
  */
 export async function materialsStats(ctx: Ctx): Promise<MaterialsStats> {
-  const [items, movements, openPOs] = await Promise.all([
+  const [items, movements, openPOs, pendingRequests] = await Promise.all([
     prisma.item.findMany({ where: { companyId: ctx.companyId }, select: { id: true, reorderLevel: true, purchasePrice: true } }),
     prisma.stockMovement.findMany({
       where: { companyId: ctx.companyId },
       select: { itemId: true, qty: true, type: true, fromLocationId: true, toLocationId: true },
     }),
     prisma.purchaseOrder.count({ where: { companyId: ctx.companyId, status: { in: ["DRAFT", "SENT", "PARTIALLY_RECEIVED"] } } }),
+    prisma.materialRequest.count({ where: { order: { companyId: ctx.companyId }, status: "PENDING" } }),
   ]);
   const balances = deriveBalances(movements as MovementLike[]);
   let lowStockCount = 0;
@@ -215,6 +217,7 @@ export async function materialsStats(ctx: Ctx): Promise<MaterialsStats> {
     lowStockCount,
     openPOs,
     stockValue: ctx.role === "ADMIN" ? Math.round(stockValue.toNumber()) : null,
+    pendingRequests,
   };
 }
 
@@ -534,6 +537,17 @@ export async function consumeStock(
 // ---------- Material requests (employee, NO prices) ----------
 
 export async function createMaterialRequest(ctx: Ctx, orderId: string, items: { itemId: string; qty: number }[]) {
+  // The orderId is caller-supplied. Confirm it's in this tenant, then that this user may
+  // touch that project (EMPLOYEE ⇒ must be on the team). Without the tenant check a crafted
+  // orderId would attach a request to another company's project — previously unreachable
+  // only because no UI exposed this path; the Requests section now does.
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, companyId: ctx.companyId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!order) throw new Error("Project not found");
+  await requireProjectAccess(ctx, orderId);
+
   const req = await prisma.materialRequest.create({
     data: { orderId, items: items as Prisma.InputJsonValue, requestedById: ctx.userId, status: "PENDING" },
   });
@@ -565,6 +579,17 @@ export async function setRequestStatus(
   const updated = await prisma.materialRequest.update({ where: { id: requestId }, data: { status } });
   await logAudit(ctx, { action: "UPDATE", entity: "MaterialRequest", entityId: requestId, before: { status: req.status }, after: { status } });
   return updated;
+}
+
+/**
+ * Just the pending count, for the Requests badge in the materials sub-nav. A bare
+ * `count()` — the sections must NOT pay for `materialsStats()`'s full-ledger scan
+ * (that one has to derive balances; this doesn't). No prices ⇒ role-agnostic.
+ */
+export async function pendingRequestCount(ctx: Ctx): Promise<number> {
+  return prisma.materialRequest.count({
+    where: { order: { companyId: ctx.companyId }, status: "PENDING" },
+  });
 }
 
 export async function listMaterialRequests(ctx: Ctx, take = 100) {

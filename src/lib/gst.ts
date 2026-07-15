@@ -40,13 +40,9 @@ export function taxTypeFor(supplierStateCode: string, placeOfSupplyStateCode: st
   return a && b && a === b ? "CGST_SGST" : "IGST";
 }
 
-export function computeGst(input: GstInput): GstBreakup {
-  const rate = input.rate ?? DEFAULT_GST_RATE;
-  const taxable = round2(input.taxableAmount);
-  const taxType = taxTypeFor(input.supplierStateCode, input.placeOfSupplyStateCode);
-
-  const gstAmount = round2(taxable.times(rate).div(100));
-
+/** Split a GST amount into CGST/SGST or IGST and assemble the breakup. Shared by the
+ *  exclusive and inclusive computations so the two can never drift apart. */
+function buildBreakup(taxable: Decimal, gstAmount: Decimal, taxType: TaxType, rate: number): GstBreakup {
   let cgst = new Decimal(0);
   let sgst = new Decimal(0);
   let igst = new Decimal(0);
@@ -59,8 +55,6 @@ export function computeGst(input: GstInput): GstBreakup {
     igst = gstAmount;
   }
 
-  const total = round2(taxable.plus(gstAmount));
-
   return {
     taxType,
     rate,
@@ -69,6 +63,40 @@ export function computeGst(input: GstInput): GstBreakup {
     sgst: sgst.toFixed(2),
     igst: igst.toFixed(2),
     gstAmount: gstAmount.toFixed(2),
-    total: total.toFixed(2),
+    total: round2(taxable.plus(gstAmount)).toFixed(2),
   };
+}
+
+/** GST on a tax-EXCLUSIVE base: total = base + GST. */
+export function computeGst(input: GstInput): GstBreakup {
+  const rate = input.rate ?? DEFAULT_GST_RATE;
+  const taxable = round2(input.taxableAmount);
+  const taxType = taxTypeFor(input.supplierStateCode, input.placeOfSupplyStateCode);
+  const gstAmount = round2(taxable.times(rate).div(100));
+  return buildBreakup(taxable, gstAmount, taxType, rate);
+}
+
+export interface GstInclusiveInput {
+  grossAmount: Decimal.Value; // a tax-INCLUSIVE amount (the customer's total payable)
+  supplierStateCode: string;
+  placeOfSupplyStateCode: string;
+  rate?: number;
+}
+
+/**
+ * GST backed OUT of a tax-INCLUSIVE gross, so `taxable + gstAmount === gross` EXACTLY
+ * and `total === gross`. Use this when the amount already includes GST — e.g. a payment
+ * milestone whose `amount` is a % of the proposal grand total (which is subtotal + GST).
+ * Charging `computeGst` on that gross would tax GST twice; this decomposes it instead.
+ * The exact reconciliation matters: the invoice total must equal the milestone receivable,
+ * or a full payment never zeroes the milestone (it lingers ±1 paisa forever).
+ */
+export function computeGstInclusive(input: GstInclusiveInput): GstBreakup {
+  const rate = input.rate ?? DEFAULT_GST_RATE;
+  const gross = round2(input.grossAmount);
+  const taxType = taxTypeFor(input.supplierStateCode, input.placeOfSupplyStateCode);
+  const divisor = new Decimal(1).plus(new Decimal(rate).div(100));
+  const taxable = round2(gross.div(divisor));
+  const gstAmount = gross.minus(taxable); // exact by construction → total === gross
+  return buildBreakup(taxable, gstAmount, taxType, rate);
 }

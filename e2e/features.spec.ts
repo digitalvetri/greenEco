@@ -23,10 +23,12 @@ test("proposal editor renders the proposal with its actions", async ({ page, req
   await expect(page.getByRole("link", { name: /print|pdf/i }).first()).toBeVisible();
 });
 
-test("materials tools expose the field actions", async ({ page }) => {
-  await page.goto("/materials", { waitUntil: "domcontentloaded" });
+test("materials tools expose the field actions (now on the Operations section)", async ({ context, page }) => {
+  await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
+  await page.goto("/materials/operations", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("Transfer", { exact: false }).first()).toBeVisible();
   await expect(page.getByText("Issue to Site", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("Stock Audit", { exact: false }).first()).toBeVisible();
 });
 
 test("materials list has KPI tiles, category tabs, search, export (Materials P0)", async ({ context, page }) => {
@@ -36,9 +38,35 @@ test("materials list has KPI tiles, category tabs, search, export (Materials P0)
   await expect(page.getByText("Stock value")).toBeVisible();
   await expect(page.getByLabel("Search items")).toBeVisible();
   await expect(page.getByRole("button", { name: "Export", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Export POs" })).toBeVisible(); // P2 PO export
   // Category tab filters (unique "All" pill in the tab row).
   await expect(page.getByRole("link", { name: "All", exact: true })).toBeVisible();
+});
+
+test("materials sub-nav splits the module into 4 sections (Materials UX)", async ({ context, page }) => {
+  await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
+  await page.goto("/materials", { waitUntil: "networkidle" });
+  const nav = page.getByRole("navigation", { name: "Materials sections" });
+  for (const s of ["Stock", "Purchasing", "Operations", "Requests"]) {
+    await expect(nav.getByRole("link", { name: new RegExp(s) })).toBeVisible();
+  }
+  // Purchasing owns the PO list + export now (it used to sit at the bottom of /materials).
+  await page.goto("/materials/purchasing", { waitUntil: "networkidle" });
+  await expect(page.getByRole("button", { name: "Export POs" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Raise a purchase order/i })).toBeVisible();
+});
+
+test("EMPLOYEE can reach and use the material-request flow (Materials UX — was unreachable)", async ({ context, page }) => {
+  await context.addCookies([{ name: "dev_role", value: "EMPLOYEE", url: "http://localhost:3000" }]);
+  await page.goto("/materials/requests", { waitUntil: "networkidle" });
+  // The one materials flow with no requireAdmin (it carries NO prices) — it used to be
+  // rendered inside the admin-gated tools block, so field staff could never reach it.
+  await expect(page.getByRole("heading", { name: /Raise a material request/i })).toBeVisible();
+  await expect(page.getByLabel("Project")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Submit request/i })).toBeVisible();
+  await expect(page.getByText("₹")).toHaveCount(0); // no prices, ever
+  // …and it's reachable from the sub-nav, not just by typing the URL.
+  const nav = page.getByRole("navigation", { name: "Materials sections" });
+  await expect(nav.getByRole("link", { name: /Requests/ })).toBeVisible();
 });
 
 test("credentials login: sign-in page works and admin lands on the dashboard", async ({ browser }) => {
@@ -211,7 +239,21 @@ test("EMPLOYEE materials hides stock value, purchase prices, and admin tools (Ma
   await expect(page.getByText("Low stock")).toBeVisible(); // list + tiles render
   await expect(page.getByText("Stock value")).toHaveCount(0);
   await expect(page.getByText("Purch. ₹")).toHaveCount(0); // no price column
-  await expect(page.getByText("Raise Purchase Order")).toHaveCount(0); // no admin tools
+
+  // The sub-nav offers only the two employee sections — no Purchasing/Operations links.
+  const nav = page.getByRole("navigation", { name: "Materials sections" });
+  await expect(nav.getByRole("link")).toHaveCount(2);
+  await expect(nav.getByRole("link", { name: /Purchasing/ })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: /Operations/ })).toHaveCount(0);
+
+  // Hiding the link is not the boundary — the pages themselves must refuse. They 404
+  // (asserted by content-absence: the streamed shell flushes 200 before notFound() lands,
+  // same convention as the erection admin-only pages above).
+  await page.goto("/materials/purchasing", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: /Raise a purchase order/i })).toHaveCount(0);
+  await expect(page.getByText("Export POs")).toHaveCount(0);
+  await page.goto("/materials/operations", { waitUntil: "networkidle" });
+  await expect(page.getByRole("button", { name: /Move stock/i })).toHaveCount(0);
 });
 
 test("service/AMC detail page renders for a contract", async ({ page, request }) => {

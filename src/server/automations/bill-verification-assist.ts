@@ -1,17 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { logAudit } from "@/lib/audit";
+import { loadConfig } from "@/lib/runtime-config";
+import { geminiVision } from "@/lib/gemini";
 import { isEnabled } from "./engine";
 import type { Automation, AutomationContext, AutomationResult } from "./types";
 import type { Ctx } from "@/lib/rbac";
 
 /**
  * A10 · Bill verification assist (event-driven, on ErectionEntry create with bills).
- * Claude vision extracts {amount, shopName, date, items, confidence}; compared to the
- * entered amount (±2%) + date (±3d) → PASS / MISMATCH / UNREADABLE (stored on the entry).
+ * A vision model (Claude, else Gemini) extracts {amount, shopName, date, items, confidence};
+ * compared to the entered amount (±2%) + date (±3d) → PASS / MISMATCH / UNREADABLE.
  * A PASS entry at/under AUTO_APPROVE_LIMIT auto-approves (reviewedById system:automation).
  * Assistive only — never edits the entered amount, never approves above the limit, and
- * degrades to plain PENDING if the API key is unset or vision fails. (SPEC §5 A10)
+ * degrades to plain PENDING if no vision key is set or vision fails. (SPEC §5 A10)
  */
 
 interface BillExtract {
@@ -22,45 +24,71 @@ interface BillExtract {
   confidence?: number;
 }
 
-export function visionAvailable(): boolean {
-  return !!env.anthropicApiKey;
+const EXTRACT_PROMPT =
+  "Extract this shop bill / receipt as STRICT JSON only, no prose: " +
+  '{"amount": number (grand total), "shopName": string, "date": "YYYY-MM-DD" or null, "items": string[], "confidence": number 0-1}. ' +
+  'If it is unreadable or not a bill, return {"confidence": 0}.';
+
+/** Vision is available when EITHER Claude or Gemini has a key. Groq can't read images. */
+export async function visionAvailable(): Promise<boolean> {
+  const cfg = await loadConfig();
+  return !!(cfg.ANTHROPIC_API_KEY || cfg.GEMINI_API_KEY);
+}
+
+function firstJson(text: string): BillExtract | null {
+  const s = text.indexOf("{");
+  const e = text.lastIndexOf("}");
+  if (s < 0 || e < 0) return null;
+  try {
+    return JSON.parse(text.slice(s, e + 1)) as BillExtract;
+  } catch {
+    return null;
+  }
 }
 
 async function extractBillFromImage(url: string): Promise<BillExtract | null> {
-  if (!env.anthropicApiKey) return null;
+  const cfg = await loadConfig();
+  if (!cfg.ANTHROPIC_API_KEY && !cfg.GEMINI_API_KEY) return null;
   try {
     const full = url.startsWith("http") ? url : `${env.appUrl}${url}`;
     const res = await fetch(full);
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     const mime = res.headers.get("content-type") ?? "image/jpeg";
-    const { default: Anthropic } = await import("@anthropic-ai/sdk");
-    const client = new Anthropic({ apiKey: env.anthropicApiKey });
-    const msg = await client.messages.create({
-      model: env.anthropicModel,
-      max_tokens: 600,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mime as "image/jpeg", data: buf.toString("base64") } },
+    const b64 = buf.toString("base64");
+
+    // Claude vision first when configured.
+    if (cfg.ANTHROPIC_API_KEY) {
+      try {
+        const { default: Anthropic } = await import("@anthropic-ai/sdk");
+        const client = new Anthropic({ apiKey: cfg.ANTHROPIC_API_KEY });
+        const msg = await client.messages.create({
+          model: cfg.ANTHROPIC_MODEL,
+          max_tokens: 600,
+          messages: [
             {
-              type: "text",
-              text:
-                'Extract this shop bill / receipt as STRICT JSON only, no prose: ' +
-                '{"amount": number (grand total), "shopName": string, "date": "YYYY-MM-DD" or null, "items": string[], "confidence": number 0-1}. ' +
-                "If it is unreadable or not a bill, return {\"confidence\": 0}.",
+              role: "user",
+              content: [
+                { type: "image", source: { type: "base64", media_type: mime as "image/jpeg", data: b64 } },
+                { type: "text", text: EXTRACT_PROMPT },
+              ],
             },
           ],
-        },
-      ],
-    });
-    const block = msg.content.find((c) => c.type === "text");
-    const text = block && "text" in block ? block.text : "";
-    const s = text.indexOf("{");
-    const e = text.lastIndexOf("}");
-    if (s < 0 || e < 0) return null;
-    return JSON.parse(text.slice(s, e + 1)) as BillExtract;
+        });
+        const block = msg.content.find((c) => c.type === "text");
+        const parsed = block && "text" in block ? firstJson(block.text) : null;
+        if (parsed) return parsed;
+      } catch {
+        /* fall through to Gemini */
+      }
+    }
+
+    // Gemini vision fallback (or the only provider if no Claude key).
+    if (cfg.GEMINI_API_KEY) {
+      const text = await geminiVision(cfg.GEMINI_API_KEY, cfg.GEMINI_MODEL, EXTRACT_PROMPT, b64, mime, { maxTokens: 600 });
+      if (text) return firstJson(text);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -69,7 +97,7 @@ async function extractBillFromImage(url: string): Promise<BillExtract | null> {
 /** Run vision + comparison for one entry. Best-effort — never throws. */
 export async function assistBillVerification(ctx: { companyId: string }, entryId: string, dryRun = false): Promise<"PASS" | "MISMATCH" | "UNREADABLE" | "SKIPPED"> {
   if (!(await isEnabled(ctx.companyId, "A10"))) return "SKIPPED";
-  if (!visionAvailable()) return "SKIPPED";
+  if (!(await visionAvailable())) return "SKIPPED";
   const entry = await prisma.erectionEntry.findFirst({ where: { id: entryId, order: { companyId: ctx.companyId } } });
   if (!entry) return "SKIPPED";
   const bills = (entry.billImages as { url: string }[]) ?? [];
@@ -111,7 +139,7 @@ export async function assistBillVerification(ctx: { companyId: string }, entryId
 
 /** Registry stub — event-driven; present for the kill switch + Settings row. */
 async function run(_ctx: AutomationContext): Promise<AutomationResult> {
-  return { name: "bill-verification-assist", sent: 0, skipped: 0, details: { eventDriven: "runs on erection entry create with a bill", visionAvailable: visionAvailable() } };
+  return { name: "bill-verification-assist", sent: 0, skipped: 0, details: { eventDriven: "runs on erection entry create with a bill", visionAvailable: await visionAvailable() } };
 }
 
 export const billVerificationAssist: Automation = {

@@ -89,7 +89,7 @@ export default async function LeadsPage({
         title="Leads"
         subtitle={`${items.length}${nextCursor ? "+" : ""} shown`}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/leads/analytics"
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted"

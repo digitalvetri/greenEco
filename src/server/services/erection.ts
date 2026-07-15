@@ -29,9 +29,10 @@ export async function createErectionEntry(
     throw new Error("Site purchase requires at least one bill image");
   }
   const hasBill = data.billImages && data.billImages.length > 0;
-  // A10: when Claude vision is available, defer auto-approval to the vision check
-  // (PASS + within limit). Without a key, keep the existing amount-based auto-approve.
-  const visionOn = !!env.anthropicApiKey;
+  // A10: when a vision model (Claude or Gemini) is available, defer auto-approval to the
+  // vision check (PASS + within limit). Without a key, keep amount-based auto-approve.
+  const { visionAvailable } = await import("@/server/automations/bill-verification-assist");
+  const visionOn = await visionAvailable();
   const autoApprove = env.autoApproveLimit > 0 && data.amount <= env.autoApproveLimit && !!hasBill && !visionOn;
 
   const entry = await prisma.erectionEntry.create({

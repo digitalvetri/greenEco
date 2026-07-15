@@ -12,8 +12,8 @@
  * Meta WhatsApp Business number. Runbook: PRODUCTION-REPORT.md.
  */
 
-import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
+import { loadConfig } from "@/lib/runtime-config";
 
 export type WhatsAppEvent =
   | { kind: "PAYMENT_REMINDER"; to: string; orderNo: string; amount: string; dueDate: string; client: string }
@@ -42,20 +42,18 @@ function recipientOf(event: WhatsAppEvent): string | undefined {
   return "to" in event ? event.to : undefined;
 }
 
-function cloudApiConfigured(): boolean {
-  return Boolean(env.whatsappToken && env.whatsappPhoneId);
-}
-
 export async function sendWhatsApp(event: WhatsAppEvent): Promise<SendResult> {
   const to = recipientOf(event);
+  const cfg = await loadConfig();
+  const cloudApi = Boolean(cfg.WHATSAPP_TOKEN && cfg.WHATSAPP_PHONE_ID);
 
   // 1) Direct Cloud API — only for messages addressed to a specific number.
-  if (cloudApiConfigured() && to) {
+  if (cloudApi && to) {
     try {
-      const res = await fetch(`https://graph.facebook.com/v21.0/${env.whatsappPhoneId}/messages`, {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${cfg.WHATSAPP_PHONE_ID}/messages`, {
         method: "POST",
         headers: {
-          authorization: `Bearer ${env.whatsappToken}`,
+          authorization: `Bearer ${cfg.WHATSAPP_TOKEN}`,
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -74,9 +72,9 @@ export async function sendWhatsApp(event: WhatsAppEvent): Promise<SendResult> {
   }
 
   // 2) n8n relay — forwards the structured event (handles ADMIN_DIGEST too).
-  if (env.whatsappWebhookUrl) {
+  if (cfg.WHATSAPP_WEBHOOK_URL) {
     try {
-      const res = await fetch(env.whatsappWebhookUrl, {
+      const res = await fetch(cfg.WHATSAPP_WEBHOOK_URL, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...event, text: renderMessage(event) }),
@@ -98,11 +96,12 @@ export async function sendWhatsApp(event: WhatsAppEvent): Promise<SendResult> {
  */
 export async function sendWhatsAppText(to: string, body: string): Promise<SendResult> {
   const digits = to.replace(/\D/g, "");
-  if (cloudApiConfigured()) {
+  const cfg = await loadConfig();
+  if (cfg.WHATSAPP_TOKEN && cfg.WHATSAPP_PHONE_ID) {
     try {
-      const res = await fetch(`https://graph.facebook.com/v21.0/${env.whatsappPhoneId}/messages`, {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${cfg.WHATSAPP_PHONE_ID}/messages`, {
         method: "POST",
-        headers: { authorization: `Bearer ${env.whatsappToken}`, "content-type": "application/json" },
+        headers: { authorization: `Bearer ${cfg.WHATSAPP_TOKEN}`, "content-type": "application/json" },
         body: JSON.stringify({ messaging_product: "whatsapp", to: digits, type: "text", text: { body } }),
       });
       if (res.ok) return { sent: true, transport: "cloud-api" };
@@ -112,9 +111,9 @@ export async function sendWhatsAppText(to: string, body: string): Promise<SendRe
       return { sent: false, transport: "cloud-api", reason: e instanceof Error ? e.message : "network error" };
     }
   }
-  if (env.whatsappWebhookUrl) {
+  if (cfg.WHATSAPP_WEBHOOK_URL) {
     try {
-      const res = await fetch(env.whatsappWebhookUrl, {
+      const res = await fetch(cfg.WHATSAPP_WEBHOOK_URL, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ kind: "TEXT", to: digits, text: body }),

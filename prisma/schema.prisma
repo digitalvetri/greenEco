@@ -851,6 +851,22 @@ model AutomationSetting {
   @@unique([companyId, key])
 }
 
+/** Runtime-editable integration config (API keys, endpoints) an admin pastes in Settings →
+ *  Integrations. Overrides the matching .env value at request time so keys can be rotated
+ *  WITHOUT a redeploy/restart. `valueEnc` is AES-256-GCM encrypted at rest (key derived from
+ *  SESSION_SECRET — which is deliberately env-only, never storable here). Auth/session/storage
+ *  roots stay env-only; only the per-call integration keys live here. */
+model ConfigSetting {
+  id          String   @id @default(cuid())
+  companyId   String
+  key         String // managed allowlist only: "GROQ_API_KEY", "WHATSAPP_TOKEN"...
+  valueEnc    String // AES-256-GCM ciphertext (iv|tag|ct, base64) — never plaintext
+  updatedById String
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, key])
+}
+
 model AutomationTask {
   id         String    @id @default(cuid())
   companyId  String

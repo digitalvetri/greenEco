@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
 import { env } from "@/lib/env";
+import { loadConfig } from "@/lib/runtime-config";
 import type { Ctx } from "@/lib/rbac";
 
 /**
@@ -23,16 +24,24 @@ export interface SystemStatus {
   total: number;
 }
 
-export function getSystemStatus(ctx: Ctx): SystemStatus {
+export async function getSystemStatus(ctx: Ctx): Promise<SystemStatus> {
   requireAdmin(ctx);
   const has = (s: string | undefined | null) => !!s && s.trim().length > 0;
 
+  // Integration keys resolve DB-over-env (Settings → Integrations); auth/session/storage
+  // roots stay env-only, so read those straight from env.
+  const cfg = await loadConfig(ctx.companyId);
   const isProd = env.authMode === "clerk";
   const strongSession = has(env.sessionSecret) && env.sessionSecret !== "dev-insecure-session-secret";
-  const whatsappDirect = has(env.whatsappToken) && has(env.whatsappPhoneId);
-  const whatsappRelay = has(env.whatsappWebhookUrl);
-  const whatsappInbound = has(env.whatsappVerifyToken) && has(env.whatsappAppSecret);
-  const email = has(env.resendApiKey) && has(env.emailFrom);
+  const whatsappDirect = has(cfg.WHATSAPP_TOKEN) && has(cfg.WHATSAPP_PHONE_ID);
+  const whatsappRelay = has(cfg.WHATSAPP_WEBHOOK_URL);
+  const whatsappInbound = has(cfg.WHATSAPP_VERIFY_TOKEN) && has(cfg.WHATSAPP_APP_SECRET);
+  const email = has(cfg.RESEND_API_KEY) && has(cfg.EMAIL_FROM);
+  const aiProviders = [
+    has(cfg.ANTHROPIC_API_KEY) ? "Claude" : null,
+    has(cfg.GROQ_API_KEY) ? "Groq" : null,
+    has(cfg.GEMINI_API_KEY) ? "Gemini" : null,
+  ].filter(Boolean) as string[];
 
   const auth: SystemStatusItem[] = [
     {
@@ -76,15 +85,21 @@ export function getSystemStatus(ctx: Ctx): SystemStatus {
     },
     {
       key: "ai",
-      label: "AI proposal drafts",
-      ok: has(env.anthropicApiKey),
-      detail: has(env.anthropicApiKey) ? "Anthropic API" : "Not set — falls back to KLD-band templates",
+      label: "AI (proposals / brief)",
+      ok: aiProviders.length > 0,
+      detail: aiProviders.length > 0 ? `${aiProviders.join(" + ")} configured` : "None set — falls back to KLD-band templates",
+    },
+    {
+      key: "ai_vision",
+      label: "AI bill-photo reading",
+      ok: has(cfg.ANTHROPIC_API_KEY) || has(cfg.GEMINI_API_KEY),
+      detail: has(cfg.ANTHROPIC_API_KEY) || has(cfg.GEMINI_API_KEY) ? "Claude / Gemini vision" : "Needs a Claude or Gemini key (Groq can't read images)",
     },
     {
       key: "cron",
       label: "Cron authentication",
-      ok: has(env.cronKey),
-      detail: has(env.cronKey) ? "CRON_KEY set" : "Not set — /api/cron is unauthenticated",
+      ok: has(cfg.CRON_KEY),
+      detail: has(cfg.CRON_KEY) ? "CRON_KEY set" : "Not set — /api/cron is unauthenticated",
     },
   ];
 

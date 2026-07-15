@@ -51,7 +51,7 @@ export default async function ReportsPage() {
       <Card className="mb-5">
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>GST summary (for GSTR filing)</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <a
               href="/api/exports/tally"
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-muted transition-colors hover:border-primary/40 hover:text-foreground"

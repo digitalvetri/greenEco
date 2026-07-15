@@ -68,12 +68,14 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div>
+    // Stack on mobile (action full-width below the title, left-aligned) → side-by-side on ≥sm.
+    // Previously a single flex row pushed multi-button actions past the right edge on 390px (clipped CTA).
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+      <div className="min-w-0">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
       </div>
-      {action && <div className="flex items-center gap-2">{action}</div>}
+      {action && <div className="flex flex-wrap items-center gap-2">{action}</div>}
     </div>
   );
 }

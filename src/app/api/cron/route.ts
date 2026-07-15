@@ -29,7 +29,17 @@ export async function GET(req: Request) {
   const jobParam = url.searchParams.get("job") ?? "all";
   const dryRun = url.searchParams.get("dryRun") === "1";
   const key = req.headers.get("x-cron-key");
-  if (env.cronKey && key !== env.cronKey) {
+  const { loadConfig } = await import("@/lib/runtime-config");
+  const cronKey = (await loadConfig(env.companyId)).CRON_KEY;
+  // Fail CLOSED: in production an unset CRON_KEY must not leave the endpoint world-triggerable.
+  // (Previously the guard was skipped entirely when cronKey was empty → anyone could run every
+  // automation.) With no key configured in prod, refuse all calls; the operator must set CRON_KEY
+  // to use cron at all. In dev (unset key) it stays open for convenience.
+  if (!cronKey) {
+    if (env.isProduction) {
+      return NextResponse.json({ error: "cron disabled: CRON_KEY not configured" }, { status: 401 });
+    }
+  } else if (key !== cronKey) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -67,12 +77,16 @@ export async function GET(req: Request) {
     } else if (name === "whatsapp") {
       const dueToday = (result["due_in_0d"] as Array<{ order: string; client: string; amount: string }>) ?? [];
       let notified = 0;
-      for (const d of dueToday) {
-        const r = await sendWhatsApp({ kind: "PAYMENT_REMINDER", to: "", orderNo: d.order, client: d.client, amount: d.amount, dueDate: startToday.toISOString() });
-        if (r.sent) notified++;
+      // Respect dryRun: a dry run must NOT actually send WhatsApp (the legacy inline jobs used to
+      // send regardless, so ?dryRun=1 was not safe to run against a live WhatsApp config).
+      if (!dryRun) {
+        for (const d of dueToday) {
+          const r = await sendWhatsApp({ kind: "PAYMENT_REMINDER", to: "", orderNo: d.order, client: d.client, amount: d.amount, dueDate: startToday.toISOString() });
+          if (r.sent) notified++;
+        }
       }
-      const digest = await sendWhatsApp({ kind: "ADMIN_DIGEST", summary: result });
-      result.whatsapp = { paymentRemindersSent: notified, digestSent: digest.sent, reason: digest.reason };
+      const digest = dryRun ? { sent: false, reason: "dry-run" as const } : await sendWhatsApp({ kind: "ADMIN_DIGEST", summary: result });
+      result.whatsapp = { dryRun, paymentRemindersSent: notified, digestSent: digest.sent, reason: digest.reason };
     } else if (name === "amc") {
       const transitioned = await transitionAmcStatuses(env.companyId, now);
       const weekAhead = new Date(startToday);
@@ -95,7 +109,7 @@ export async function GET(req: Request) {
       for (const v of visitsDue) {
         if (v.scheduledDate >= endToday || v.scheduledDate < startToday) continue;
         const phone = v.contract.order?.proposal?.lead?.phone;
-        if (!phone) continue;
+        if (!phone || dryRun) continue; // dryRun: never actually send
         const r = await sendWhatsAppText(phone, `Reminder: preventive-maintenance visit for AMC ${v.contract.contractNo} is scheduled on ${v.scheduledDate.toLocaleDateString("en-IN")}.`);
         if (r.sent) visitReminders++;
       }
@@ -103,7 +117,7 @@ export async function GET(req: Request) {
       for (const c of expiring) {
         if (![30, 7, 1].includes(daysUntil(c.endDate))) continue;
         const phone = c.order?.proposal?.lead?.phone;
-        if (!phone) continue;
+        if (!phone || dryRun) continue; // dryRun: never actually send
         const r = await sendWhatsAppText(phone, `Your AMC ${c.contractNo} expires on ${c.endDate.toLocaleDateString("en-IN")}. Contact us to renew and keep your plant covered.`);
         if (r.sent) expiryReminders++;
       }
@@ -116,17 +130,22 @@ export async function GET(req: Request) {
     } else if (name === "lowstock") {
       const low = await lowStockItems({ userId: "cron", role: "ADMIN", companyId: env.companyId });
       let digestSent = false;
-      if (low.length) {
+      if (low.length && !dryRun) {
         const summary = low.map((l) => `${l.item}: ${l.balance}/${l.reorderLevel}`).join(", ");
         const r = await sendWhatsApp({ kind: "ADMIN_DIGEST", summary: { lowStock: summary } });
         digestSent = r.sent;
       }
-      result.lowStock = { count: low.length, items: low, digestSent };
+      result.lowStock = { dryRun, count: low.length, items: low, digestSent };
     } else if (name === "purgeAudio") {
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() - 90);
-      const purged = await prisma.followUp.updateMany({ where: { audioUrl: { not: null }, createdAt: { lt: cutoff } }, data: { audioUrl: null } });
-      result.audioPurged = purged.count;
+      if (dryRun) {
+        const wouldPurge = await prisma.followUp.count({ where: { audioUrl: { not: null }, createdAt: { lt: cutoff } } });
+        result.audioPurged = { dryRun: true, wouldPurge };
+      } else {
+        const purged = await prisma.followUp.updateMany({ where: { audioUrl: { not: null }, createdAt: { lt: cutoff } }, data: { audioUrl: null } });
+        result.audioPurged = purged.count;
+      }
     } else {
       result[name] = { error: "unknown job" };
     }

@@ -41,6 +41,103 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v28 — Pre-deploy audit + go-live blocker fixes (see `GO-LIVE-AUDIT.md`)
+
+Full end-to-end audit (12-lens multi-agent review + adversarial verification) ahead of a production deploy,
+then fixed every code-level blocker. **Gate: tsc 0 · lint 0 (14 warnings) · 75 unit (+3 GST) · 70 e2e ·
+verify-invoices-p0/p1 + sell/execute/amc + materials-p0 green · env fail-fast + cron fail-closed browser-verified.**
+
+- **B1 — GST double-taxation (the big one), FIXED.** Milestone `amount` is a % of the proposal grandTotal, which
+  is already GST-inclusive (`subtotal + 18%`), but `createInvoiceFromMilestone`/`draftInvoiceForMilestone` treated it
+  as the taxable base and added 18% **again** — every customer tax invoice over-stated by 18% (proven live on
+  GEC-INV-2026-035: billed ₹8.55L vs correct ₹7.24L). Fix: new `computeGstInclusive()` in `gst.ts` backs GST **out**
+  of the gross with exact reconciliation (`taxable + gst == gross`), so invoice total == milestone receivable (a full
+  receipt now zeroes the milestone) and Σ invoices == grandTotal. Milestone `amount` stays gross (receivables/receipts
+  are correct — seeding from subtotal would have broken collections). AMC left as-is (its `annualValue` is a
+  self-consistent pre-tax figure, not the same bug). +3 gst.test.ts cases incl. the exact regression.
+- **B2/B4 — forgeable session + print token, FIXED.** `env.ts` only enforced `SESSION_SECRET`/`PRINT_TOKEN_SECRET`
+  under `AUTH_MODE=clerk`; this deploy is `AUTH_MODE=dev`, so both fell back to **public hardcoded defaults**. Now a
+  production signal (`NODE_ENV=production` OR `AUTH_DEV_BYPASS=0` OR clerk) makes the app **refuse to boot** with the
+  default/short secret (verified: throws naming both; dev still boots). `env.isProduction` accessor added.
+- **B6 — public `/api/cron`, FIXED.** Guard was fail-open when `CRON_KEY` unset (verified 200 live). Now **fails
+  closed** in production (401) when no key; dev stays open. Also **dry-run isolation**: the legacy inline cron jobs
+  (whatsapp/amc/lowstock/purgeAudio) ignored `?dryRun=1` and really sent/wrote — now guarded (verified sends nothing).
+- **B7 — published admin password, FIXED.** `seed.ts` reads `SEED_ADMIN_PASSWORD`/`SEED_EMPLOYEE_PASSWORD`, refuses the
+  public default in production, and no longer resets a rotated password on re-seed (the `update` clause dropped `passwordHash`).
+- **HIGH fixed:** new Won orders now set `Order.clientPhone` from the lead (A4 payment reminders were skipping every new
+  order); WhatsApp inbound webhook fails closed in prod when `WHATSAPP_APP_SECRET` unset (was accepting spoofed messages);
+  mobile CTA clipping fixed on leads/service/erection/reports + `PageHeader` (stacks action below title at ≤sm).
+- **Config left to the operator (can't fix in code):** `STORAGE_DRIVER=s3` + `S3_*` (B5, needs their bucket), the secret
+  VALUES, `CRON_KEY`, the cron scheduler, `npx playwright install chromium` for PDFs. All in `GO-LIVE-AUDIT.md`'s checklist.
+- **Not rushed pre-launch (flagged):** 44px touch targets (app-wide visual change), AMC legacy-reminder idempotency
+  (double-send only, WhatsApp off day-one), place-of-supply capture (per-order `clientStateCode` via existing GstControl).
+
+### v27 — Materials IA rebuild: 4 task-based sections (+ the employee could never raise a request)
+
+The module was "fully confusing" (user's word) — and audit found it was also *broken for one role*.
+See `MATERIALS-UX-REPORT.md`. **Gate: tsc 0 · lint 0 (14 pre-existing warnings) · 72 unit · 70 e2e (68 → +2) ·
+verify-materials-p0 (22 checks, was 20) + p1 + p1-4 + p2 · verify-control + verify-execute · browser-driven both roles.**
+
+- **The bug: EMPLOYEEs could not reach the material-request flow at all.** `createMaterialRequest` /
+  `listMaterialRequests` are the *only* materials services with **no `requireAdmin`** (the request deliberately
+  carries **no prices** — it's the field-staff flow), but the Requests tab lived inside `MaterialsTools`, which
+  `page.tsx` mounted under `{isAdmin && …}`. Field staff saw a read-only stock table and nothing else. Fixed by
+  giving Requests its own route. Round-trip now driven in-browser: employee submits → admin sees a **count badge**
+  on the Requests tab → admin actions it (PENDING→TRANSFERRED).
+- **Security hardening (found while enabling that path):** `createMaterialRequest` trusted a caller-supplied
+  `orderId` with **no company check** — a cross-tenant write, unreachable only because no UI exposed it. Now
+  tenant-checks the order **and** `requireProjectAccess` (EMPLOYEE ⇒ must be on the team), mirroring `erection.ts`.
+  Both directions asserted in `verify-materials-p0`.
+- **IA: one ~2.9-screen page (7 stacked cards + nested tabs) → 4 sections, each ~1 screen.** `/materials` Stock
+  (everyone; Add Item collapsed) · `/materials/purchasing` (admin: raise PO, PO list + GRN, vendors) ·
+  `/materials/operations` (admin: Transfer | Issue to Site | Audit) · `/materials/requests` (**everyone**).
+  Deleted `materials-admin.tsx` + `materials-tools.tsx` → `add-item-card` / `purchasing-panel` / `operations-panel` /
+  `requests-panel` + role-filtered `materials-nav`. Daily actions (transfer/issue) were previously below a 100-row
+  PO list; they're now the whole screen. Each route fetches **only its own data** (Stock used to pull vendors/POs/
+  orders/requests on every load); `revalidatePath("/materials", "layout")` covers the subtree.
+- **The sub-nav is not the boundary** — admin pages `notFound()` a non-admin *and* services still `requireAdmin`.
+  Employee hand-typing `/materials/purchasing` gets the 404 page, zero cost UI. (Asserted by **content-absence**,
+  not HTTP status: under `force-dynamic` the streamed shell flushes 200 before `notFound()` lands — the existing
+  convention for the admin-only erection pages.)
+- **Reported, not fixed:** PO/request "load more" (hard 100 cap); a stale **negative balance** (`Air Blower 2HP`
+  @ Main Warehouse = −1, from a 2026-07-07 transfer that **predates** the v19-P2 over-issue guard — the guard now
+  blocks it, so it's stale data needing a corrective ADJUST, not a live bug); the guard's **TOCTOU race** (reads
+  on-hand *outside* the `$transaction`); and `verify-*` test rows polluting the live lists (user chose to leave them).
+
+### v26 — Runtime integration config (paste API keys in Settings) + Gemini as a 3rd AI provider
+
+Admins can now paste/rotate every integration key in **Settings → Integrations & API keys** — no
+`.env` edit, no restart. **Gate: tsc 0 · lint 0 (14 pre-existing `_ctx` warnings) · 72 unit ·
+`verify-config-store` (22 checks) · live `/api/cron` authed by a DB-stored key (wrong→401, DB→200).**
+
+- **Config store** (`ConfigSetting` model, `config_settings` migration): DB overrides the matching
+  `.env` value at request time. `src/lib/secrets-crypto.ts` (AES-256-GCM, key from `SESSION_SECRET`
+  via scrypt — that root is deliberately env-only, so the decrypt key can't live in the store it
+  decrypts), `src/lib/runtime-config.ts` (`MANAGED_KEYS` allowlist, `loadConfig` = DB-over-env with a
+  15s TTL cache, `invalidateConfig` on write; DB-unreachable → env-only, never throws so unit tests +
+  outages degrade cleanly).
+- **DB-overridable (encrypted, pasteable):** `CRON_KEY`, all `WHATSAPP_*`, `RESEND_API_KEY`/`EMAIL_FROM`,
+  `ANTHROPIC`/`GROQ`/`GEMINI` key+model, `AI_TEXT_PROVIDER`. **Env-only (never in the UI):**
+  `DATABASE_URL`, `SESSION_SECRET`, `AUTH_MODE`, `AUTH_DEV_BYPASS`, `PRINT_TOKEN_SECRET`, `STORAGE_DRIVER`,
+  `S3_*` (storage/security roots — auth-escalation + set-once hazards). Consumers converted to
+  `await loadConfig()`: `groq.ts`, `email.ts`, `whatsapp.ts` (both send fns), `ai.ts`, cron route,
+  inbound-whatsapp route, `system.ts` readiness, `bill-verification-assist.ts` + `erection.ts` vision.
+- **Admin surface** — `server/services/config-admin.ts` (`getConfigOverview` returns a SAFE projection:
+  `configured`/`source`/`last4` for secrets, full value only for non-secrets — secret plaintext NEVER
+  reaches the browser; verified by asserting the secret is absent from the serialized projection).
+  `setConfigValue`/`clearConfigValue` (admin-only, encrypt at rest, audit the KEY NAME not the value,
+  bust cache). Page `settings/integrations/` + `IntegrationsForm` row (password input, last4 badge,
+  Save/Clear, provider `<Select>`).
+- **Gemini = 3rd AI provider** (`src/lib/gemini.ts`, `generateContent` REST — text + vision, no SDK).
+  New `src/lib/llm.ts` (`llmText`/`llmJson`) picks among configured providers (pref order from
+  `AI_TEXT_PROVIDER`, default groq→gemini→anthropic) — **template/numeric fallback stays the hard floor**.
+  A13 weekly-brief + proposal drafting (`ai.ts`) now provider-agnostic → a Groq-only OR Gemini-only OR
+  Claude-only setup all produce AI output (Claude keeps its `json_schema` structured path; Groq/Gemini
+  use prompt-JSON, parsed defensively → template on any deviation). **A10 vision = Claude OR Gemini**
+  (Groq can't read images). AI live-paths untested here (no real keys) — degrade-cleanly by design.
+- **Docs:** `SETUP-INTEGRATIONS.md` rewritten to lead with the Settings flow + a 3-provider AI table;
+  `.env.example` gains `GEMINI_API_KEY`/`GEMINI_MODEL`/`AI_TEXT_PROVIDER`.
+
 ### v25 — Automation Engine (AUTOMATION-ENGINE-SPEC-v1.0 — all 15 automations)
 
 Full automation engine + 15 automations across 6 waves. **Gate: tsc 0 · lint 0 · 72 unit · 68 e2e ·

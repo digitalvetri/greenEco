@@ -10,6 +10,7 @@ import { z } from "zod";
  */
 const schema = z
   .object({
+    NODE_ENV: z.string().optional(),
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
     AUTH_MODE: z.enum(["dev", "clerk"]).default("dev"),
@@ -61,6 +62,11 @@ const schema = z
     /** Groq (OpenAI-compatible) for the weekly brief; empty = numeric fallback. */
     GROQ_API_KEY: z.string().default(""),
     GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
+    /** Google Gemini (generativelanguage API) — third text/vision provider. */
+    GEMINI_API_KEY: z.string().default(""),
+    GEMINI_MODEL: z.string().default("gemini-2.0-flash"),
+    /** Preferred AI text provider: auto | groq | gemini | anthropic. Overridable in Settings. */
+    AI_TEXT_PROVIDER: z.enum(["auto", "groq", "gemini", "anthropic"]).default("auto"),
     EMAIL_FROM: z.string().default(""),
 
     /**
@@ -87,14 +93,33 @@ const schema = z
       if (!v.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
         ctx.addIssue({ code: "custom", path: ["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"], message: "required when AUTH_MODE=clerk" });
     }
-    // A forgeable print token would let anyone render an invoice PDF (pricing data).
-    // Treat AUTH_MODE=clerk as "this is production".
-    if (v.AUTH_MODE === "clerk") {
+
+    // Production secret enforcement — the credentials-login (AUTH_MODE=dev) path is a SUPPORTED
+    // production deployment, so security secrets must be enforced whenever this is a real deploy,
+    // not only under AUTH_MODE=clerk. A default/short SESSION_SECRET ⇒ forgeable admin session;
+    // a default PRINT_TOKEN_SECRET ⇒ anyone can render a priced invoice/closeout PDF.
+    // "This is a real deploy" = NODE_ENV=production OR the operator explicitly set AUTH_DEV_BYPASS=0
+    // (the go-live checklist tells them to). Either signal turns on the enforcement.
+    //
+    // BUT skip it during `next build` (NEXT_PHASE=phase-production-build): the build compiles code and
+    // does not serve traffic, and secrets are often absent at build time (CI, split build/deploy). The
+    // protection that matters fires at RUNTIME boot (`next start` / a serverless cold start re-evaluates
+    // this module and throws before serving a single request). Enforcing at build would just break CI.
+    const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+    const isProd = !isBuildPhase && (v.NODE_ENV === "production" || v.AUTH_DEV_BYPASS === "0" || v.AUTH_MODE === "clerk");
+    if (isProd) {
+      if (v.SESSION_SECRET === "dev-insecure-session-secret" || v.SESSION_SECRET.length < 32) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["SESSION_SECRET"],
+          message: "must be a unique random string of >=32 chars in production (default is public & forgeable)",
+        });
+      }
       if (v.PRINT_TOKEN_SECRET === "dev-insecure-print-secret" || v.PRINT_TOKEN_SECRET.length < 32) {
         ctx.addIssue({
           code: "custom",
           path: ["PRINT_TOKEN_SECRET"],
-          message: "must be a unique random string of >=32 chars when AUTH_MODE=clerk",
+          message: "must be a unique random string of >=32 chars in production (default is public & forgeable)",
         });
       }
     }
@@ -159,10 +184,14 @@ export const env = {
   resendApiKey: e.RESEND_API_KEY,
   groqApiKey: e.GROQ_API_KEY,
   groqModel: e.GROQ_MODEL,
+  geminiApiKey: e.GEMINI_API_KEY,
+  geminiModel: e.GEMINI_MODEL,
+  aiTextProvider: e.AI_TEXT_PROVIDER,
   emailFrom: e.EMAIL_FROM,
   errorWebhookUrl: e.ERROR_WEBHOOK_URL,
   printTokenSecret: e.PRINT_TOKEN_SECRET,
   sessionSecret: e.SESSION_SECRET,
+  isProduction: e.NODE_ENV === "production",
   // ON in dev, OFF in production unless explicitly set — the real login fails closed.
   authDevBypass: e.AUTH_DEV_BYPASS ? e.AUTH_DEV_BYPASS === "1" : process.env.NODE_ENV !== "production",
 } as const;

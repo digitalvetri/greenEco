@@ -1,8 +1,7 @@
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/lib/env";
 import { formatINR } from "@/lib/money";
-import { groqComplete } from "@/lib/groq";
+import { llmText } from "@/lib/llm";
 import { lowStockItems } from "@/server/services/materials";
 import { deliver } from "./deliver";
 import { adminPhones } from "./engine";
@@ -52,22 +51,24 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
     `Actions: chase overdue payments · clear the verification queue · reorder low stock`;
 
   let brief = fallback;
-  const ai = await groqComplete(
+  // Any configured text provider (Groq / Gemini / Claude) — falls back to the numeric brief.
+  const ai = await llmText(
     "You are the operations analyst for Green Ecocare, a wastewater-treatment company. Write plain text only, Indian ₹ format, no markdown.",
     `Given these JSON facts, write a WhatsApp-friendly brief under 900 characters with exactly 4 short sections: 1) Pipeline 2) Money 3) Risks 4) Top 3 actions for this week. Use the numbers exactly as given.\n\n${JSON.stringify(facts)}`,
     { maxTokens: 400, temperature: 0.3 },
   );
-  if (ai && ai.length <= 1200) brief = ai;
+  const aiText = ai?.text;
+  if (aiText && aiText.length <= 1200) brief = aiText;
 
   let sent = 0;
   let skipped = 0;
   for (const admin of await adminPhones(ctx.companyId)) {
-    const r = await deliver({ name: "weekly-brief", companyId: ctx.companyId, channel: "WHATSAPP", to: admin, body: brief, dedupeKey: `A13:${ymd(start)}:${admin}`, dryRun: ctx.dryRun, payload: { facts, aiUsed: !!ai } });
+    const r = await deliver({ name: "weekly-brief", companyId: ctx.companyId, channel: "WHATSAPP", to: admin, body: brief, dedupeKey: `A13:${ymd(start)}:${admin}`, dryRun: ctx.dryRun, payload: { facts, aiUsed: !!aiText, aiProvider: ai?.provider } });
     if (r.sent) sent++;
     if (r.skipped) skipped++;
   }
 
-  return { name: "weekly-brief", sent, skipped, details: { facts, aiUsed: !!ai } };
+  return { name: "weekly-brief", sent, skipped, details: { facts, aiUsed: !!aiText, aiProvider: ai?.provider ?? null } };
 }
 
 export const weeklyBrief: Automation = {

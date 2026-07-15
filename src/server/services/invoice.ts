@@ -5,7 +5,7 @@ import type { Ctx } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
-import { computeGst, WORKS_CONTRACT_SAC } from "@/lib/gst";
+import { computeGstInclusive, WORKS_CONTRACT_SAC } from "@/lib/gst";
 import { amountInWords } from "@/lib/money";
 import { allocateNumber } from "./numbering";
 
@@ -35,8 +35,11 @@ export async function createInvoiceFromMilestone(
       ? milestone.order.clientGstin.slice(0, 2)
       : undefined;
   const pos = opts?.placeOfSupplyStateCode ?? milestone.order.clientStateCode ?? gstinState ?? env.companyStateCode;
-  const gst = computeGst({
-    taxableAmount: milestone.amount,
+  // milestone.amount is a % of the proposal GRAND total, which already includes GST
+  // (grandTotal = subtotal + 18%). Back the GST out of that gross so we don't tax it
+  // twice; the invoice total then equals the milestone receivable exactly.
+  const gst = computeGstInclusive({
+    grossAmount: milestone.amount,
     supplierStateCode: env.companyStateCode,
     placeOfSupplyStateCode: pos,
     rate: opts?.gstRate ?? 18,
@@ -94,7 +97,8 @@ export async function draftInvoiceForMilestone(ctx: Ctx, milestoneId: string): P
 
   const gstinState = milestone.order.clientGstin && /^\d{2}/.test(milestone.order.clientGstin) ? milestone.order.clientGstin.slice(0, 2) : undefined;
   const pos = milestone.order.clientStateCode ?? gstinState ?? env.companyStateCode;
-  const gst = computeGst({ taxableAmount: milestone.amount, supplierStateCode: env.companyStateCode, placeOfSupplyStateCode: pos, rate: 18 });
+  // GST-inclusive: milestone.amount is a % of the GST-inclusive grand total (see createInvoiceFromMilestone).
+  const gst = computeGstInclusive({ grossAmount: milestone.amount, supplierStateCode: env.companyStateCode, placeOfSupplyStateCode: pos, rate: 18 });
   const lineItems = [{ description: `${milestone.description} — ${milestone.order.clientName}`, sac: WORKS_CONTRACT_SAC, amount: gst.taxable }];
 
   const invoice = await prisma.invoice.create({

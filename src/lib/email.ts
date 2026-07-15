@@ -1,5 +1,6 @@
 import { env } from "./env";
 import { log, errFields } from "./logger";
+import { loadConfig } from "./runtime-config";
 
 /**
  * Transactional email via the Resend HTTP API (Phase 1). Uses fetch — no SDK —
@@ -26,23 +27,25 @@ export interface EmailResult {
   reason?: string;
 }
 
+/** Env-only quick check (used by unit tests). The live send resolves DB-over-env config. */
 export function isEmailConfigured(): boolean {
   return Boolean(env.resendApiKey && env.emailFrom);
 }
 
 export async function sendEmail(msg: EmailMessage): Promise<EmailResult> {
-  if (!isEmailConfigured()) {
+  const cfg = await loadConfig();
+  if (!cfg.RESEND_API_KEY || !cfg.EMAIL_FROM) {
     return { sent: false, reason: "email not configured (RESEND_API_KEY/EMAIL_FROM)" };
   }
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        authorization: `Bearer ${env.resendApiKey}`,
+        authorization: `Bearer ${cfg.RESEND_API_KEY}`,
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        from: env.emailFrom,
+        from: cfg.EMAIL_FROM,
         to: Array.isArray(msg.to) ? msg.to : [msg.to],
         subject: msg.subject,
         html: msg.html,

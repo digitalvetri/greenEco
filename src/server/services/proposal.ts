@@ -480,7 +480,7 @@ export async function markWon(
   requireAdmin(ctx);
   const proposal = await prisma.proposal.findFirst({
     where: { id: proposalId, companyId: ctx.companyId },
-    include: { versions: { include: { boqItems: true } }, order: true },
+    include: { versions: { include: { boqItems: true } }, order: true, lead: { select: { phone: true } } },
   });
   if (!proposal) throw new Error("Proposal not found");
   if (proposal.order) return { orderId: proposal.order.id, already: true };
@@ -500,6 +500,7 @@ export async function markWon(
         proposalId,
         clientName: proposal.projectName,
         siteAddress: proposal.siteAddress,
+        clientPhone: proposal.lead.phone, // A4 payment reminders read this; was left null → reminders skipped every new order
         projectValue: projectValue.toFixed(2),
         startDate: opts?.startDate,
         targetDate: opts?.targetDate,

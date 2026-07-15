@@ -22,7 +22,7 @@ export default async function SettingsPage() {
       ? prisma.user.findMany({ where: { companyId: session.companyId }, orderBy: { role: "asc" } })
       : Promise.resolve([]),
   ]);
-  const status = isAdmin ? getSystemStatus(session) : null;
+  const status = isAdmin ? await getSystemStatus(session) : null;
 
   return (
     <div>
@@ -39,9 +39,14 @@ export default async function SettingsPage() {
         <Card className="mb-4">
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>System readiness</CardTitle>
-            <Badge variant={status.liveCount === status.total ? "ok" : "warn"}>
-              {status.liveCount}/{status.total} live
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Link href="/settings/integrations" className="text-xs font-medium text-primary hover:underline">
+                Manage keys →
+              </Link>
+              <Badge variant={status.liveCount === status.total ? "ok" : "warn"}>
+                {status.liveCount}/{status.total} live
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
             {[...status.auth, ...status.integrations, ...status.observability].map((s) => (
@@ -114,6 +119,7 @@ export default async function SettingsPage() {
           <CardTitle>Masters</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2 text-sm">
+          <Link href="/settings/integrations" className="text-primary">Integrations & API keys →</Link>
           <Link href="/settings/automations" className="text-primary">Automations →</Link>
           <Link href="/materials" className="text-primary">Items & Vendors →</Link>
           <Link href="/reports" className="text-primary">Reports →</Link>

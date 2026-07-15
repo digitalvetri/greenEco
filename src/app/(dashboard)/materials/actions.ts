@@ -18,56 +18,56 @@ import {
 export async function createItemAction(data: unknown) {
   const s = await getSession();
   await createItem(s, data as Parameters<typeof createItem>[1]);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }
 
 export async function createVendorAction(data: unknown) {
   const s = await getSession();
   await createVendor(s, data as Parameters<typeof createVendor>[1]);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }
 
 export async function createPOAction(data: unknown) {
   const s = await getSession();
   const res = await createPO(s, data as Parameters<typeof createPO>[1]);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return res;
 }
 
 export async function setPOStatusAction(poId: string, status: "SENT" | "CLOSED") {
   const s = await getSession();
   await setPOStatus(s, poId, status);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }
 
 export async function receiveGRNAction(poId: string, items: unknown, challanUrl?: string) {
   const s = await getSession();
   await receiveGRN(s, poId, items as Parameters<typeof receiveGRN>[2], challanUrl);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }
 
 export async function transferAction(data: unknown) {
   const s = await getSession();
   await transferStock(s, data as Parameters<typeof transferStock>[1]);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }
 
 export async function consumeAction(data: unknown) {
   const s = await getSession();
   await consumeStock(s, data as Parameters<typeof consumeStock>[1]);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }
 
 export async function materialRequestAction(orderId: string, items: unknown) {
   const s = await getSession();
   await createMaterialRequest(s, orderId, items as { itemId: string; qty: number }[]);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }
 
@@ -77,13 +77,13 @@ export async function setRequestStatusAction(
 ) {
   const s = await getSession();
   await setRequestStatus(s, requestId, status);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }
 
 export async function stockAuditAction(locationId: string, counts: unknown) {
   const s = await getSession();
   await stockAudit(s, locationId, counts as Parameters<typeof stockAudit>[2]);
-  revalidatePath("/materials");
+  revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
 }

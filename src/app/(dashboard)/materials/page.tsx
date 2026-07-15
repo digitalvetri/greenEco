@@ -1,24 +1,14 @@
 import Link from "next/link";
 import { Package, AlertTriangle, ShoppingCart, IndianRupee, BarChart3 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import {
-  listItems,
-  listVendors,
-  listLocations,
-  listPOs,
-  listMaterialRequests,
-  materialsStats,
-  materialCategories,
-  itemOptions,
-} from "@/server/services/materials";
-import { listOrders } from "@/server/services/order";
+import { listItems, materialsStats, materialCategories } from "@/server/services/materials";
 import { PageHeader, StatTile } from "@/components/ui/stat";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ExportButton } from "@/components/ui/export-button";
-import { MaterialsAdmin } from "./materials-admin";
-import { MaterialsTools } from "./materials-tools";
 import { StockList, type StockRow } from "./stock-list";
 import { MaterialsSearch } from "./materials-search";
+import { MaterialsNav } from "./materials-nav";
+import { AddItemCard } from "./add-item-card";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +18,12 @@ function compactINR(v: number): string {
   return `₹${v.toLocaleString("en-IN")}`;
 }
 
+/**
+ * Materials → Stock. The landing section: what do we have, and where.
+ *
+ * Only fetches what this section renders — the old page fetched vendors/POs/orders/
+ * requests too, on every visit, for forms that lived far below the fold.
+ */
 export default async function MaterialsPage({
   searchParams,
 }: {
@@ -76,9 +72,10 @@ export default async function MaterialsPage({
     <div>
       <PageHeader
         title="Materials"
-        subtitle={`${items.length}${nextCursor ? "+" : ""} items shown`}
+        subtitle="Stock on hand across every location"
         action={
           <>
+            {/* Analytics is open to EMPLOYEE too — every ₹ surface is stripped there, not gated (v19 P1-4). */}
             <Link
               href="/materials/analytics"
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted"
@@ -90,25 +87,43 @@ export default async function MaterialsPage({
         }
       />
 
+      <MaterialsNav isAdmin={isAdmin} requestCount={stats.pendingRequests} />
+
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Items" value={stats.totalItems} icon={Package} tone="primary" />
-        <StatTile label="Low stock" value={stats.lowStockCount} icon={AlertTriangle} tone={stats.lowStockCount > 0 ? "danger" : "default"} />
+        <StatTile
+          label="Low stock"
+          value={stats.lowStockCount}
+          icon={AlertTriangle}
+          tone={stats.lowStockCount > 0 ? "danger" : "default"}
+        />
         <StatTile label="Open POs" value={stats.openPOs} icon={ShoppingCart} tone={stats.openPOs > 0 ? "warn" : "default"} />
         {isAdmin && (
-          <StatTile label="Stock value" value={stats.stockValue != null && stats.stockValue > 0 ? compactINR(stats.stockValue) : "—"} icon={IndianRupee} tone="ok" />
+          <StatTile
+            label="Stock value"
+            value={stats.stockValue != null && stats.stockValue > 0 ? compactINR(stats.stockValue) : "—"}
+            icon={IndianRupee}
+            tone="ok"
+          />
         )}
       </div>
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Item Master & Stock (all locations)</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {isAdmin && (
+        <div className="mb-4">
+          <AddItemCard />
+        </div>
+      )}
+
+      <Card>
+        <CardContent className="pt-5">
           {categories.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-1.5">
               <Link
                 href={tabHref("")}
-                className={"rounded-full px-3 py-1 text-xs font-medium " + (!category ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted")}
+                className={
+                  "rounded-full px-3 py-1 text-xs font-medium " +
+                  (!category ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted")
+                }
               >
                 All
               </Link>
@@ -116,7 +131,10 @@ export default async function MaterialsPage({
                 <Link
                   key={c}
                   href={tabHref(c)}
-                  className={"rounded-full px-3 py-1 text-xs font-medium " + (category === c ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted")}
+                  className={
+                    "rounded-full px-3 py-1 text-xs font-medium " +
+                    (category === c ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted")
+                  }
                 >
                   {c}
                 </Link>
@@ -127,55 +145,6 @@ export default async function MaterialsPage({
           <StockList key={query} initialItems={rows} initialCursor={nextCursor} query={query} isAdmin={isAdmin} />
         </CardContent>
       </Card>
-
-      {isAdmin && <AdminTools session={session} />}
-    </div>
-  );
-}
-
-async function AdminTools({ session }: { session: Awaited<ReturnType<typeof getSession>> }) {
-  const [opts, vendors, locations, pos, orders, requests] = await Promise.all([
-    itemOptions(session),
-    listVendors(session),
-    listLocations(session),
-    listPOs(session),
-    listOrders(session, { take: 100 }),
-    listMaterialRequests(session),
-  ]);
-
-  const itemOpts = opts.map((i) => ({ id: i.id, name: i.name }));
-  const locationOpts = locations.map((l) => ({ id: l.id, name: l.name, type: l.type as string }));
-
-  return (
-    <div className="space-y-4">
-      <MaterialsAdmin
-        items={itemOpts}
-        vendors={vendors.map((v) => ({ id: v.id, name: v.name, categories: v.categories }))}
-        locations={locations.map((l) => ({ id: l.id, name: l.name }))}
-        pos={pos.map((p) => ({
-          id: p.id,
-          poNo: p.poNo,
-          vendor: p.vendor.name,
-          status: p.status,
-          totalValue: p.totalValue.toString(),
-          items: (p.items as { itemId: string; qty: number; rate: number }[]) ?? [],
-          received: p.status === "RECEIVED" || p.status === "CLOSED",
-        }))}
-      />
-
-      <MaterialsTools
-        items={itemOpts}
-        locations={locationOpts}
-        siteLocations={locationOpts.filter((l) => l.type === "SITE").map((l) => ({ id: l.id, name: l.name }))}
-        orders={orders.items.map((o) => ({ id: o.id, orderNo: o.orderNo, clientName: o.clientName }))}
-        requests={requests.map((r) => ({
-          id: r.id,
-          orderNo: r.order.orderNo,
-          status: r.status,
-          createdAt: r.createdAt.toISOString(),
-          items: (r.items as { itemId: string; qty: number }[]) ?? [],
-        }))}
-      />
     </div>
   );
 }

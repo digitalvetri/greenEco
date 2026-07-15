@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { loadConfig } from "@/lib/runtime-config";
 import { parseInboundWhatsApp } from "@/lib/whatsapp-inbound";
 import { recordInboundWhatsApp } from "@/server/services/lead";
 import { log, errFields } from "@/lib/logger";
@@ -21,16 +22,19 @@ export async function GET(req: Request) {
   const mode = u.searchParams.get("hub.mode");
   const token = u.searchParams.get("hub.verify_token");
   const challenge = u.searchParams.get("hub.challenge");
-  if (mode === "subscribe" && env.whatsappVerifyToken && token === env.whatsappVerifyToken) {
+  const verifyToken = (await loadConfig(env.companyId)).WHATSAPP_VERIFY_TOKEN;
+  if (mode === "subscribe" && verifyToken && token === verifyToken) {
     return new NextResponse(challenge ?? "", { status: 200 });
   }
   return NextResponse.json({ error: "verification failed" }, { status: 403 });
 }
 
-function signatureValid(raw: string, header: string | null): boolean {
-  if (!env.whatsappAppSecret) return true; // no secret configured → skip (dev)
+function signatureValid(raw: string, header: string | null, appSecret: string): boolean {
+  // Fail CLOSED in production: an unset app secret must NOT accept unsigned/spoofed inbound
+  // messages (it previously skipped the check entirely). In dev, skip for convenience.
+  if (!appSecret) return !env.isProduction;
   if (!header) return false;
-  const expected = "sha256=" + createHmac("sha256", env.whatsappAppSecret).update(raw).digest("hex");
+  const expected = "sha256=" + createHmac("sha256", appSecret).update(raw).digest("hex");
   const a = Buffer.from(header);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
@@ -38,7 +42,8 @@ function signatureValid(raw: string, header: string | null): boolean {
 
 export async function POST(req: Request) {
   const raw = await req.text();
-  if (!signatureValid(raw, req.headers.get("x-hub-signature-256"))) {
+  const appSecret = (await loadConfig(env.companyId)).WHATSAPP_APP_SECRET;
+  if (!signatureValid(raw, req.headers.get("x-hub-signature-256"), appSecret)) {
     return NextResponse.json({ error: "bad signature" }, { status: 401 });
   }
   try {
