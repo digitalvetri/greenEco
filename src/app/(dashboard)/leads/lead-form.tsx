@@ -28,6 +28,8 @@ interface Contact {
 export interface LeadFormInitial {
   customerName: string;
   address: string;
+  projectName?: string;
+  projectAddress?: string;
   phone: string;
   email: string;
   source: string;
@@ -67,6 +69,8 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
   const [form, setForm] = useState({
     customerName: initial?.customerName ?? "",
     address: initial?.address ?? "",
+    projectName: initial?.projectName ?? "",
+    projectAddress: initial?.projectAddress ?? "",
     phone: initial?.phone ?? "",
     email: initial?.email ?? "",
     source: initial?.source ?? "Reference",
@@ -190,6 +194,24 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
               </p>
             )}
           </div>
+
+          <Field label="Project Name" required>
+            <Input
+              value={form.projectName}
+              onChange={(e) => set("projectName", e.target.value)}
+              placeholder="e.g. STP Plant — Green Meadows Phase 2"
+            />
+          </Field>
+
+          <Field label="Project Address" required>
+            <Textarea
+              value={form.projectAddress}
+              onChange={(e) => set("projectAddress", e.target.value)}
+              placeholder="Installation / project site address"
+              aria-label="Project Address"
+              className="min-h-16"
+            />
+          </Field>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Phone (10 digits)" required>

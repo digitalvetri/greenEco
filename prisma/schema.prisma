@@ -129,11 +129,13 @@ model User {
 model Lead {
   id           String     @id @default(cuid())
   companyId    String
-  customerName String
-  address      String
-  lat          Float?
-  lng          Float?
-  phone        String // duplicate-check key
+  customerName    String
+  address         String
+  projectName     String?
+  projectAddress  String?
+  lat             Float?
+  lng             Float?
+  phone           String // duplicate-check key
   email        String?
   source       String // Reference | SiteVisit | CallIn | Builder | Consultant | Other
   requirement  String? // free-text notes (structured sizing lives in the fields below)

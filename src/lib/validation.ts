@@ -49,6 +49,8 @@ export const plantSizingFields = {
 export const createLeadSchema = z.object({
   customerName: z.string().trim().min(2, "Customer name required"),
   address: z.string().trim().min(2, "Address required"),
+  projectName: z.string().trim().optional(),
+  projectAddress: z.string().trim().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   phone: phoneSchema,
@@ -69,6 +71,8 @@ export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export const updateLeadSchema = z.object({
   customerName: z.string().trim().min(2, "Customer name required"),
   address: z.string().trim().min(2, "Address required"),
+  projectName: z.string().trim().optional(),
+  projectAddress: z.string().trim().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   phone: phoneSchema,

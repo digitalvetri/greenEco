@@ -365,6 +365,8 @@ export async function createLead(ctx: Ctx, input: CreateLeadInput) {
         companyId: ctx.companyId,
         customerName: input.customerName,
         address: input.address,
+        projectName: input.projectName ?? null,
+        projectAddress: input.projectAddress ?? null,
         lat: input.lat,
         lng: input.lng,
         phone: input.phone,
@@ -439,6 +441,8 @@ export async function updateLead(ctx: Ctx, id: string, input: UpdateLeadInput) {
       data: {
         customerName: input.customerName,
         address: input.address,
+        projectName: input.projectName ?? null,
+        projectAddress: input.projectAddress ?? null,
         lat: input.lat,
         lng: input.lng,
         phone: input.phone,
