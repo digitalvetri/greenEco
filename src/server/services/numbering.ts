@@ -35,5 +35,22 @@ export async function allocateNumber(
     RETURNING "lastValue";
   `;
   const seq = rows[0].lastValue;
-  return formatDocNumber(PREFIX[kind], year, seq);
+
+  // Editable prefixes (Settings → Company details) override the env default for the
+  // customer-facing document kinds. The sequence key is (companyId, kind, year) — it is
+  // independent of the prefix, so changing a prefix mid-year simply continues the count.
+  let prefix = PREFIX[kind];
+  if (kind === "INVOICE" || kind === "ORDER" || kind === "PROPOSAL" || kind === "PO") {
+    const c = await db.company.findUnique({
+      where: { id: companyId },
+      select: { invoicePrefix: true, orderPrefix: true, proposalPrefix: true, poPrefix: true },
+    });
+    const override =
+      kind === "INVOICE" ? c?.invoicePrefix
+      : kind === "ORDER" ? c?.orderPrefix
+      : kind === "PROPOSAL" ? c?.proposalPrefix
+      : c?.poPrefix;
+    if (override) prefix = override;
+  }
+  return formatDocNumber(prefix, year, seq);
 }

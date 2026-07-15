@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { getPrintSession } from "@/lib/print-session";
 import { getInvoice } from "@/server/services/invoice";
+import { getCompanySettings } from "@/server/services/company-settings";
 import { formatINR } from "@/lib/money";
-import { env } from "@/lib/env";
 import { PrintShell, td, th } from "@/components/print/print-shell";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,7 @@ export default async function InvoicePrint({
   const session = await getPrintSession(t, "invoice", invoiceNo);
   const inv = await getInvoice(session, invoiceNo);
   if (!inv) notFound();
+  const company = await getCompanySettings(session.companyId);
 
   const lines = (inv.lineItems as Array<{ description: string; sac?: string; amount: string }>) ?? [];
   const gst = inv.gstBreakup as { cgst: string; sgst: string; igst: string; rate: number };
@@ -28,7 +29,7 @@ export default async function InvoicePrint({
     <PrintShell
       title={inv.isCreditNote ? "CREDIT NOTE" : "TAX INVOICE"}
       docNo={`${inv.invoiceNo} · ${new Date(inv.date).toLocaleDateString("en-IN")}`}
-      gstin={env.companyGstin}
+      gstin={company.gstin}
     >
       {order && (
         <section style={{ marginBottom: 16, fontSize: 13 }}>

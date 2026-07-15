@@ -12,6 +12,7 @@ import { LogoutButton } from "@/components/shell/logout-button";
 import { NotificationsMenu } from "@/components/shell/notifications-menu";
 import { OfflineBar } from "@/components/pwa/offline-bar";
 import { Toaster } from "@/components/ui/toast";
+import { EcoChat } from "@/components/eco/eco-chat";
 
 // The dashboard is per-request (auth + tenant data) — never statically prerendered,
 // so getSession()'s fail-closed 401 can't fire at build time.
@@ -33,6 +34,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex h-[100dvh] overflow-hidden bg-background">
       <OfflineBar />
       <Toaster />
+      <EcoChat />
 
       {/* Persistent sidebar — laptop & desktop (>=1024px) */}
       <aside className="gc-sidebar hidden w-[264px] shrink-0 flex-col lg:flex">
@@ -108,8 +110,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="flex shrink-0 items-center gap-1 md:gap-1.5">
             <NotificationsMenu items={notifications} />
             <Link
-              href="/service"
-              aria-label="Maintenance schedule"
+              href="/follow-ups"
+              aria-label="Follow-ups"
+              title="Follow-ups"
               className="hidden size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground md:flex"
             >
               <CalendarDays className="size-[18px]" />

@@ -822,6 +822,20 @@ model Company {
   stateCode String   @default("33")
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  // Editable company details (Settings). Null = fall back to env default.
+  address       String?
+  logoUrl       String?
+  invoicePrefix String?
+  orderPrefix   String?
+  proposalPrefix String?
+  poPrefix      String?
+
+  // Editable thresholds (Settings) — read at automation runtime, no redeploy.
+  minMarginPct      Decimal? @db.Decimal(5, 4) // e.g. 0.1000 = 10%
+  autoApproveLimit  Int? // ₹ ceiling for erection auto-approve (0/null = all manual)
+  budgetAlertPct    Int[] // e.g. [70, 90, 100]
+  lowStockMultiplier Decimal? @db.Decimal(5, 2) // reorder-level buffer (1.00 = at level)
 }
 
 // ─── Automation Engine (AUTOMATION-ENGINE-SPEC-v1.0) ───────────────────────────

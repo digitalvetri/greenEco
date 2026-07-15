@@ -12,12 +12,14 @@ import {
   BarChart3,
   Settings,
   LifeBuoy,
+  CalendarClock,
   type LucideIcon,
 } from "lucide-react";
 import type { IconName } from "@/lib/nav";
 
 const REGISTRY: Record<IconName, LucideIcon> = {
   dashboard: LayoutDashboard,
+  followups: CalendarClock,
   leads: Users,
   proposals: FileText,
   projects: HardHat,

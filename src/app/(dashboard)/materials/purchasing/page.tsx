@@ -4,6 +4,7 @@ import { itemOptions, listVendors, listLocations, listPOs, pendingRequestCount }
 import { PageHeader } from "@/components/ui/stat";
 import { MaterialsNav } from "../materials-nav";
 import { PurchasingPanel } from "../purchasing-panel";
+import { VendorsSection } from "../vendors-section";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,20 @@ export default async function PurchasingPage() {
     <div>
       <PageHeader title="Purchasing" subtitle="Vendors, purchase orders and goods receipt" />
       <MaterialsNav isAdmin requestCount={pending} />
+
+      <div className="mb-4">
+        <VendorsSection
+          vendors={vendors.map((v) => ({
+            id: v.id,
+            name: v.name,
+            phone: v.phone,
+            contact: v.contact,
+            address: v.address,
+            gstin: v.gstin,
+            categories: v.categories,
+          }))}
+        />
+      </div>
 
       <PurchasingPanel
         items={opts.map((i) => ({ id: i.id, name: i.name }))}

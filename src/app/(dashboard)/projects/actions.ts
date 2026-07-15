@@ -10,6 +10,8 @@ import {
   addReceipt,
   setMilestoneSchedule,
   setOrderGst,
+  setOrderSchedule,
+  setOrderValue,
   assignTeam,
   removeTeam,
   setOrderStatus,
@@ -111,6 +113,26 @@ export async function assignTeamAction(orderId: string, userId: string, role: st
 export async function setOrderGstAction(orderId: string, data: { clientStateCode?: string; clientGstin?: string }) {
   const s = await getSession();
   await setOrderGst(s, orderId, data);
+  revalidatePath(`/projects/${orderId}`);
+  return { ok: true };
+}
+
+export async function setOrderScheduleAction(
+  orderId: string,
+  data: { startDate?: string | null; targetDate?: string | null },
+) {
+  const s = await getSession();
+  await setOrderSchedule(s, orderId, {
+    startDate: data.startDate === undefined ? undefined : data.startDate ? new Date(data.startDate) : null,
+    targetDate: data.targetDate === undefined ? undefined : data.targetDate ? new Date(data.targetDate) : null,
+  });
+  revalidatePath(`/projects/${orderId}`);
+  return { ok: true };
+}
+
+export async function setOrderValueAction(orderId: string, data: { projectValue: string; reason: string }) {
+  const s = await getSession();
+  await setOrderValue(s, orderId, data);
   revalidatePath(`/projects/${orderId}`);
   return { ok: true };
 }

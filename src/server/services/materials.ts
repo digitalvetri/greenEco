@@ -7,6 +7,7 @@ import { requireAdmin, requireProjectAccess } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { allocateNumber } from "./numbering";
+import { getCompanySettings } from "./company-settings";
 import { deriveBalances, deriveItemBalances, belowReorder, type MovementLike } from "@/lib/domain/stock";
 
 // ---------- Items ----------
@@ -612,7 +613,9 @@ export async function lowStockItems(ctx: Ctx) {
     }),
   ]);
   const balances = deriveBalances(movements as MovementLike[]);
-  const reorder = new Map(items.map((i) => [i.id, new Decimal(i.reorderLevel)]));
+  // Configurable buffer: flag items below reorderLevel × multiplier (Settings → Thresholds).
+  const { lowStockMultiplier } = await getCompanySettings(ctx.companyId);
+  const reorder = new Map(items.map((i) => [i.id, new Decimal(i.reorderLevel).times(lowStockMultiplier)]));
   const low = belowReorder(balances, reorder);
   const nameOf = new Map(items.map((i) => [i.id, i.name]));
   return low.map((l) => ({ itemId: l.itemId, item: nameOf.get(l.itemId) ?? l.itemId, balance: l.balance.toString(), reorderLevel: l.reorderLevel.toString() }));

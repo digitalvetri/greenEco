@@ -172,6 +172,131 @@ export async function listLeads(ctx: Ctx, filters: LeadFilters = {}) {
   };
 }
 
+export type CustomerMatch = {
+  id: string;
+  customerName: string;
+  phone: string;
+  email: string;
+  address: string;
+  segment: string | null;
+  lastStatus: string;
+  contacts: { name: string; designation: string; mobile: string }[];
+};
+
+/**
+ * Search existing customers (leads carry the customer record in this app) to reuse
+ * their stored details when starting a new enquiry. RBAC-scoped like the lead list.
+ * De-duplicates by phone so a repeat customer with several past enquiries shows once
+ * (most-recent record wins), and returns the fields the New Lead form pre-fills from.
+ */
+export async function searchExistingCustomers(ctx: Ctx, query: string): Promise<CustomerMatch[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const where: Prisma.LeadWhereInput = {
+    companyId: ctx.companyId,
+    deletedAt: null,
+    OR: [
+      { customerName: { contains: q, mode: "insensitive" } },
+      { phone: { contains: q } },
+      { address: { contains: q, mode: "insensitive" } },
+    ],
+  };
+  if (ctx.role !== "ADMIN") {
+    where.AND = [{ OR: [{ assignedToId: ctx.userId }, { createdById: ctx.userId }] }];
+  }
+
+  const rows = await prisma.lead.findMany({
+    where,
+    include: { contacts: true },
+    orderBy: { updatedAt: "desc" },
+    take: 40,
+  });
+
+  const seen = new Set<string>();
+  const out: CustomerMatch[] = [];
+  for (const l of rows) {
+    if (seen.has(l.phone)) continue; // one row per customer (by phone)
+    seen.add(l.phone);
+    out.push({
+      id: l.id,
+      customerName: l.customerName,
+      phone: l.phone,
+      email: l.email ?? "",
+      address: l.address,
+      segment: l.segment,
+      lastStatus: l.status,
+      contacts: l.contacts.map((c) => ({
+        name: c.name,
+        designation: c.designation ?? "",
+        mobile: c.mobile,
+      })),
+    });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+export type FollowUpBucket = "overdue" | "today" | "upcoming";
+export type UpcomingFollowUp = {
+  id: string;
+  nextDate: string;
+  type: string;
+  notes: string;
+  leadId: string | null;
+  leadName: string;
+  leadPhone: string | null;
+  leadStatus: string;
+  ownerName: string;
+  bucket: FollowUpBucket;
+};
+
+/**
+ * The scheduled next-actions across all open leads (the "Follow-ups" worklist the
+ * Dashboard calendar links to). RBAC-scoped: EMPLOYEE sees only follow-ups on
+ * leads they own or created. Each row carries its lead so the UI can deep-link.
+ */
+export async function upcomingFollowUps(ctx: Ctx): Promise<UpcomingFollowUp[]> {
+  const leadWhere: Prisma.LeadWhereInput = {
+    companyId: ctx.companyId,
+    deletedAt: null,
+    status: { in: OPEN_STATUSES },
+  };
+  if (ctx.role !== "ADMIN") {
+    leadWhere.OR = [{ assignedToId: ctx.userId }, { createdById: ctx.userId }];
+  }
+
+  const rows = await prisma.followUp.findMany({
+    where: { nextDate: { not: null }, lead: leadWhere },
+    include: { lead: { select: { id: true, customerName: true, phone: true, status: true, assignedToId: true } } },
+    orderBy: { nextDate: "asc" },
+    take: 200,
+  });
+
+  const names = await userNameMap(ctx.companyId);
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  return rows.map((f) => {
+    const when = f.nextDate!;
+    const bucket: FollowUpBucket = when < dayStart ? "overdue" : when < dayEnd ? "today" : "upcoming";
+    return {
+      id: f.id,
+      nextDate: when.toISOString(),
+      type: f.type,
+      notes: f.notes,
+      leadId: f.leadId,
+      leadName: f.lead?.customerName ?? "Lead",
+      leadPhone: f.lead?.phone ?? null,
+      leadStatus: f.lead?.status ?? "",
+      ownerName: f.lead ? names.get(f.lead.assignedToId) ?? "Unassigned" : "Unassigned",
+      bucket,
+    };
+  });
+}
+
 export async function getLead(ctx: Ctx, id: string) {
   const lead = await prisma.lead.findFirst({
     where: { id, companyId: ctx.companyId, deletedAt: null },

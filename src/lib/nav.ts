@@ -8,6 +8,7 @@ import type { Role } from "@prisma/client";
  */
 export type IconName =
   | "dashboard"
+  | "followups"
   | "leads"
   | "proposals"
   | "projects"

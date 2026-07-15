@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/lib/env";
 import { getMyProfile } from "@/server/services/profile";
+import { getSettingsFor } from "@/server/services/company-settings";
 import { getSystemStatus, type SystemStatusItem } from "@/server/services/system";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,17 +10,19 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, MinusCircle } from "lucide-react";
 import { DEFAULT_STAGES } from "@/lib/constants";
 import { ProfileCard } from "./profile-card";
+import { CompanyDetailsCard, ThresholdsCard } from "./company-settings-cards";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await getSession();
   const isAdmin = session.role === "ADMIN";
-  const [profile, users] = await Promise.all([
+  const [profile, users, companySettings] = await Promise.all([
     getMyProfile(session),
     isAdmin
       ? prisma.user.findMany({ where: { companyId: session.companyId }, orderBy: { role: "asc" } })
       : Promise.resolve([]),
+    isAdmin ? getSettingsFor(session) : Promise.resolve(null),
   ]);
   const status = isAdmin ? await getSystemStatus(session) : null;
 
@@ -80,20 +82,14 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Company & Thresholds</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <Row label="GSTIN" value={env.companyGstin || "—"} />
-            <Row label="State code" value={env.companyStateCode} />
-            <Row label="Invoice prefix" value={env.invoicePrefix} />
-            <Row label="Min margin %" value={`${(env.minMarginPct * 100).toFixed(0)}%`} />
-            <Row label="Auto-approve limit" value={env.autoApproveLimit === 0 ? "All manual" : `₹${env.autoApproveLimit}`} />
-            <p className="pt-2 text-xs text-muted">Configured via environment variables (.env).</p>
-          </CardContent>
-        </Card>
+        {companySettings && <ThresholdsCard settings={companySettings} />}
       </div>
+
+      {companySettings && (
+        <div className="mt-4">
+          <CompanyDetailsCard settings={companySettings} />
+        </div>
+      )}
 
       <Card className="mt-4">
         <CardHeader>
@@ -128,15 +124,6 @@ export default async function SettingsPage() {
       </Card>
       </>
       )}
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <span className="text-muted">{label}</span>
-      <span className="text-right font-medium">{value}</span>
     </div>
   );
 }

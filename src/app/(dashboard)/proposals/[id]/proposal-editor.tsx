@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/toast";
 import { SpeakButton } from "@/components/mobile/speak-button";
 import { formatINR } from "@/lib/money";
 import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, LOST_REASONS } from "@/lib/constants";
+import { ProposalStageTracker } from "./proposal-stage-tracker";
 import { ProposalTimeline } from "./proposal-timeline";
 import { ProposalDocumentsCard } from "./proposal-documents-card";
 import { SendProposalButtons } from "./send-proposal-button";
@@ -177,6 +178,10 @@ export function ProposalEditor({
           </div>
         }
       />
+
+      <div className="mb-4">
+        <ProposalStageTracker status={view.status} />
+      </div>
 
       <Tabs
         className="mb-4"

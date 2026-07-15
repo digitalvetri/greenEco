@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Receipt, FileCheck } from "lucide-react";
+import { Loader2, Receipt, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { toast } from "@/components/ui/toast";
 import { formatINR } from "@/lib/money";
-import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
-import { issueDraftInvoiceAction } from "./actions";
+import { InvoicePanel } from "./invoice-panel";
 
 export interface InvoiceRow {
   id: string;
@@ -37,17 +34,7 @@ export function InvoiceList({
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [issuing, startIssue] = useTransition();
-
-  function issue(id: string) {
-    startIssue(async () => {
-      const r = await issueDraftInvoiceAction(id);
-      if (r.ok) {
-        toast(`Issued ${r.invoiceNo}`);
-        router.refresh();
-      } else toast(r.error ?? "Failed to issue", "error");
-    });
-  }
+  const [panelId, setPanelId] = useState<string | null>(null);
 
   async function loadMore() {
     if (!cursor) return;
@@ -76,7 +63,15 @@ export function InvoiceList({
   return (
     <div className="space-y-2">
       {items.map((inv) => (
-        <Card key={inv.id} className="flex items-center justify-between gap-3 p-3">
+        <Card
+          key={inv.id}
+          interactive
+          className="flex cursor-pointer items-center justify-between gap-3 p-3"
+          onClick={() => setPanelId(inv.id)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setPanelId(inv.id)}
+        >
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs">{inv.status === "DRAFT" ? "Draft (auto)" : inv.invoiceNo}</span>
@@ -88,19 +83,19 @@ export function InvoiceList({
           </div>
           <div className="flex items-center gap-3">
             <span className={"font-semibold tabular-nums " + (inv.isCreditNote ? "text-danger" : "")}>{formatINR(inv.total)}</span>
-            {inv.status === "DRAFT" ? (
-              <Button size="sm" onClick={() => issue(inv.id)} loading={issuing} title="Assign a real invoice number">
-                <FileCheck className="size-4" /> Issue
-              </Button>
-            ) : (
-              <>
-                <a href={`/print/invoice/${inv.invoiceNo}`} target="_blank" rel="noreferrer" className="text-xs text-primary">Print</a>
-                <DownloadPdfButton docType="invoice" docId={inv.invoiceNo} />
-              </>
-            )}
+            <span className="inline-flex items-center gap-1 text-xs text-primary">
+              <Eye className="size-3.5" /> View
+            </span>
           </div>
         </Card>
       ))}
+
+      <InvoicePanel
+        invoiceId={panelId}
+        open={panelId !== null}
+        onClose={() => setPanelId(null)}
+        onChanged={() => router.refresh()}
+      />
 
       {error && <p className="text-center text-xs text-danger">{error}</p>}
       {cursor && (

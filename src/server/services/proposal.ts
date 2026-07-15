@@ -6,6 +6,7 @@ import { stripPricing } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
+import { getCompanySettings } from "./company-settings";
 import { allocateNumber } from "./numbering";
 import { recordProposalOutcome } from "@/server/automations/winloss-learning";
 import { generateProposalDraft, type AiProposalInput } from "@/lib/ai";
@@ -424,7 +425,8 @@ export async function approveAndSend(ctx: Ctx, proposalId: string, overrideNote?
   const version = currentVersionOf(proposal)!;
 
   if (version.estimatedCost) {
-    const floor = new Decimal(version.estimatedCost).times(1 + env.minMarginPct);
+    const { minMarginPct } = await getCompanySettings(ctx.companyId);
+    const floor = new Decimal(version.estimatedCost).times(1 + minMarginPct);
     if (new Decimal(version.grandTotal).lt(floor) && !overrideNote) {
       return {
         marginWarning: {

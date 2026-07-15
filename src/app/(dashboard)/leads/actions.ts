@@ -29,6 +29,7 @@ import {
   convertToProposal,
   addLeadContact,
   deleteLeadContact,
+  searchExistingCustomers,
 } from "@/server/services/lead";
 import { manualStatusSchema } from "@/lib/validation";
 
@@ -223,4 +224,9 @@ export async function convertLeadAction(leadId: string) {
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/proposals");
   return res;
+}
+
+export async function searchCustomersAction(query: string) {
+  const session = await getSession();
+  return searchExistingCustomers(session, query);
 }

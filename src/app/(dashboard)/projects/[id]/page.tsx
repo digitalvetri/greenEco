@@ -17,6 +17,7 @@ import { ProjectDocumentsCard } from "./documents-card";
 import { CommPanel } from "./comm-panel";
 import { ArchiveButton } from "./archive-button";
 import { GstControl } from "./gst-control";
+import { ScheduleControl, ValueControl } from "./schedule-value-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,10 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                 {isAdmin && budget && (
                   <div className="grid grid-cols-3 gap-3">
                     <Card className="p-3">
-                      <div className="text-xs text-muted">Project Value</div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-muted">Project Value</div>
+                        <ValueControl orderId={order.id} projectValue={order.projectValue.toString()} />
+                      </div>
                       <div className="text-lg font-bold">{formatINR(order.projectValue.toString())}</div>
                     </Card>
                     <Card className="p-3">
@@ -110,6 +114,13 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                 <Card>
                   <CardHeader>
                     <CardTitle>Schedule</CardTitle>
+                    {isAdmin && (
+                      <ScheduleControl
+                        orderId={order.id}
+                        startDate={order.startDate ? new Date(order.startDate).toISOString() : null}
+                        targetDate={order.targetDate ? new Date(order.targetDate).toISOString() : null}
+                      />
+                    )}
                   </CardHeader>
                   <CardContent className="grid grid-cols-2 gap-3 text-sm">
                     <div>
@@ -209,6 +220,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                           status: m.status,
                           received,
                           invoiceNo: m.invoice?.invoiceNo ?? null,
+                          invoiceId: m.invoice?.id ?? null,
                           dueBasis: m.dueBasis,
                           dueDate: m.dueDate?.toISOString() ?? null,
                           linkedStageId: m.linkedStageId ?? null,

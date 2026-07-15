@@ -226,6 +226,19 @@ body {
   animation: gc-fade-in var(--dur) var(--ease);
 }
 
+/* Slide-in side panel (Drawer) — enters from the right. */
+@keyframes gc-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.gc-slide-in {
+  animation: gc-slide-in-right 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* Live "monitor" heartbeat line (Site Health) — two tiled halves scroll seamlessly */
 @keyframes gc-ecg-scroll {
   from {

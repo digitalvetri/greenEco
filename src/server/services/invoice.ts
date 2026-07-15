@@ -146,6 +146,64 @@ export async function getInvoice(ctx: Ctx, invoiceNo: string) {
   });
 }
 
+export interface InvoiceDetail {
+  id: string;
+  invoiceNo: string;
+  status: string;
+  taxType: string;
+  isCreditNote: boolean;
+  date: string;
+  total: string;
+  amountWords: string;
+  clientName: string;
+  clientAddress: string | null;
+  clientGstin: string | null;
+  orderNo: string | null;
+  lineItems: { description: string; sac?: string; amount: string }[];
+  gst: { cgst: string; sgst: string; igst: string; rate: number };
+}
+
+/**
+ * Fully serialized invoice for the in-app slide-in panel (by id, so it works for
+ * DRAFTs that have no real number yet). Admin only; Decimals → strings for the client.
+ */
+export async function getInvoiceDetail(ctx: Ctx, id: string): Promise<InvoiceDetail | null> {
+  requireAdmin(ctx);
+  const inv = await prisma.invoice.findFirst({
+    where: { id, companyId: ctx.companyId },
+    include: { milestone: { include: { order: true } } },
+  });
+  if (!inv) return null;
+  const order = inv.milestone?.order ?? null;
+  const gb = (inv.gstBreakup ?? {}) as { cgst?: string; sgst?: string; igst?: string; rate?: number };
+  const lines = ((inv.lineItems as Array<{ description?: string; sac?: string; amount?: string }>) ?? []).map((l) => ({
+    description: l.description ?? "",
+    sac: l.sac,
+    amount: String(l.amount ?? "0"),
+  }));
+  return {
+    id: inv.id,
+    invoiceNo: inv.invoiceNo,
+    status: inv.status,
+    taxType: inv.taxType,
+    isCreditNote: inv.isCreditNote,
+    date: inv.date.toISOString(),
+    total: inv.total.toString(),
+    amountWords: inv.amountWords,
+    clientName: order?.clientName ?? "—",
+    clientAddress: order && "clientAddress" in order ? (order as { clientAddress: string | null }).clientAddress : null,
+    clientGstin: order && "clientGstin" in order ? (order as { clientGstin: string | null }).clientGstin : null,
+    orderNo: order?.orderNo ?? null,
+    lineItems: lines,
+    gst: {
+      cgst: String(gb.cgst ?? "0"),
+      sgst: String(gb.sgst ?? "0"),
+      igst: String(gb.igst ?? "0"),
+      rate: gb.rate ?? 0,
+    },
+  };
+}
+
 export interface InvoiceFilters {
   search?: string;
   cursor?: string;

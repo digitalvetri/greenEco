@@ -8,6 +8,8 @@ import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Uploader } from "@/components/mobile/uploader";
 import { formatINR } from "@/lib/money";
+import { toast } from "@/components/ui/toast";
+import { InvoicePanel } from "../../invoices/invoice-panel";
 import {
   updateStageAction,
   addStagePhotoAction,
@@ -151,6 +153,7 @@ export function MilestoneRow({
     status: string;
     received: string;
     invoiceNo: string | null;
+    invoiceId: string | null;
     dueBasis: string;
     dueDate: string | null;
     linkedStageId: string | null;
@@ -158,9 +161,28 @@ export function MilestoneRow({
   isAdmin: boolean;
   stages?: { id: string; name: string }[];
 }) {
+  const router = useRouter();
   const { run, pending, err } = useRun();
   const [open, setOpen] = useState(false);
   const [sched, setSched] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [panelInvoiceId, setPanelInvoiceId] = useState<string | null>(null);
+
+  // Create the invoice, then slide the panel in to review + issue it (no new tab).
+  async function createAndOpen() {
+    setCreating(true);
+    try {
+      const res = await createInvoiceAction(orderId, milestone.id);
+      if (res && "invoiceId" in res && res.invoiceId) {
+        setPanelInvoiceId(res.invoiceId);
+      }
+      router.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to create invoice", "error");
+    } finally {
+      setCreating(false);
+    }
+  }
   const [amount, setAmount] = useState("");
   const [mode, setMode] = useState("NEFT");
   const [due, setDue] = useState(milestone.dueDate?.slice(0, 10) ?? "");
@@ -180,14 +202,14 @@ export function MilestoneRow({
         <div className="flex items-center gap-2">
           <Badge variant={variant}>{milestone.status.replace(/_/g, " ")}</Badge>
           {isAdmin && !milestone.invoiceNo && (
-            <button className="text-xs text-primary" onClick={() => run(() => createInvoiceAction(orderId, milestone.id))} disabled={pending}>
-              <FileText className="inline size-3.5" /> Invoice
+            <button className="text-xs text-primary disabled:opacity-50" onClick={createAndOpen} disabled={creating}>
+              <FileText className="inline size-3.5" /> {creating ? "Creating…" : "Invoice"}
             </button>
           )}
-          {milestone.invoiceNo && (
-            <a href={`/print/invoice/${milestone.invoiceNo}`} target="_blank" rel="noreferrer" className="text-xs text-ok">
+          {milestone.invoiceNo && milestone.invoiceId && (
+            <button className="text-xs text-ok hover:underline" onClick={() => setPanelInvoiceId(milestone.invoiceId)}>
               {milestone.invoiceNo}
-            </a>
+            </button>
           )}
           {isAdmin && (
             <button className="text-xs text-muted" onClick={() => setSched(!sched)}>
@@ -257,6 +279,12 @@ export function MilestoneRow({
           </Button>
         </div>
       )}
+      <InvoicePanel
+        invoiceId={panelInvoiceId}
+        open={panelInvoiceId !== null}
+        onClose={() => setPanelInvoiceId(null)}
+        onChanged={() => router.refresh()}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { MapPin, Plus, Trash2, AlertTriangle, FileUp } from "lucide-react";
 import Link from "next/link";
 import { Input, Textarea, Label, Field, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
   BUDGET_BANDS,
   DECISION_TIMELINES,
 } from "@/lib/constants";
-import { createLeadAction, updateLeadAction } from "./actions";
+import { createLeadAction, updateLeadAction, convertLeadAction } from "./actions";
 
 interface Contact {
   name: string;
@@ -50,16 +50,19 @@ export interface LeadFormInitial {
  * Create or edit a lead. In edit mode the contacts/reference section is hidden
  * (those are managed separately) and the core fields submit via updateLeadAction.
  */
-export function LeadForm({ mode = "create", leadId, initial }: {
+export function LeadForm({ mode = "create", leadId, initial, initialContacts }: {
   mode?: "create" | "edit";
   leadId?: string;
   initial?: LeadFormInitial;
+  initialContacts?: Contact[];
 }) {
   const router = useRouter();
   const isEdit = mode === "edit";
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ id: string; customerName: string } | null>(null);
+  // When true, after saving the lead we immediately start a proposal from it.
+  const [thenProposal, setThenProposal] = useState(false);
 
   const [form, setForm] = useState({
     customerName: initial?.customerName ?? "",
@@ -81,7 +84,7 @@ export function LeadForm({ mode = "create", leadId, initial }: {
     inletTSS: initial?.inletTSS ?? "",
     inletTDS: initial?.inletTDS ?? "",
   });
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>(initialContacts ?? []);
   const [reference, setReference] = useState({ name: "", phone: "" });
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
@@ -99,8 +102,9 @@ export function LeadForm({ mode = "create", leadId, initial }: {
     );
   }
 
-  function submit(override = false) {
+  function submit(override = false, proposal = thenProposal) {
     setError(null);
+    setThenProposal(proposal);
     const base = {
       ...form,
       email: form.email || undefined,
@@ -121,7 +125,26 @@ export function LeadForm({ mode = "create", leadId, initial }: {
           return;
         }
         if ("lead" in res && res.lead) {
-          router.push(`/leads/${isEdit ? leadId : res.lead.id}`);
+          const newId = isEdit ? leadId! : res.lead.id;
+          // One-click path: start a proposal straight from the new/edited lead.
+          if (proposal) {
+            try {
+              const conv = await convertLeadAction(newId);
+              router.push(`/proposals/${conv.proposalId}`);
+              router.refresh();
+              return;
+            } catch (e) {
+              // Lead saved fine; surface the conversion problem but don't lose the lead.
+              setError(
+                (e instanceof Error ? e.message : "Could not start proposal") +
+                  " — the lead was saved; open it to convert.",
+              );
+              router.push(`/leads/${newId}`);
+              router.refresh();
+              return;
+            }
+          }
+          router.push(`/leads/${newId}`);
           router.refresh();
         }
       } catch (e) {
@@ -354,10 +377,16 @@ export function LeadForm({ mode = "create", leadId, initial }: {
       )}
       </div>
 
-      <div className="flex gap-2">
-        <Button onClick={() => submit(false)} disabled={pending}>
-          {pending ? "Saving…" : isEdit ? "Save changes" : "Save Lead"}
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => submit(false, false)} disabled={pending}>
+          {pending && !thenProposal ? "Saving…" : isEdit ? "Save changes" : "Save Lead"}
         </Button>
+        {!isEdit && (
+          <Button variant="subtle" onClick={() => submit(false, true)} disabled={pending}>
+            <FileUp className="size-4" />
+            {pending && thenProposal ? "Starting proposal…" : "Save & start proposal"}
+          </Button>
+        )}
         <Button variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>

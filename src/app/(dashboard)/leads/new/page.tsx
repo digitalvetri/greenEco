@@ -1,11 +1,11 @@
 import { PageHeader } from "@/components/ui/stat";
-import { LeadForm } from "../lead-form";
+import { NewLeadFlow } from "./new-lead-flow";
 
 export default function NewLeadPage() {
   return (
-    <div>
-      <PageHeader title="New Lead" subtitle="Capture a new enquiry" />
-      <LeadForm />
+    <div className="mx-auto max-w-3xl">
+      <PageHeader title="New Lead" subtitle="Capture a new enquiry — from a new or existing customer" />
+      <NewLeadFlow />
     </div>
   );
 }

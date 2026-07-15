@@ -600,6 +600,80 @@ export async function setOrderGst(ctx: Ctx, orderId: string, data: { clientState
   return { ok: true };
 }
 
+/**
+ * Reschedule a project's start / target-completion dates. Admin only, audited.
+ * Either date may be cleared (null) or set; a target before the start is rejected.
+ */
+export async function setOrderSchedule(
+  ctx: Ctx,
+  orderId: string,
+  data: { startDate?: Date | null; targetDate?: Date | null },
+) {
+  requireAdmin(ctx);
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId: ctx.companyId, deletedAt: null } });
+  if (!order) throw new Error("Project not found");
+
+  const nextStart = data.startDate !== undefined ? data.startDate : order.startDate;
+  const nextTarget = data.targetDate !== undefined ? data.targetDate : order.targetDate;
+  if (nextStart && nextTarget && nextTarget < nextStart) {
+    throw new Error("Target completion cannot be before the start date");
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      ...(data.startDate !== undefined ? { startDate: data.startDate } : {}),
+      ...(data.targetDate !== undefined ? { targetDate: data.targetDate } : {}),
+    },
+  });
+  await logAudit(ctx, {
+    action: "UPDATE",
+    entity: "Order",
+    entityId: orderId,
+    before: { startDate: order.startDate, targetDate: order.targetDate },
+    after: { startDate: updated.startDate, targetDate: updated.targetDate },
+  });
+  return { ok: true };
+}
+
+/**
+ * Revise the estimated project value. Admin only; a reason is REQUIRED and logged
+ * with the before/after so the change is traceable (it moves gross-margin and the
+ * budget-variance % shown on the project). Budget base is untouched.
+ */
+export async function setOrderValue(
+  ctx: Ctx,
+  orderId: string,
+  data: { projectValue: string; reason: string },
+) {
+  requireAdmin(ctx);
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId: ctx.companyId, deletedAt: null } });
+  if (!order) throw new Error("Project not found");
+
+  const reason = data.reason?.trim();
+  if (!reason) throw new Error("A reason for the change is required");
+  let value: Decimal;
+  try {
+    value = new Decimal(data.projectValue);
+  } catch {
+    throw new Error("Invalid amount");
+  }
+  if (value.lte(0)) throw new Error("Project value must be greater than zero");
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { projectValue: value.toFixed(2) },
+  });
+  await logAudit(ctx, {
+    action: "UPDATE",
+    entity: "Order",
+    entityId: orderId,
+    before: { projectValue: order.projectValue.toString() },
+    after: { projectValue: updated.projectValue.toString(), reason },
+  });
+  return { ok: true };
+}
+
 /** Remove a team member from a project — admin only, audited. */
 export async function removeTeam(ctx: Ctx, orderId: string, userId: string) {
   requireAdmin(ctx);

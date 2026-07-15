@@ -5,7 +5,7 @@ import type { Ctx } from "@/lib/rbac";
 import { stripPricing } from "@/lib/rbac";
 import { requireAdmin, requireProjectAccess } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
-import { env } from "@/lib/env";
+import { getCompanySettings } from "./company-settings";
 
 /**
  * Create an erection entry (spec §7.5). SITE_PURCHASE requires ≥1 bill image.
@@ -33,7 +33,9 @@ export async function createErectionEntry(
   // vision check (PASS + within limit). Without a key, keep amount-based auto-approve.
   const { visionAvailable } = await import("@/server/automations/bill-verification-assist");
   const visionOn = await visionAvailable();
-  const autoApprove = env.autoApproveLimit > 0 && data.amount <= env.autoApproveLimit && !!hasBill && !visionOn;
+  // Auto-approve limit is an editable Settings threshold (0 = all manual).
+  const { autoApproveLimit } = await getCompanySettings(ctx.companyId);
+  const autoApprove = autoApproveLimit > 0 && data.amount <= autoApproveLimit && !!hasBill && !visionOn;
 
   const entry = await prisma.erectionEntry.create({
     data: {

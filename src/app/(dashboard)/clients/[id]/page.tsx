@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/money";
+import { ClientDetailsEditor } from "./client-details-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +37,37 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
         <Card>
           <CardHeader>
             <CardTitle>Identity</CardTitle>
+            <ClientDetailsEditor
+              leadId={lead.id}
+              customerName={lead.customerName}
+              phone={lead.phone}
+              email={lead.email ?? ""}
+              address={lead.address}
+              source={lead.source}
+              contacts={lead.contacts.map((c) => ({
+                id: c.id,
+                name: c.name,
+                designation: c.designation,
+                mobile: c.mobile,
+              }))}
+            />
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <Row label="Phone" value={lead.phone} />
             {lead.email && <Row label="Email" value={lead.email} />}
             <Row label="Address" value={lead.address} />
             <Row label="Source" value={lead.source} />
+            {lead.contacts.length > 0 && (
+              <div className="border-t border-border pt-1">
+                {lead.contacts.map((c) => (
+                  <Row
+                    key={c.id}
+                    label={c.designation || "Contact"}
+                    value={`${c.name} · ${c.mobile}`}
+                  />
+                ))}
+              </div>
+            )}
             {lead.reference && <Row label="Referred by" value={lead.reference.name} />}
           </CardContent>
         </Card>

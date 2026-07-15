@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatINR } from "@/lib/money";
 import { budgetVsActual } from "@/server/services/erection";
+import { getCompanySettings } from "@/server/services/company-settings";
 import { deliver } from "./deliver";
 import { adminPhones, isEnabled } from "./engine";
 import type { Automation, AutomationContext, AutomationResult } from "./types";
@@ -11,11 +12,11 @@ import type { Automation, AutomationContext, AutomationResult } from "./types";
  * for the first time, WhatsApp admin. 100% also opens a BUDGET_OVERRUN task. Idempotent per
  * project per threshold. (SPEC §5 A8)
  */
-const THRESHOLDS = [70, 90, 100];
-
 export async function checkBudgetThreshold(ctx: { companyId: string }, orderId: string, dryRun = false): Promise<number> {
   if (!(await isEnabled(ctx.companyId, "A8"))) return 0;
   const sysCtx = { userId: "system:automation", role: "ADMIN" as const, companyId: ctx.companyId };
+  const THRESHOLDS = (await getCompanySettings(ctx.companyId)).budgetAlertPct;
+  const lowest = Math.min(...THRESHOLDS);
   let bva: { pctConsumed?: number; spent?: unknown; budget?: unknown; committed?: unknown };
   try {
     bva = await budgetVsActual(sysCtx, orderId);
@@ -23,7 +24,7 @@ export async function checkBudgetThreshold(ctx: { companyId: string }, orderId: 
     return 0;
   }
   const pct = bva.pctConsumed ?? 0;
-  if (pct < 70) return 0;
+  if (pct < lowest) return 0;
 
   const [order, admins, adminUser] = await Promise.all([
     prisma.order.findUnique({ where: { id: orderId }, select: { orderNo: true } }),

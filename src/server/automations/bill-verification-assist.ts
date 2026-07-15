@@ -4,6 +4,7 @@ import { logAudit } from "@/lib/audit";
 import { loadConfig } from "@/lib/runtime-config";
 import { geminiVision } from "@/lib/gemini";
 import { isEnabled } from "./engine";
+import { getCompanySettings } from "@/server/services/company-settings";
 import type { Automation, AutomationContext, AutomationResult } from "./types";
 import type { Ctx } from "@/lib/rbac";
 
@@ -123,7 +124,8 @@ export async function assistBillVerification(ctx: { companyId: string }, entryId
   await prisma.erectionEntry.update({ where: { id: entryId }, data: { aiExtract: (extract ?? undefined) as never, aiMatch: verdict } });
 
   // Auto-approve only a vision-verified entry at/under the limit that is still pending.
-  if (verdict === "PASS" && env.autoApproveLimit > 0 && entered <= env.autoApproveLimit && entry.status === "PENDING") {
+  const { autoApproveLimit } = await getCompanySettings(ctx.companyId);
+  if (verdict === "PASS" && autoApproveLimit > 0 && entered <= autoApproveLimit && entry.status === "PENDING") {
     const sysCtx: Ctx = { userId: "system:automation", role: "ADMIN", companyId: ctx.companyId };
     await prisma.erectionEntry.update({ where: { id: entryId }, data: { status: "APPROVED", reviewedById: "system:automation" } });
     await logAudit(sysCtx, { action: "APPROVE", entity: "ErectionEntry", entityId: entryId, after: { aiMatch: "PASS", autoApproved: true } });

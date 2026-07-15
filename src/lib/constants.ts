@@ -32,6 +32,21 @@ export const ITEM_CATEGORIES = [
   "Tools",
 ] as const;
 
+/** Human-friendly labels for the camelCase item/vendor category keys. */
+export const CATEGORY_LABELS: Record<string, string> = {
+  Plumbing: "Plumbing",
+  Civil: "Civil",
+  PumpsMotors: "Pumps & Motors",
+  Blowers: "Blowers",
+  Electrical: "Electrical",
+  MediaConsumables: "Media & Consumables",
+  Tools: "Tools",
+};
+
+export function categoryLabel(key: string): string {
+  return CATEGORY_LABELS[key] ?? key;
+}
+
 export const BOQ_CATEGORIES = [
   "Civil",
   "Piping",
