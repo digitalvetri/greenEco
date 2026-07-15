@@ -5,6 +5,7 @@ import { PageHeader, StatTile } from "@/components/ui/stat";
 import { Card } from "@/components/ui/card";
 import { InvoiceList, type InvoiceRow } from "./invoice-list";
 import { InvoicesSearch } from "./invoices-search";
+import { NewInvoiceDialog } from "./new-invoice-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,11 @@ export default async function InvoicesPage({
 
   return (
     <div>
-      <PageHeader title="Invoices" subtitle={`${items.length}${nextCursor ? "+" : ""} shown`} />
+      <PageHeader
+        title="Invoices"
+        subtitle={`${items.length}${nextCursor ? "+" : ""} shown`}
+        action={<NewInvoiceDialog onCreated={() => {}} />}
+      />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Invoices" value={stats.count} icon={Receipt} tone="primary" />

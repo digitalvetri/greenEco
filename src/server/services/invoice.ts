@@ -316,3 +316,65 @@ export async function createCreditNote(ctx: Ctx, originalInvoiceId: string, reas
     return { invoiceId: cn.id, invoiceNo };
   });
 }
+
+export interface StandaloneInvoiceInput {
+  orderId: string;
+  description: string;
+  grossAmount: number; // total amount the client pays (GST-inclusive)
+  gstRate?: number;    // default 18
+  date?: Date;
+}
+
+/**
+ * Create a standalone DRAFT invoice against a project (not tied to a milestone).
+ * The user enters the GST-inclusive gross amount; GST is back-calculated.
+ * Admin only; assign a real number on issue via issueDraftInvoice().
+ */
+export async function createStandaloneInvoice(ctx: Ctx, input: StandaloneInvoiceInput) {
+  requireAdmin(ctx);
+  const order = await prisma.order.findFirst({
+    where: { id: input.orderId, companyId: ctx.companyId, deletedAt: null },
+    select: { id: true, orderNo: true, clientName: true, clientStateCode: true, clientGstin: true },
+  });
+  if (!order) throw new Error("Project not found");
+
+  const gstinState =
+    order.clientGstin && /^\d{2}/.test(order.clientGstin) ? order.clientGstin.slice(0, 2) : undefined;
+  const pos = order.clientStateCode ?? gstinState ?? env.companyStateCode;
+  const gst = computeGstInclusive({
+    grossAmount: new Decimal(input.grossAmount),
+    supplierStateCode: env.companyStateCode,
+    placeOfSupplyStateCode: pos,
+    rate: input.gstRate ?? 18,
+  });
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      companyId: ctx.companyId,
+      invoiceNo: `DRAFT-standalone-${Date.now()}`,
+      orderId: order.id,
+      date: input.date ?? new Date(),
+      lineItems: [{ description: input.description, sac: WORKS_CONTRACT_SAC, amount: gst.taxable }] as Prisma.InputJsonValue,
+      taxType: gst.taxType,
+      gstBreakup: { cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, rate: gst.rate } as Prisma.InputJsonValue,
+      total: gst.total,
+      amountWords: amountInWords(gst.total),
+      pdfUrl: "",
+      status: "DRAFT",
+    },
+  });
+  await logAudit(ctx, { action: "CREATE", entity: "Invoice", entityId: invoice.id, after: { draft: true, orderId: order.id } });
+  return { invoiceId: invoice.id };
+}
+
+/** Lightweight order list for the new-invoice project selector (admin only). */
+export async function listOrderOptions(ctx: Ctx): Promise<{ id: string; orderNo: string; clientName: string }[]> {
+  requireAdmin(ctx);
+  const rows = await prisma.order.findMany({
+    where: { companyId: ctx.companyId, deletedAt: null, status: { not: "CANCELLED" } },
+    select: { id: true, orderNo: true, clientName: true },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+  return rows;
+}
