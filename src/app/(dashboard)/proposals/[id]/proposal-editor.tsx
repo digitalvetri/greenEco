@@ -207,76 +207,56 @@ export function ProposalEditor({
           <CardTitle>Basics</CardTitle>
         </CardHeader>
         <CardContent>
-          {locked ? (
-            /* Read-only display when WON / LOST */
-            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
-              <div className="col-span-2">
-                <span className="block text-xs font-medium text-muted">Project name</span>
-                <span className="font-medium text-foreground">{basics.projectName || "—"}</span>
-              </div>
-              <div className="col-span-2">
-                <span className="block text-xs font-medium text-muted">Site address</span>
-                <span className="text-foreground">{basics.siteAddress || "—"}</span>
-              </div>
-              <div>
-                <span className="block text-xs font-medium text-muted">Plant type</span>
-                <span className="text-foreground">{basics.plantType || "—"}</span>
-              </div>
-              <div>
-                <span className="block text-xs font-medium text-muted">Technology</span>
-                <span className="text-foreground">{basics.technology || "—"}</span>
-              </div>
-              <div>
-                <span className="block text-xs font-medium text-muted">Capacity</span>
-                <span className="text-foreground">{basics.capacityKLD ? `${basics.capacityKLD} KLD` : "—"}</span>
-              </div>
-            </div>
-          ) : (
-            /* Editable form */
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <Field label="Project name">
-                  <Input
-                    value={basics.projectName}
-                    onChange={(e) => setBasics({ ...basics, projectName: e.target.value })}
-                  />
-                </Field>
-              </div>
-              <div className="col-span-2">
-                <Field label="Site address">
-                  <Input
-                    value={basics.siteAddress}
-                    onChange={(e) => setBasics({ ...basics, siteAddress: e.target.value })}
-                  />
-                </Field>
-              </div>
-              <Field label="Plant type">
-                <Select
-                  value={basics.plantType}
-                  onChange={(e) => setBasics({ ...basics, plantType: e.target.value })}
-                >
-                  {PLANT_TYPES.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Technology">
-                <Select
-                  value={basics.technology}
-                  onChange={(e) => setBasics({ ...basics, technology: e.target.value })}
-                >
-                  {TECHNOLOGIES.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Capacity (KLD)">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Field label="Project name">
                 <Input
-                  type="number"
-                  value={basics.capacityKLD}
-                  onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
+                  value={basics.projectName}
+                  disabled={!isAdmin}
+                  onChange={(e) => setBasics({ ...basics, projectName: e.target.value })}
                 />
               </Field>
+            </div>
+            <div className="col-span-2">
+              <Field label="Site address">
+                <Input
+                  value={basics.siteAddress}
+                  disabled={!isAdmin}
+                  onChange={(e) => setBasics({ ...basics, siteAddress: e.target.value })}
+                />
+              </Field>
+            </div>
+            <Field label="Plant type">
+              <Select
+                value={basics.plantType}
+                disabled={!isAdmin}
+                onChange={(e) => setBasics({ ...basics, plantType: e.target.value })}
+              >
+                {PLANT_TYPES.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Technology">
+              <Select
+                value={basics.technology}
+                disabled={!isAdmin}
+                onChange={(e) => setBasics({ ...basics, technology: e.target.value })}
+              >
+                {TECHNOLOGIES.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Capacity (KLD)">
+              <Input
+                type="number"
+                value={basics.capacityKLD}
+                disabled={!isAdmin}
+                onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
+              />
+            </Field>
+            {isAdmin && (
               <div className="col-span-2">
                 <Button
                   variant="outline"
@@ -287,8 +267,8 @@ export function ProposalEditor({
                   Save basics
                 </Button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -541,7 +521,7 @@ export function ProposalEditor({
             )}
           </div>
 
-          {/* Payment terms — seed the order's milestones on Win, so they're editable here. */}
+          {/* Payment terms — always editable by admin, even on WON/LOST proposals. */}
           <div className="mt-4 border-t border-border pt-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-semibold">Payment terms</span>
@@ -555,32 +535,32 @@ export function ProposalEditor({
                   <Input
                     placeholder="Milestone (e.g. Advance on order)"
                     value={t.description}
-                    disabled={!editable}
+                    disabled={!isAdmin}
                     onChange={(e) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
                   />
                   <Input
                     type="number"
                     aria-label="Percent"
                     value={t.percent}
-                    disabled={!editable}
+                    disabled={!isAdmin}
                     onChange={(e) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, percent: Number(e.target.value) } : x)))}
                   />
                   <Select
                     value={t.trigger}
-                    disabled={!editable}
+                    disabled={!isAdmin}
                     onChange={(e) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, trigger: e.target.value } : x)))}
                   >
                     <option value="DATE">On advance / date</option>
                     <option value="STAGE_COMPLETION">On stage completion</option>
                   </Select>
-                  {editable && (
+                  {isAdmin && (
                     <Button variant="ghost" size="icon" onClick={() => setTerms((ts) => ts.filter((_, j) => j !== i))}>
                       <Trash2 className="size-4 text-danger" />
                     </Button>
                   )}
                 </div>
               ))}
-              {editable && (
+              {isAdmin && (
                 <Button
                   variant="subtle"
                   size="sm"
@@ -592,12 +572,12 @@ export function ProposalEditor({
             </div>
             <div className="mt-3 max-w-[10rem]">
               <Field label="Validity (days)">
-                <Input type="number" value={validity} disabled={!editable} onChange={(e) => setValidity(Number(e.target.value))} />
+                <Input type="number" value={validity} disabled={!isAdmin} onChange={(e) => setValidity(Number(e.target.value))} />
               </Field>
             </div>
           </div>
 
-          {editable && (
+          {isAdmin && (
             <Button className="mt-3" disabled={pending} onClick={saveBoq}>
               {pending ? "Saving…" : "Save proposal"}
             </Button>
