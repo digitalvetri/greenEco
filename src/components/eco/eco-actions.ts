@@ -1,8 +1,8 @@
 "use server";
 
-import { askEco, type EcoAnswer } from "@/server/services/eco";
+import { askEco, type EcoAnswer, type AskEcoInput } from "@/server/services/eco";
 
-/** Ask Eco a how-to question (Phase 1 — help content only, no live data). */
-export async function askEcoAction(question: string): Promise<EcoAnswer> {
-  return askEco(question);
+/** Ask Eco a question with optional language, conversation history, and page context. */
+export async function askEcoAction(input: AskEcoInput): Promise<EcoAnswer> {
+  return askEco(input);
 }
