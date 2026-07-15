@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { PlusCircle, Loader2, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
@@ -15,7 +16,8 @@ interface OrderOption {
   clientName: string;
 }
 
-export function NewInvoiceDialog({ onCreated }: { onCreated?: () => void }) {
+export function NewInvoiceDialog() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [panelId, setPanelId] = useState<string | null>(null);
   const [orders, setOrders] = useState<OrderOption[]>([]);
@@ -69,10 +71,10 @@ export function NewInvoiceDialog({ onCreated }: { onCreated?: () => void }) {
       if (!r.ok) return toast(r.error ?? "Failed to create invoice", "error");
       toast("Draft invoice created — review and issue it");
       handleClose();
+      router.refresh();
       if (r.invoiceId) {
         setPanelId(r.invoiceId);
       }
-      onCreated?.();
     });
   }
 
@@ -197,7 +199,7 @@ export function NewInvoiceDialog({ onCreated }: { onCreated?: () => void }) {
         invoiceId={panelId}
         open={panelId !== null}
         onClose={() => setPanelId(null)}
-        onChanged={onCreated}
+        onChanged={() => router.refresh()}
       />
     </>
   );

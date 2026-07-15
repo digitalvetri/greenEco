@@ -53,7 +53,7 @@ export default async function InvoicesPage({
       <PageHeader
         title="Invoices"
         subtitle={`${items.length}${nextCursor ? "+" : ""} shown`}
-        action={<NewInvoiceDialog onCreated={() => {}} />}
+        action={<NewInvoiceDialog />}
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
