@@ -281,8 +281,8 @@ export function LeadsList({
                         <span>Next: {new Date(lead.followUps[0].nextDate).toLocaleDateString("en-IN")}</span>
                       )}
                       {lead.estimatedValue && (
-                        <span className="font-medium text-primary">
-                          ~₹{(lead.estimatedValue.mid / 100000).toFixed(1)}L est.
+                        <span className="font-semibold text-primary">
+                          Est. Project Value ~₹{(lead.estimatedValue.mid / 100000).toFixed(1)}L
                         </span>
                       )}
                     </div>

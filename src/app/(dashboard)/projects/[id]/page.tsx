@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { getOrder, orderActivity } from "@/server/services/order";
+import { budgetVsActual } from "@/server/services/erection";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,14 +25,18 @@ export const dynamic = "force-dynamic";
 export default async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
+  const isAdmin = session.role === "ADMIN";
   const [order, activity] = await Promise.all([getOrder(session, id), orderActivity(session, id)]);
   if (!order) notFound();
-  const isAdmin = session.role === "ADMIN";
   const documents = ("documents" in order ? order.documents : []) as { id: string; fileUrl: string; title: string }[];
 
   const currentDrawings = order.drawings.filter((d) => d.isCurrent);
   const clientEmail = order.proposal && "lead" in order.proposal ? order.proposal.lead?.email : null;
   const budget = "budget" in order ? order.budget : null;
+  // Live spend-to-date (labour + purchases + other + consumption), not the static seeded
+  // baseline — the Gross Margin card used to be projectValue − budget.baseAmount only,
+  // which never moved as the project actually spent money.
+  const bva = isAdmin && budget ? await budgetVsActual(session, order.id) : null;
   const users = isAdmin
     ? await prisma.user.findMany({ where: { companyId: session.companyId, active: true }, select: { id: true, name: true } })
     : [];
@@ -76,26 +81,74 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
             label: "Overview",
             content: (
               <div className="space-y-4">
-                {isAdmin && budget && (
-                  <div className="grid grid-cols-3 gap-3">
+                {isAdmin && budget && bva && (
+                  <>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Card className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs text-muted">Project Value</div>
+                          <ValueControl orderId={order.id} projectValue={order.projectValue.toString()} />
+                        </div>
+                        <div className="text-lg font-bold">{formatINR(order.projectValue.toString())}</div>
+                      </Card>
+                      <Card className="p-3">
+                        <div className="text-xs text-muted">Budget</div>
+                        <div className="text-lg font-bold">{formatINR(bva.budget)}</div>
+                      </Card>
+                      <Card className="p-3">
+                        <div className="text-xs text-muted">Gross Margin (live)</div>
+                        <div
+                          className={
+                            "text-lg font-bold " +
+                            (new Decimal(order.projectValue)
+                              .minus(bva.spent)
+                              .minus(bva.committed)
+                              .lt(0)
+                              ? "text-danger"
+                              : "text-ok")
+                          }
+                        >
+                          {new Decimal(order.projectValue)
+                            .minus(bva.spent)
+                            .minus(bva.committed)
+                            .div(order.projectValue)
+                            .times(100)
+                            .toFixed(0)}
+                          %
+                        </div>
+                      </Card>
+                    </div>
                     <Card className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs text-muted">Project Value</div>
-                        <ValueControl orderId={order.id} projectValue={order.projectValue.toString()} />
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-xs font-semibold text-muted">Actual spend to date</div>
+                        <Link href={`/erection/${order.id}`} className="text-xs text-primary hover:underline">
+                          Full breakdown →
+                        </Link>
                       </div>
-                      <div className="text-lg font-bold">{formatINR(order.projectValue.toString())}</div>
-                    </Card>
-                    <Card className="p-3">
-                      <div className="text-xs text-muted">Budget</div>
-                      <div className="text-lg font-bold">{formatINR(budget.baseAmount.toString())}</div>
-                    </Card>
-                    <Card className="p-3">
-                      <div className="text-xs text-muted">Gross Margin</div>
-                      <div className="text-lg font-bold text-ok">
-                        {new Decimal(order.projectValue).minus(budget.baseAmount).div(order.projectValue).times(100).toFixed(0)}%
+                      <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                        <BudgetStat label="Spent" value={formatINR(bva.spent)} />
+                        <BudgetStat label="Committed" value={formatINR(bva.committed)} tone="warn" />
+                        <BudgetStat
+                          label="Remaining"
+                          value={formatINR(bva.remaining)}
+                          tone={Number(bva.remaining) < 0 ? "danger" : "ok"}
+                        />
+                        <BudgetStat label="Consumed" value={`${bva.pctConsumed}%`} />
                       </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-border">
+                        <div
+                          className={
+                            "h-full " +
+                            (bva.pctConsumed >= 100 ? "bg-danger" : bva.pctConsumed >= 90 ? "bg-warn" : "bg-primary")
+                          }
+                          style={{ width: `${Math.min(bva.pctConsumed, 100)}%` }}
+                        />
+                      </div>
+                      {bva.alert && (
+                        <div className="mt-2 rounded bg-danger/10 px-2 py-1 text-xs text-danger">⚠ {bva.alert}</div>
+                      )}
                     </Card>
-                  </div>
+                  </>
                 )}
                 {isAdmin && (
                   <Card>
@@ -301,6 +354,16 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
           },
         ]}
       />
+    </div>
+  );
+}
+
+function BudgetStat({ label, value, tone }: { label: string; value: string; tone?: "warn" | "danger" | "ok" }) {
+  const c = tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : tone === "ok" ? "text-ok" : "";
+  return (
+    <div>
+      <div className="text-[11px] text-muted">{label}</div>
+      <div className={"font-bold tabular-nums " + c}>{value}</div>
     </div>
   );
 }

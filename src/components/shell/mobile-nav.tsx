@@ -126,7 +126,7 @@ export function MobileNav({
               </span>
               <div className="min-w-0 flex-1 leading-tight">
                 <div className="truncate text-sm font-semibold text-white">{name}</div>
-                <div className="text-[11px] text-emerald-200/70">{role === "ADMIN" ? "Owner / Admin" : "Field Staff"}</div>
+                <div className="text-[11px] text-emerald-200/70">{role === "ADMIN" ? "Admin" : "Field Staff"}</div>
               </div>
             </div>
           </aside>

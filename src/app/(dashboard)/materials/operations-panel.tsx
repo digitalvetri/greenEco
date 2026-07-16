@@ -153,8 +153,8 @@ export function OperationsPanel({
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-sm">
               <Send className="size-4 shrink-0 text-primary" />
-              <span className="font-medium">Warehouse → Project Site</span>
-              <span className="text-muted">· Issue materials to site, records consumption</span>
+              <span className="font-medium">Issue to Project Site</span>
+              <span className="text-muted">· Records material used at the site (stock already delivered there)</span>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Item" required>
@@ -167,14 +167,6 @@ export function OperationsPanel({
               </Field>
               <Field label="Quantity" required>
                 <Input type="number" min="0" step="0.001" inputMode="decimal" value={consume.qty} onChange={(e) => setConsume({ ...consume, qty: e.target.value })} />
-              </Field>
-              <Field label="Source warehouse" required>
-                <Select value={consume.fromLocationId} onChange={(e) => setConsume({ ...consume, fromLocationId: e.target.value })}>
-                  <option value="">Select warehouse…</option>
-                  {locations.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
-                </Select>
               </Field>
               <Field label="Project / site" required hint={siteLocations.length === 0 ? "No site locations yet — create a project first" : undefined}>
                 <Select value={consume.fromLocationId} onChange={(e) => setConsume({ ...consume, fromLocationId: e.target.value })}>

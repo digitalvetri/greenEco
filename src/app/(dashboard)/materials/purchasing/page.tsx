@@ -27,31 +27,31 @@ export default async function PurchasingPage() {
       <MaterialsNav isAdmin requestCount={pending} />
 
       <div className="mb-4">
-        <VendorsSection
-          vendors={vendors.map((v) => ({
-            id: v.id,
-            name: v.name,
-            phone: v.phone,
-            contact: v.contact,
-            address: v.address,
-            gstin: v.gstin,
-            categories: v.categories,
+        <PurchasingPanel
+          items={opts.map((i) => ({ id: i.id, name: i.name }))}
+          vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
+          locations={locations.map((l) => ({ id: l.id, name: l.name }))}
+          pos={pos.map((p) => ({
+            id: p.id,
+            poNo: p.poNo,
+            vendor: p.vendor.name,
+            status: p.status,
+            totalValue: p.totalValue.toString(),
+            items: (p.items as { itemId: string; qty: number; rate: number }[]) ?? [],
+            received: p.status === "RECEIVED" || p.status === "CLOSED",
           }))}
         />
       </div>
 
-      <PurchasingPanel
-        items={opts.map((i) => ({ id: i.id, name: i.name }))}
-        vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
-        locations={locations.map((l) => ({ id: l.id, name: l.name }))}
-        pos={pos.map((p) => ({
-          id: p.id,
-          poNo: p.poNo,
-          vendor: p.vendor.name,
-          status: p.status,
-          totalValue: p.totalValue.toString(),
-          items: (p.items as { itemId: string; qty: number; rate: number }[]) ?? [],
-          received: p.status === "RECEIVED" || p.status === "CLOSED",
+      <VendorsSection
+        vendors={vendors.map((v) => ({
+          id: v.id,
+          name: v.name,
+          phone: v.phone,
+          contact: v.contact,
+          address: v.address,
+          gstin: v.gstin,
+          categories: v.categories,
         }))}
       />
     </div>

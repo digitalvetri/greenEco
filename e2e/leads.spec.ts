@@ -115,7 +115,7 @@ test("domain: a sized lead shows plant sizing, a temperature, and a pre-quote va
   // Temperature badge (this profile is HOT).
   await expect(page.getByText(/Hot ·/)).toBeVisible();
   // Pre-quote indicative value — the killer feature.
-  await expect(page.getByText("Indicative value (pre-quote)")).toBeVisible();
+  await expect(page.getByText("Estimated Project Value (pre-quote)")).toBeVisible();
 });
 
 test("lifecycle: mark a lead lost (with reason) then reopen it (P1-1)", async ({ page, request }) => {

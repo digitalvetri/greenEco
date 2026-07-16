@@ -8,6 +8,7 @@ import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Uploader } from "@/components/mobile/uploader";
 import { formatINR } from "@/lib/money";
+import { Decimal } from "decimal.js";
 import { toast } from "@/components/ui/toast";
 import { InvoicePanel } from "../../invoices/invoice-panel";
 import {
@@ -207,7 +208,7 @@ export function MilestoneRow({
               <div>
                 <div className="text-muted">Remaining</div>
                 <div className="font-medium text-warn tabular-nums">
-                  {formatINR(String(Math.max(0, Number(milestone.amount) - Number(milestone.received))))}
+                  {formatINR(Decimal.max(0, new Decimal(milestone.amount).minus(milestone.received)))}
                 </div>
               </div>
             </div>

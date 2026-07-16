@@ -47,12 +47,16 @@ export function PrintShell({
           marginBottom: 20,
         }}
       >
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#0f7a4d" }}>Green Ecocare Pvt Ltd</div>
-          <div style={{ fontSize: 12, color: "#555" }}>
-            Wastewater Treatment Plant Solutions · Coimbatore, Tamil Nadu
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- static PDF header, rendered by headless Chromium outside Next's image pipeline */}
+          <img src="/brand/logo-mark.png" alt="Green Ecocare" width={44} height={44} style={{ borderRadius: 8 }} />
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#0f7a4d" }}>Green Ecocare Pvt Ltd</div>
+            <div style={{ fontSize: 12, color: "#555" }}>
+              Wastewater Treatment Plant Solutions · Coimbatore, Tamil Nadu
+            </div>
+            {gstin && <div style={{ fontSize: 12, color: "#555" }}>GSTIN: {gstin}</div>}
           </div>
-          {gstin && <div style={{ fontSize: 12, color: "#555" }}>GSTIN: {gstin}</div>}
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>

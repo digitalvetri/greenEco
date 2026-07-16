@@ -93,7 +93,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </span>
             <div className="min-w-0 flex-1 leading-tight">
               <div className="truncate text-sm font-semibold text-white">{session.name}</div>
-              <div className="text-[11px] text-emerald-200/70">{session.role === "ADMIN" ? "Owner / Admin" : "Field Staff"}</div>
+              <div className="text-[11px] text-emerald-200/70">{session.role === "ADMIN" ? "Admin" : "Field Staff"}</div>
             </div>
           </Link>
           <LogoutButton />
