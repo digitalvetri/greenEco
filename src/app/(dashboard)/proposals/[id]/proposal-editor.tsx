@@ -14,7 +14,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { SpeakButton } from "@/components/mobile/speak-button";
 import { formatINR } from "@/lib/money";
-import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, LOST_REASONS } from "@/lib/constants";
+import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, BOQ_UNITS, LOST_REASONS } from "@/lib/constants";
 import { ProposalStageTracker } from "./proposal-stage-tracker";
 import { ProposalTimeline } from "./proposal-timeline";
 import { ProposalDocumentsCard } from "./proposal-documents-card";
@@ -435,7 +435,21 @@ export function ProposalEditor({
                         r.category
                       )}
                     </td>
-                    <td className="py-1 pr-2">{r.unit}</td>
+                    <td className="py-1 pr-2">
+                      {editable ? (
+                        <Select
+                          className="h-8 w-24"
+                          value={r.unit}
+                          onChange={(e) => editRow(i, { unit: e.target.value })}
+                        >
+                          {BOQ_UNITS.map((u) => (
+                            <option key={u}>{u}</option>
+                          ))}
+                        </Select>
+                      ) : (
+                        r.unit
+                      )}
+                    </td>
                     <td className="py-1 pr-2 text-right tabular-nums">
                       {editable ? (
                         <Input
@@ -485,7 +499,7 @@ export function ProposalEditor({
                   {
                     category: "Others",
                     item: "",
-                    unit: "nos",
+                    unit: "Nos",
                     qty: "1",
                     rate: "0",
                     amount: "0",

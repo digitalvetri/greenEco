@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import {
   createItem,
   createVendor,
+  deleteVendor,
   createPO,
   setPOStatus,
   receiveGRN,
@@ -26,6 +27,13 @@ export async function createVendorAction(data: unknown) {
   const s = await getSession();
   await createVendor(s, data as Parameters<typeof createVendor>[1]);
   revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
+  return { ok: true };
+}
+
+export async function deleteVendorAction(vendorId: string) {
+  const s = await getSession();
+  await deleteVendor(s, vendorId);
+  revalidatePath("/materials", "layout");
   return { ok: true };
 }
 

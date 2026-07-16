@@ -56,6 +56,10 @@ export const BOQ_CATEGORIES = [
   "Others",
 ] as const;
 
+export const BOQ_UNITS = [
+  "Nos", "Cum", "Sq.m", "Rmt", "Kg", "Ton", "Lot", "Set", "Pair", "Litre", "m³", "m²",
+] as const;
+
 export const PLANT_TYPES = ["STP", "ETP", "WTP"] as const;
 export const TECHNOLOGIES = ["MBBR", "SBR", "MBR", "ASP", "SAFF"] as const;
 

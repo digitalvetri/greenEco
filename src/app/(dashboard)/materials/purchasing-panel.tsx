@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, PackageCheck, Send, ShoppingCart } from "lucide-react";
+// Vendors are shown in VendorsSection above this panel — no duplicate card here.
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Field } from "@/components/ui/input";
@@ -11,8 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
 import { ExportButton } from "@/components/ui/export-button";
 import { formatINR } from "@/lib/money";
-import { ITEM_CATEGORIES } from "@/lib/constants";
-import { createVendorAction, createPOAction, setPOStatusAction, receiveGRNAction } from "./actions";
+import { createPOAction, setPOStatusAction, receiveGRNAction } from "./actions";
 
 interface Opt {
   id: string;
@@ -63,8 +63,6 @@ export function PurchasingPanel({
   };
 
   const [po, setPo] = useState({ vendorId: "", destinationId: "", itemId: "", qty: "1", rate: "0" });
-  const [vendor, setVendor] = useState({ name: "", phone: "", categories: "PumpsMotors", gstin: "" });
-  const [showVendor, setShowVendor] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -188,67 +186,6 @@ export function PurchasingPanel({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>Vendors {vendors.length > 0 && <span className="text-muted">({vendors.length})</span>}</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setShowVendor((v) => !v)}>
-            <Plus className="size-4" /> {showVendor ? "Cancel" : "Add vendor"}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {showVendor && (
-            <div className="space-y-2 rounded-lg border border-border bg-surface p-3">
-              <Field label="Name" required>
-                <Input placeholder="Vendor name" value={vendor.name} onChange={(e) => setVendor({ ...vendor, name: e.target.value })} />
-              </Field>
-              <div className="grid gap-2 md:grid-cols-3">
-                <Field label="Phone" required>
-                  <Input placeholder="Phone" value={vendor.phone} onChange={(e) => setVendor({ ...vendor, phone: e.target.value })} />
-                </Field>
-                <Field label="Category">
-                  <Select value={vendor.categories} onChange={(e) => setVendor({ ...vendor, categories: e.target.value })}>
-                    {ITEM_CATEGORIES.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="GSTIN">
-                  <Input placeholder="Optional" value={vendor.gstin} onChange={(e) => setVendor({ ...vendor, gstin: e.target.value })} />
-                </Field>
-              </div>
-              <Button
-                size="sm"
-                loading={busy === "vendor"}
-                disabled={pending || !vendor.name || !vendor.phone}
-                onClick={() =>
-                  run(
-                    "vendor",
-                    async () => {
-                      await createVendorAction({ name: vendor.name, phone: vendor.phone, categories: [vendor.categories], gstin: vendor.gstin || undefined });
-                      setVendor({ name: "", phone: "", categories: "PumpsMotors", gstin: "" });
-                      setShowVendor(false);
-                    },
-                    "Vendor added",
-                  )
-                }
-              >
-                <Plus className="size-4" /> Add vendor
-              </Button>
-            </div>
-          )}
-          {vendors.length === 0 ? (
-            <p className="text-sm text-muted">No vendors yet.</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {vendors.map((v) => (
-                <span key={v.id} className="rounded-full border border-border bg-surface px-3 py-1 text-xs">
-                  {v.name}
-                </span>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

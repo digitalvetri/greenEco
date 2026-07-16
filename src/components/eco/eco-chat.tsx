@@ -27,8 +27,8 @@ const SUGGESTIONS: Record<Lang, string[]> = {
 };
 
 const WELCOME: Record<Lang, string> = {
-  en: "Hi, I'm Eco 🌿 — your AI assistant for Green Ecocare CRM.\n\nAsk me anything about leads, proposals, invoices, projects, materials, or how to use this app. I also support Tamil — tap the TA button. Voice input available on Chrome — tap the mic!",
-  ta: "வணக்கம்! நான் Eco 🌿 — உங்கள் Green Ecocare CRM AI உதவியாளர்.\n\nLeads, proposals, invoices, projects, materials பற்றி எதுவும் கேளுங்கள். குரல் மூலமும் கேட்கலாம் — mic பொத்தானை அழுத்துங்கள்!",
+  en: "Hi, I'm Eco 🌿 — your CRM Copilot for Green Ecocare CRM.\n\nAsk me anything about your leads, projects, invoices, materials, or how to use this app. I can pull live data from your CRM!\n\nTamil support available — tap TA. Voice input on Chrome — tap the mic!",
+  ta: "வணக்கம்! நான் Eco 🌿 — உங்கள் Green Ecocare CRM Copilot.\n\nLeads, projects, invoices, materials பற்றி எதுவும் கேளுங்கள். உங்கள் CRM live data கொண்டு பதில் சொல்வேன்!\n\nகுரல் மூலமும் கேட்கலாம் — mic பொத்தானை அழுத்துங்கள்!",
 };
 
 function isTamilText(s: string): boolean {
@@ -53,6 +53,7 @@ export function EcoChat() {
   const [input, setInput] = useState("");
   const [pending, start] = useTransition();
   const [recording, setRecording] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -93,6 +94,9 @@ export function EcoChat() {
     const targetLang = lang === "ta" ? "ta" : "en";
     const match = voices.find((v) => v.lang.startsWith(targetLang));
     if (match) utterance.voice = match;
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
     window.speechSynthesis.speak(utterance);
   }
 
@@ -218,6 +222,30 @@ export function EcoChat() {
               {voiceEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
             </button>
           </div>
+
+          {/* Voice status bar */}
+          {(recording || pending || speaking) && (
+            <div className="flex items-center gap-2 border-b border-border/50 bg-primary/5 px-3 py-1.5 text-xs text-primary">
+              {recording && (
+                <>
+                  <span className="size-1.5 animate-ping rounded-full bg-danger" />
+                  {lang === "ta" ? "கேட்கிறேன்…" : "🎙️ Listening…"}
+                </>
+              )}
+              {pending && !recording && (
+                <>
+                  <span className="size-1.5 animate-bounce rounded-full bg-primary" />
+                  {lang === "ta" ? "சிந்திக்கிறேன்…" : "⚙️ Processing…"}
+                </>
+              )}
+              {speaking && !pending && !recording && (
+                <>
+                  <span className="size-1.5 animate-pulse rounded-full bg-teal-500" />
+                  {lang === "ta" ? "பேசுகிறேன்…" : "🔊 Speaking…"}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Messages */}
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-3">

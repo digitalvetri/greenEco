@@ -74,6 +74,69 @@ export function ScheduleControl({
   );
 }
 
+/** Inline date picker — shows the date as clickable text; tap to switch to a date input. */
+export function InlineDateEdit({
+  orderId,
+  field,
+  startDate,
+  targetDate,
+}: {
+  orderId: string;
+  field: "startDate" | "targetDate";
+  startDate: string | null;
+  targetDate: string | null;
+}) {
+  const router = useRouter();
+  const [, start] = useTransition();
+  const value = field === "startDate" ? startDate : targetDate;
+  const [editing, setEditing] = useState(!value);
+  const [dateVal, setDateVal] = useState(toDateInput(value));
+
+  function save(newVal: string) {
+    if (!newVal) { setEditing(false); return; }
+    start(async () => {
+      try {
+        await setOrderScheduleAction(orderId, {
+          startDate: field === "startDate" ? newVal : (toDateInput(startDate) || null),
+          targetDate: field === "targetDate" ? newVal : (toDateInput(targetDate) || null),
+        });
+        setEditing(false);
+        router.refresh();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Failed to update date", "error");
+      }
+    });
+  }
+
+  if (editing) {
+    return (
+      <Input
+        type="date"
+        value={dateVal}
+        autoFocus={!value}
+        className="h-7 w-36 text-sm font-medium"
+        onChange={(e) => setDateVal(e.target.value)}
+        onBlur={() => save(dateVal)}
+        onKeyDown={(e) => { if (e.key === "Enter") save(dateVal); if (e.key === "Escape") setEditing(false); }}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="group inline-flex items-center gap-1 text-sm font-medium hover:text-primary"
+      title="Click to change date"
+    >
+      {value
+        ? new Date(value).toLocaleDateString("en-IN")
+        : <span className="text-muted italic">— not set, click to add</span>}
+      <Pencil className="size-3 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+    </button>
+  );
+}
+
 export function ValueControl({
   orderId,
   projectValue,

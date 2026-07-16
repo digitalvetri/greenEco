@@ -17,7 +17,7 @@ import { ProjectDocumentsCard } from "./documents-card";
 import { CommPanel } from "./comm-panel";
 import { ArchiveButton } from "./archive-button";
 import { GstControl } from "./gst-control";
-import { ScheduleControl, ValueControl } from "./schedule-value-controls";
+import { ScheduleControl, ValueControl, InlineDateEdit } from "./schedule-value-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -125,15 +125,33 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                   <CardContent className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <div className="text-xs text-muted">Start date</div>
-                      <div className="font-medium">
-                        {order.startDate ? new Date(order.startDate).toLocaleDateString("en-IN") : "— not set"}
-                      </div>
+                      {isAdmin ? (
+                        <InlineDateEdit
+                          orderId={order.id}
+                          field="startDate"
+                          startDate={order.startDate ? new Date(order.startDate).toISOString() : null}
+                          targetDate={order.targetDate ? new Date(order.targetDate).toISOString() : null}
+                        />
+                      ) : (
+                        <div className="font-medium">
+                          {order.startDate ? new Date(order.startDate).toLocaleDateString("en-IN") : "— not set"}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="text-xs text-muted">Target completion</div>
-                      <div className="font-medium">
-                        {order.targetDate ? new Date(order.targetDate).toLocaleDateString("en-IN") : "— not set"}
-                      </div>
+                      {isAdmin ? (
+                        <InlineDateEdit
+                          orderId={order.id}
+                          field="targetDate"
+                          startDate={order.startDate ? new Date(order.startDate).toISOString() : null}
+                          targetDate={order.targetDate ? new Date(order.targetDate).toISOString() : null}
+                        />
+                      ) : (
+                        <div className="font-medium">
+                          {order.targetDate ? new Date(order.targetDate).toLocaleDateString("en-IN") : "— not set"}
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

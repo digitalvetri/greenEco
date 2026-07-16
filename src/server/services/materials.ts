@@ -354,6 +354,18 @@ export async function createVendor(
   return vendor;
 }
 
+export async function deleteVendor(ctx: Ctx, vendorId: string) {
+  requireAdmin(ctx);
+  const vendor = await prisma.vendor.findFirst({ where: { id: vendorId, companyId: ctx.companyId } });
+  if (!vendor) throw new Error("Vendor not found");
+  try {
+    await prisma.vendor.delete({ where: { id: vendorId } });
+    await logAudit(ctx, { action: "DELETE", entity: "Vendor", entityId: vendorId, before: { name: vendor.name } });
+  } catch {
+    throw new Error("Cannot delete vendor — it has linked purchase orders or price history");
+  }
+}
+
 // ---------- Locations ----------
 
 export async function listLocations(ctx: Ctx) {
