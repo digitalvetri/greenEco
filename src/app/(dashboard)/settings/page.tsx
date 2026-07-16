@@ -112,14 +112,11 @@ export default async function SettingsPage() {
 
       <Card className="mt-4">
         <CardHeader>
-          <CardTitle>Masters</CardTitle>
+          <CardTitle>System</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2 text-sm">
           <Link href="/settings/integrations" className="text-primary">Integrations & API keys →</Link>
           <Link href="/settings/automations" className="text-primary">Automations →</Link>
-          <Link href="/materials" className="text-primary">Items & Vendors →</Link>
-          <Link href="/reports" className="text-primary">Reports →</Link>
-          <a href="/api/cron?job=all" target="_blank" rel="noreferrer" className="text-primary">Run cron digest →</a>
         </CardContent>
       </Card>
       </>

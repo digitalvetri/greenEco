@@ -84,11 +84,15 @@ export function OperationsPanel({
 
         {tab === "transfer" && (
           <div className="space-y-3">
-            <p className="text-sm text-muted">Move stock between locations. Posts a paired transfer movement.</p>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-sm">
+              <ArrowLeftRight className="size-4 shrink-0 text-primary" />
+              <span className="font-medium">Warehouse → Warehouse</span>
+              <span className="text-muted">· Move stock between storage locations</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Item" required>
                 <Select value={transfer.itemId} onChange={(e) => setTransfer({ ...transfer, itemId: e.target.value })}>
-                  <option value="">Item…</option>
+                  <option value="">Select item…</option>
                   {items.map((i) => (
                     <option key={i.id} value={i.id}>{i.name}</option>
                   ))}
@@ -97,21 +101,21 @@ export function OperationsPanel({
               <Field label="Quantity" required>
                 <Input type="number" min="0" step="0.001" inputMode="decimal" value={transfer.qty} onChange={(e) => setTransfer({ ...transfer, qty: e.target.value })} />
               </Field>
-              <Field label="From location" required>
+              <Field label="Source warehouse" required>
                 <Select value={transfer.fromLocationId} onChange={(e) => setTransfer({ ...transfer, fromLocationId: e.target.value })}>
-                  <option value="">From…</option>
+                  <option value="">Select source…</option>
                   {locations.map((l) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
                 </Select>
               </Field>
               <Field
-                label="To location"
+                label="Destination warehouse"
                 required
-                error={transfer.fromLocationId && transfer.fromLocationId === transfer.toLocationId ? "Pick a different location" : undefined}
+                error={transfer.fromLocationId && transfer.fromLocationId === transfer.toLocationId ? "Source and destination must be different" : undefined}
               >
                 <Select value={transfer.toLocationId} onChange={(e) => setTransfer({ ...transfer, toLocationId: e.target.value })}>
-                  <option value="">To…</option>
+                  <option value="">Select destination…</option>
                   {locations.map((l) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
@@ -119,7 +123,7 @@ export function OperationsPanel({
               </Field>
             </div>
             <Field label="Note (optional)">
-              <Input placeholder="Reason / reference" value={transfer.note} onChange={(e) => setTransfer({ ...transfer, note: e.target.value })} />
+              <Input placeholder="Reason or reference number" value={transfer.note} onChange={(e) => setTransfer({ ...transfer, note: e.target.value })} />
             </Field>
             <Button
               size="sm"
@@ -136,22 +140,26 @@ export function OperationsPanel({
                       toLocationId: transfer.toLocationId,
                       note: transfer.note || undefined,
                     }),
-                  "Stock transferred.",
+                  "Stock transferred successfully.",
                 )
               }
             >
-              <ArrowLeftRight className="size-4" /> Move stock
+              <ArrowLeftRight className="size-4" /> Transfer stock
             </Button>
           </div>
         )}
 
         {tab === "consume" && (
           <div className="space-y-3">
-            <p className="text-sm text-muted">Issue material to a site — records consumption against erection actuals.</p>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-sm">
+              <Send className="size-4 shrink-0 text-primary" />
+              <span className="font-medium">Warehouse → Project Site</span>
+              <span className="text-muted">· Issue materials to site, records consumption</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Item" required>
                 <Select value={consume.itemId} onChange={(e) => setConsume({ ...consume, itemId: e.target.value })}>
-                  <option value="">Item…</option>
+                  <option value="">Select item…</option>
                   {items.map((i) => (
                     <option key={i.id} value={i.id}>{i.name}</option>
                   ))}
@@ -160,9 +168,17 @@ export function OperationsPanel({
               <Field label="Quantity" required>
                 <Input type="number" min="0" step="0.001" inputMode="decimal" value={consume.qty} onChange={(e) => setConsume({ ...consume, qty: e.target.value })} />
               </Field>
-              <Field label="From site" required hint={siteLocations.length === 0 ? "No site locations yet" : undefined}>
+              <Field label="Source warehouse" required>
                 <Select value={consume.fromLocationId} onChange={(e) => setConsume({ ...consume, fromLocationId: e.target.value })}>
-                  <option value="">Site…</option>
+                  <option value="">Select warehouse…</option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Project / site" required hint={siteLocations.length === 0 ? "No site locations yet — create a project first" : undefined}>
+                <Select value={consume.fromLocationId} onChange={(e) => setConsume({ ...consume, fromLocationId: e.target.value })}>
+                  <option value="">Select project site…</option>
                   {siteLocations.map((l) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
@@ -186,7 +202,7 @@ export function OperationsPanel({
                       fromLocationId: consume.fromLocationId,
                       note: consume.note || undefined,
                     }),
-                  "Material issued to site.",
+                  "Material issued to site successfully.",
                 )
               }
             >

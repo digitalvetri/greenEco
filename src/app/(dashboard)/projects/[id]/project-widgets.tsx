@@ -192,12 +192,31 @@ export function MilestoneRow({
   return (
     <div className="border-t border-border py-2">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-sm font-medium">{milestone.description}</div>
-          <div className="text-xs text-muted">
-            {formatINR(milestone.amount)}
-            {Number(milestone.received) > 0 && ` · received ${formatINR(milestone.received)}`}
-          </div>
+          {milestone.status === "PARTIALLY_PAID" ? (
+            <div className="mt-1 grid grid-cols-3 gap-x-3 rounded-lg bg-surface px-2 py-1.5 text-xs">
+              <div>
+                <div className="text-muted">Total</div>
+                <div className="font-medium tabular-nums">{formatINR(milestone.amount)}</div>
+              </div>
+              <div>
+                <div className="text-muted">Received</div>
+                <div className="font-medium text-ok tabular-nums">{formatINR(milestone.received)}</div>
+              </div>
+              <div>
+                <div className="text-muted">Remaining</div>
+                <div className="font-medium text-warn tabular-nums">
+                  {formatINR(String(Math.max(0, Number(milestone.amount) - Number(milestone.received))))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-muted">
+              {formatINR(milestone.amount)}
+              {milestone.status === "PAID" && <span className="ml-1 text-ok">· paid</span>}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={variant}>{milestone.status.replace(/_/g, " ")}</Badge>

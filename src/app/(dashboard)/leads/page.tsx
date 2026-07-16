@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { listLeads, leadStats, listCompanyUsers } from "@/server/services/lead";
 import { PageHeader, StatTile } from "@/components/ui/stat";
 import { Button } from "@/components/ui/button";
+import { boqPreview } from "@/lib/constants";
 import { LeadImportExport } from "./lead-import";
 import { LeadsList, type LeadRow } from "./leads-list";
 import { LeadsFilters } from "./leads-filters";
@@ -81,6 +82,7 @@ export default async function LeadsPage({
     urgency: l.urgency,
     temperature: l.score.temperature,
     followUps: l.followUps.map((f) => ({ nextDate: f.nextDate })),
+    estimatedValue: l.capacityKLD ? boqPreview(l.capacityKLD) : null,
   }));
 
   return (
