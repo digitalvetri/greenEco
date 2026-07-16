@@ -220,7 +220,7 @@ export async function setOrderStatus(
   requireAdmin(ctx);
   const order = await prisma.order.findFirst({ where: { id: orderId, companyId: ctx.companyId } });
   if (!order) throw new Error("Project not found");
-  const updated = await prisma.order.update({ where: { id: orderId }, data: { status } });
+  await prisma.order.update({ where: { id: orderId }, data: { status } });
   await logAudit(ctx, {
     action: "UPDATE",
     entity: "Order",
@@ -228,7 +228,7 @@ export async function setOrderStatus(
     before: { status: order.status },
     after: { status },
   });
-  return updated;
+  return { ok: true };
 }
 
 function nextDueDate(milestones: { status: string; dueDate: Date | null }[]): string | null {
@@ -748,7 +748,7 @@ export async function addReceipt(
     });
     await recomputeMilestones(tx, milestone.orderId);
     await logAudit(ctx, { action: "CREATE", entity: "Receipt", entityId: r.id, after: { amount: data.amount } }, tx);
-    return r;
+    return { ok: true };
   });
 }
 

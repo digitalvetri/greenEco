@@ -406,9 +406,9 @@ export async function setPOStatus(ctx: Ctx, poId: string, status: "SENT" | "CLOS
   requireAdmin(ctx);
   const po = await prisma.purchaseOrder.findFirst({ where: { id: poId, companyId: ctx.companyId } });
   if (!po) throw new Error("PO not found");
-  const updated = await prisma.purchaseOrder.update({ where: { id: poId }, data: { status } });
+  await prisma.purchaseOrder.update({ where: { id: poId }, data: { status } });
   await logAudit(ctx, { action: "UPDATE", entity: "PurchaseOrder", entityId: poId, before: { status: po.status }, after: { status } });
-  return updated;
+  return { ok: true };
 }
 
 export async function listPOs(ctx: Ctx, take = 100) {

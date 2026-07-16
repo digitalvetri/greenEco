@@ -278,8 +278,10 @@ test("EMPLOYEE does not see AMC annual revenue; ADMIN does", async ({ context, p
 test("invoices page offers a PDF download affordance to admin", async ({ context, page }) => {
   await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
   await page.goto("/invoices", { waitUntil: "domcontentloaded" });
-  // The DownloadPdfButton renders an aria-labelled control per invoice row.
-  await expect(page.getByRole("button", { name: /PDF/i }).first()).toBeVisible();
+  // The PDF button lives inside the per-invoice slide-in panel (InvoicePanel), not on the
+  // list row directly — open an ISSUED invoice (skip drafts, which show "Issue invoice" instead).
+  await page.getByText(/^GEC-INV/).first().click();
+  await expect(page.getByRole("button", { name: /PDF/i })).toBeVisible();
 });
 
 test("leads: KPI tiles render and the search filter changes the result set", async ({ context, page }) => {
@@ -353,6 +355,30 @@ test("proposal editor has an Activity tab with version history (P1-1)", async ({
   await expect(page.getByText("Proposal created")).toBeVisible();
 });
 
+test("proposal status change round-trips without a Decimal-serialization crash", async ({ page, request }) => {
+  // Regression test for a real bug: setProposalStatus/updateBasics used to `return
+  // stripPricing(updated, ctx.role)` — a raw Prisma Proposal record with Decimal
+  // subtotal/gstAmount/grandTotal — straight through a "use server" action, which Next.js
+  // rejects with "Only plain objects can be passed to Client Components from Server
+  // Components. Decimal objects are not supported."
+  const id = await firstDetailId(request, "proposals");
+  test.skip(!id, "no proposals in DB");
+  await page.goto(`/proposals/${id}`, { waitUntil: "networkidle" });
+
+  const negotiate = page.getByRole("button", { name: "Mark under negotiation" });
+  const backToSent = page.getByRole("button", { name: "Back to sent" });
+  const toggle = (await negotiate.isVisible().catch(() => false))
+    ? negotiate
+    : (await backToSent.isVisible().catch(() => false))
+      ? backToSent
+      : null;
+  test.skip(!toggle, "proposal not in a SENT/UNDER_NEGOTIATION state");
+
+  await toggle!.click();
+  await expect(page.getByText(/Moved to negotiation\.|Back to sent\./)).toBeVisible();
+  await expect(page.getByText(/Only plain objects can be passed/)).toHaveCount(0);
+});
+
 test("proposal analytics renders win rate + AI-vs-manual (P1-4)", async ({ context, page }) => {
   await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
   const res = await page.goto("/proposals/analytics", { waitUntil: "networkidle" });
@@ -417,6 +443,30 @@ test("project detail exposes client comms, milestone scheduling, and archive (P2
   await expect(sched).toBeVisible();
   await sched.click();
   await expect(page.getByRole("button", { name: "Save schedule" })).toBeVisible();
+});
+
+test("project status change (Hold/Reopen) round-trips without a Decimal-serialization crash", async ({ context, page, request }) => {
+  // Regression test for a real bug: setOrderStatus used to `return updated` — a raw Prisma
+  // Order record with a Decimal projectValue — straight through a "use server" action. Next.js
+  // rejects that with "Only plain objects can be passed to Client Components from Server
+  // Components. Decimal objects are not supported," which surfaced as a crash on this exact click.
+  await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
+  const id = await firstDetailId(request, "projects");
+  test.skip(!id, "no projects in DB");
+  await page.goto(`/projects/${id}`, { waitUntil: "networkidle" });
+
+  const holdBtn = page.getByRole("button", { name: "Hold" });
+  test.skip(!(await holdBtn.isVisible().catch(() => false)), "project not ACTIVE");
+
+  await holdBtn.click();
+  await expect(page.getByText("Project on hold")).toBeVisible();
+  await expect(page.getByText(/Only plain objects can be passed/)).toHaveCount(0);
+
+  const reopenBtn = page.getByRole("button", { name: "Reopen" });
+  await expect(reopenBtn).toBeVisible();
+  await reopenBtn.click();
+  await expect(page.getByText("Project reopened")).toBeVisible();
+  await expect(page.getByText(/Only plain objects can be passed/)).toHaveCount(0);
 });
 
 test("EMPLOYEE project detail renders, comms work, admin controls + pricing hidden (P2 RBAC)", async ({ context, page, request }) => {

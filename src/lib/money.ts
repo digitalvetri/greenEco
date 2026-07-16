@@ -51,6 +51,29 @@ export function formatINR(v: Decimal.Value): string {
   return `₹${formatIndianNumber(v)}`;
 }
 
+/**
+ * Deep-converts every decimal.js/Prisma `Decimal` in a value to a string, recursing into
+ * plain objects and arrays. `Date`s and other values pass through untouched.
+ *
+ * Server Actions (`"use server"`) serialize their return value to the client over the same
+ * RSC wire format used for props — a raw Prisma record spread with a Decimal field (money,
+ * qty, rate…) throws "Only plain objects can be passed to Client Components from Server
+ * Components. Decimal objects are not supported," even when the caller discards the result.
+ * Use this at the return of any mutation whose caller needs fields back (id, status, etc.);
+ * prefer returning a minimal `{ ok: true }` when nothing is actually consumed downstream.
+ */
+export function serializeDecimals<T>(value: T): T {
+  if (Decimal.isDecimal(value)) return (value as Decimal).toString() as unknown as T;
+  if (value instanceof Date) return value;
+  if (Array.isArray(value)) return value.map((v) => serializeDecimals(v)) as unknown as T;
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = serializeDecimals(v);
+    return out as T;
+  }
+  return value;
+}
+
 const ONES = [
   "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
   "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",

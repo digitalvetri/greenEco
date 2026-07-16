@@ -241,9 +241,9 @@ export async function updateBasics(
   if (proposal.status === "WON" || proposal.status === "LOST") {
     throw new Error("Proposal is locked");
   }
-  const updated = await prisma.proposal.update({ where: { id }, data });
+  await prisma.proposal.update({ where: { id }, data });
   await logAudit(ctx, { action: "UPDATE", entity: "Proposal", entityId: id, after: data });
-  return stripPricing(updated, ctx.role);
+  return { ok: true };
 }
 
 interface VersionSaveInput {
@@ -754,7 +754,7 @@ export async function setProposalStatus(
   if (p.status === "WON") throw new Error("A won proposal is locked");
   if (p.status === "DRAFT") throw new Error("Approve & send the proposal before changing its stage");
 
-  const updated = await prisma.proposal.update({
+  await prisma.proposal.update({
     where: { id: proposalId },
     data: { status, lostReason: p.status === "LOST" ? null : p.lostReason },
   });
@@ -765,5 +765,5 @@ export async function setProposalStatus(
     before: { status: p.status },
     after: { status },
   });
-  return stripPricing(updated, ctx.role);
+  return { ok: true };
 }

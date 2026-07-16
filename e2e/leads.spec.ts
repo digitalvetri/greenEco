@@ -13,9 +13,14 @@ test("create a lead via /leads/new then add a follow-up on its detail page", asy
   await page.goto("/leads/new");
   await expect(page.getByRole("heading", { name: "New Lead", exact: true })).toBeVisible();
 
+  // The flow opens on a New/Existing customer picker; the form only mounts after choosing.
+  await page.getByRole("button", { name: "Add New Customer" }).click();
+
   // getByLabel proves the Field a11y association on the core lead fields.
   await page.getByLabel("Customer Name").fill(customerName);
-  await page.getByPlaceholder("Site address").fill("12 Test Road, Chennai");
+  // Two address fields exist now (customer Address + the newer Project Address) — exact match
+  // to disambiguate ("Project Address" contains "Address" as a substring).
+  await page.getByLabel("Address", { exact: true }).fill("12 Test Road, Chennai");
   await page.getByLabel("Phone (10 digits)").fill(phone);
   // Source defaults to a valid value ("Reference"); leave as-is.
 

@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { allocateNumber } from "./numbering";
 import { computeGst } from "@/lib/gst";
-import { amountInWords, formatINR } from "@/lib/money";
+import { amountInWords, formatINR, serializeDecimals } from "@/lib/money";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
 import {
@@ -573,7 +573,7 @@ export async function generateAmcInvoice(ctx: Ctx, contractId: string, periodLab
       },
     });
     await logAudit(ctx, { action: "CREATE", entity: "Invoice", entityId: invoice.id, after: { invoiceNo, amc: contract.contractNo } }, tx);
-    return { invoiceId: invoice.id, invoiceNo, amount: gst.total };
+    return { invoiceId: invoice.id, invoiceNo, amount: serializeDecimals(gst.total) };
   });
 }
 
