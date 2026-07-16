@@ -188,6 +188,9 @@ async function aiAnswer(
 
   const user = `${historyText}HELP CONTENT:\n${context}\n\nUSER QUESTION: ${question}`;
 
-  const result = await llmText(system, user, { maxTokens: 700 });
+  // Prefer Sarvam for Tamil (Indian-language specialist); Groq for English (fastest).
+  // llmText falls back through the provider list if the preferred one has no key.
+  const prefer = isTamil ? "sarvam" : "groq";
+  const result = await llmText(system, user, { maxTokens: 700, prefer });
   return result?.text ?? null;
 }

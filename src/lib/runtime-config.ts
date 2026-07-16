@@ -28,6 +28,8 @@ export type ManagedKey =
   | "GROQ_MODEL"
   | "GEMINI_API_KEY"
   | "GEMINI_MODEL"
+  | "SARVAM_API_KEY"
+  | "SARVAM_MODEL"
   | "AI_TEXT_PROVIDER";
 
 export interface KeyMeta {
@@ -62,7 +64,9 @@ export const MANAGED_KEYS: KeyMeta[] = [
   { key: "GROQ_MODEL", label: "Groq model", group: "AI", secret: false, envValue: () => env.groqModel },
   { key: "GEMINI_API_KEY", label: "Google Gemini key", group: "AI", secret: true, envValue: () => env.geminiApiKey, placeholder: "AIza…", help: "Text + vision alternative to Claude." },
   { key: "GEMINI_MODEL", label: "Gemini model", group: "AI", secret: false, envValue: () => env.geminiModel },
-  { key: "AI_TEXT_PROVIDER", label: "Preferred text provider", group: "AI", secret: false, envValue: () => env.aiTextProvider, help: "auto | groq | gemini | anthropic" },
+  { key: "SARVAM_API_KEY", label: "Sarvam AI key", group: "AI", secret: true, envValue: () => env.sarvamApiKey, placeholder: "…", help: "Indian-language specialist — best for Tamil. Auto-used when responding in Tamil." },
+  { key: "SARVAM_MODEL", label: "Sarvam model", group: "AI", secret: false, envValue: () => env.sarvamModel },
+  { key: "AI_TEXT_PROVIDER", label: "Preferred text provider", group: "AI", secret: false, envValue: () => env.aiTextProvider, help: "auto | groq | gemini | anthropic | sarvam" },
 ];
 
 const META_BY_KEY = new Map(MANAGED_KEYS.map((m) => [m.key, m]));

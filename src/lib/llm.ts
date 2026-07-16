@@ -2,6 +2,7 @@ import { loadConfig } from "./runtime-config";
 import { groqCompleteWith } from "./groq";
 import { geminiComplete } from "./gemini";
 import { anthropicText } from "./anthropic";
+import { sarvamCompleteWith } from "./sarvam";
 
 /**
  * Provider-agnostic text/JSON completion. Picks among whichever AI providers are configured
@@ -14,12 +15,14 @@ import { anthropicText } from "./anthropic";
  * (groq → gemini → anthropic: cheapest/fastest first, Claude reserved but still usable).
  */
 
-export type Provider = "groq" | "gemini" | "anthropic";
+export type Provider = "groq" | "gemini" | "anthropic" | "sarvam";
 
-const AUTO_ORDER: Provider[] = ["groq", "gemini", "anthropic"];
+// Default auto order: Groq first (fastest/cheapest), then Sarvam (Indian-language specialist),
+// then Gemini, then Anthropic. Sarvam is bumped to first when the caller prefers it (Tamil).
+const AUTO_ORDER: Provider[] = ["groq", "sarvam", "gemini", "anthropic"];
 
 function orderFor(prefer: string): Provider[] {
-  if (prefer === "groq" || prefer === "gemini" || prefer === "anthropic") {
+  if (prefer === "groq" || prefer === "gemini" || prefer === "anthropic" || prefer === "sarvam") {
     return [prefer, ...AUTO_ORDER.filter((p) => p !== prefer)];
   }
   return AUTO_ORDER;
@@ -42,6 +45,7 @@ export async function llmText(
     let text: string | null = null;
     if (provider === "groq") text = await groqCompleteWith(cfg.GROQ_API_KEY, cfg.GROQ_MODEL, system, user, opts);
     else if (provider === "gemini") text = await geminiComplete(cfg.GEMINI_API_KEY, cfg.GEMINI_MODEL, system, user, opts);
+    else if (provider === "sarvam") text = await sarvamCompleteWith(cfg.SARVAM_API_KEY, cfg.SARVAM_MODEL, system, user, opts);
     else text = await anthropicText(cfg.ANTHROPIC_API_KEY, cfg.ANTHROPIC_MODEL, system, user, opts);
     if (text) return { text, provider };
   }
@@ -53,6 +57,7 @@ export async function configuredTextProviders(): Promise<Provider[]> {
   const cfg = await loadConfig();
   const out: Provider[] = [];
   if (cfg.GROQ_API_KEY) out.push("groq");
+  if (cfg.SARVAM_API_KEY) out.push("sarvam");
   if (cfg.GEMINI_API_KEY) out.push("gemini");
   if (cfg.ANTHROPIC_API_KEY) out.push("anthropic");
   return out;

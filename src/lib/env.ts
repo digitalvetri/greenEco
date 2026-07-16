@@ -65,8 +65,11 @@ const schema = z
     /** Google Gemini (generativelanguage API) — third text/vision provider. */
     GEMINI_API_KEY: z.string().default(""),
     GEMINI_MODEL: z.string().default("gemini-2.0-flash"),
-    /** Preferred AI text provider: auto | groq | gemini | anthropic. Overridable in Settings. */
-    AI_TEXT_PROVIDER: z.enum(["auto", "groq", "gemini", "anthropic"]).default("auto"),
+    /** Sarvam AI — Indian-language specialist, best for Tamil. */
+    SARVAM_API_KEY: z.string().default(""),
+    SARVAM_MODEL: z.string().default("sarvam-m"),
+    /** Preferred AI text provider: auto | groq | gemini | anthropic | sarvam. Overridable in Settings. */
+    AI_TEXT_PROVIDER: z.enum(["auto", "groq", "gemini", "anthropic", "sarvam"]).default("auto"),
     EMAIL_FROM: z.string().default(""),
 
     /**
@@ -186,6 +189,8 @@ export const env = {
   groqModel: e.GROQ_MODEL,
   geminiApiKey: e.GEMINI_API_KEY,
   geminiModel: e.GEMINI_MODEL,
+  sarvamApiKey: e.SARVAM_API_KEY,
+  sarvamModel: e.SARVAM_MODEL,
   aiTextProvider: e.AI_TEXT_PROVIDER,
   emailFrom: e.EMAIL_FROM,
   errorWebhookUrl: e.ERROR_WEBHOOK_URL,
