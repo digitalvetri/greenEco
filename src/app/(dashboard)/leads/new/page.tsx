@@ -3,7 +3,7 @@ import { NewLeadFlow } from "./new-lead-flow";
 
 export default function NewLeadPage() {
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageHeader title="New Lead" subtitle="Capture a new enquiry — from a new or existing customer" />
       <NewLeadFlow />
     </div>
