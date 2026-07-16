@@ -1,4 +1,4 @@
-import { env } from "@/lib/env";
+import { llmText, configuredTextProviders } from "@/lib/llm";
 import { searchHelp, HELP_ARTICLES } from "@/lib/eco-help";
 
 export interface EcoSource {
@@ -58,11 +58,14 @@ function pageLabel(path: string): string {
 /**
  * Eco — multilingual AI assistant (English + Tamil).
  *
+ * Works with any configured AI provider (Groq, Gemini, or Anthropic) via llmText,
+ * which picks whichever key is set — Groq is tried first (fastest/cheapest).
+ *
  * Strategy:
- * 1. English questions → keyword retrieval finds top articles → Claude answers in English.
- * 2. Tamil questions → skip keyword retrieval (English-only scorer) → send full knowledge
- *    base to Claude → Claude answers in Tamil. No duplicate Tamil content required.
- * 3. No AI key → keyword retrieval in English; Tamil questions get English fallback text.
+ * 1. English questions → keyword retrieval finds top articles → AI answers in English.
+ * 2. Tamil questions → skip keyword retrieval → AI answers from full KB in Tamil.
+ *    Translation happens at runtime; knowledge base stays English-only.
+ * 3. No AI key → keyword retrieval in English; Tamil questions get English fallback.
  */
 export async function askEco(input: AskEcoInput): Promise<EcoAnswer> {
   const { question, lang = "en", history = [], page = "/" } = input;
@@ -76,27 +79,28 @@ export async function askEco(input: AskEcoInput): Promise<EcoAnswer> {
     };
   }
 
-  const questionIsInTamil = hasTamilScript(q);
-  const respondInTamil = lang === "ta" || questionIsInTamil;
+  const respondInTamil = lang === "ta" || hasTamilScript(q);
 
-  // For Tamil questions, keyword retrieval won't help (articles are English-only),
-  // so skip it and let Claude answer from the full knowledge base.
+  // Tamil questions skip keyword retrieval (articles are English-only).
   const matches = respondInTamil ? [] : searchHelp(q, 3);
   const sources: EcoSource[] = matches.map((m) => ({
     title: m.article.title,
     href: m.article.href,
   }));
 
+  // Check if any AI provider is configured (Groq, Gemini, or Anthropic).
+  const providers = await configuredTextProviders();
+  const hasAi = providers.length > 0;
+
   // ── No AI key path ────────────────────────────────────────────────────────
-  if (!env.anthropicApiKey) {
+  if (!hasAi) {
     if (respondInTamil) {
-      // Can't translate without AI — return the best English guess, noting the limitation.
       const englishMatches = searchHelp(q, 1);
       const body = englishMatches[0]?.article.body;
       return {
         answer: body
-          ? `(Tamil translation requires an AI key to be configured.)\n\n${body}`
-          : "Tamil responses require an AI key. Please ask your administrator to add an AI API key in Settings → Integrations.",
+          ? `(Tamil translation requires an AI key. Please add a Groq or Gemini key in Settings → Integrations.)\n\n${body}`
+          : "Tamil responses require an AI key. Please ask your administrator to add a Groq or Gemini API key in Settings → Integrations.",
         sources: englishMatches.map((m) => ({ title: m.article.title, href: m.article.href })),
         usedAi: false,
       };
@@ -124,14 +128,13 @@ export async function askEco(input: AskEcoInput): Promise<EcoAnswer> {
 
   // ── AI path ───────────────────────────────────────────────────────────────
   try {
-    const answer = await claudeAnswer(q, matches, {
+    const answer = await aiAnswer(q, matches, {
       lang: respondInTamil ? "ta" : "en",
       history,
       page,
     });
-    return { answer, sources, usedAi: true };
+    return { answer: answer ?? matches[0]?.article.body ?? "", sources, usedAi: true };
   } catch {
-    // AI failed → fall back to English retrieval so the user still gets help.
     const fallback = matches[0]?.article.body;
     return {
       answer: fallback ?? "Sorry, I couldn't find an answer. Please try again.",
@@ -141,32 +144,23 @@ export async function askEco(input: AskEcoInput): Promise<EcoAnswer> {
   }
 }
 
-async function claudeAnswer(
+async function aiAnswer(
   question: string,
   matches: { article: { title: string; body: string; href?: string } }[],
   opts: { lang: "en" | "ta"; history: { role: "user" | "eco"; text: string }[]; page: string },
-): Promise<string> {
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey: env.anthropicApiKey });
-
+): Promise<string | null> {
   const isTamil = opts.lang === "ta";
 
-  // For English questions: use the top matched articles.
-  // For Tamil questions: use all articles so Claude has the full picture to translate from.
+  // English: use top matched articles. Tamil: use full KB (no keyword match available).
   const articles =
-    matches.length > 0
-      ? matches.map((m) => m.article)
-      : HELP_ARTICLES.slice(0, 10); // Tamil path — broad context
+    matches.length > 0 ? matches.map((m) => m.article) : HELP_ARTICLES.slice(0, 10);
 
-  const context = articles
-    .map((a, i) => `[${i + 1}] ${a.title}\n${a.body}`)
-    .join("\n\n");
+  const context = articles.map((a, i) => `[${i + 1}] ${a.title}\n${a.body}`).join("\n\n");
 
   const langInstruction = isTamil
-    ? "LANGUAGE: Respond entirely in natural, fluent Tamil (தமிழ்). " +
-      "Keep technical app terms in English (Invoice, Lead, Proposal, Dashboard, BOQ, " +
-      "PO, GRN, AMC, KLD, etc.) but write all explanations in Tamil. " +
-      "Use simple everyday Tamil — not formal or archaic language."
+    ? "LANGUAGE: Respond entirely in natural, fluent Tamil (தமிழ்). Keep technical app terms " +
+      "in English (Invoice, Lead, Proposal, Dashboard, BOQ, PO, GRN, AMC, KLD, etc.) but " +
+      "write all explanations in Tamil. Use simple everyday Tamil — not formal or archaic language."
     : "LANGUAGE: Respond in clear, friendly English.";
 
   const system =
@@ -184,30 +178,16 @@ async function claudeAnswer(
     "is completely off-topic (not about the CRM app), politely redirect.\n\n" +
     langInstruction;
 
-  type MsgParam = { role: "user" | "assistant"; content: string };
-  const historyMessages: MsgParam[] = opts.history.map((h) => ({
-    role: h.role === "user" ? "user" as const : "assistant" as const,
-    content: h.text,
-  }));
+  // Flatten conversation history into the user message so it works with all providers.
+  const historyText =
+    opts.history.length > 0
+      ? "PREVIOUS CONVERSATION:\n" +
+        opts.history.map((h) => `${h.role === "user" ? "User" : "Eco"}: ${h.text}`).join("\n") +
+        "\n\n"
+      : "";
 
-  const userContent = `HELP CONTENT:\n${context}\n\nUSER QUESTION: ${question}`;
+  const user = `${historyText}HELP CONTENT:\n${context}\n\nUSER QUESTION: ${question}`;
 
-  const messages: MsgParam[] = [
-    ...historyMessages,
-    { role: "user" as const, content: userContent },
-  ];
-
-  const res = await client.messages.create({
-    model: env.anthropicModel,
-    max_tokens: 700,
-    system,
-    messages,
-  });
-
-  const text = res.content
-    .map((b) => ("text" in b ? b.text : ""))
-    .join("")
-    .trim();
-
-  return text || articles[0]?.body || "";
+  const result = await llmText(system, user, { maxTokens: 700 });
+  return result?.text ?? null;
 }
