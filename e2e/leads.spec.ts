@@ -163,3 +163,44 @@ test("edit a lead's core fields (P0-3 — leads were previously immutable)", asy
   await expect(page).toHaveURL(new RegExp(`/leads/${lead.id}$`));
   await expect(page.getByRole("heading", { name: fixedName, exact: true })).toBeVisible();
 });
+
+test("a repeat customer (same phone, two enquiries) collapses into one card, not two (P3)", async ({ page, request }) => {
+  const phone = uniquePhone();
+  const customerName = `E2E Repeat ${phone}`;
+
+  // Two separate enquiries from the same customer (same phone) — the bug this fixes
+  // is the Leads list showing them as two disconnected cards.
+  const first = await request.post("/api/leads", {
+    data: { customerName, address: "First site", phone, source: "Reference" },
+  });
+  expect(first.ok()).toBeTruthy();
+  const second = await request.post("/api/leads", {
+    // Same phone is a duplicate by default (spec §7.1) — this is a deliberate second
+    // enquiry from the same customer, not an accidental double-submit.
+    data: { customerName, address: "Second site", phone, source: "Reference", overrideDuplicate: true },
+  });
+  expect(second.ok()).toBeTruthy();
+  const secondBody = await second.json();
+  expect(secondBody.duplicate).toBeUndefined();
+  const lead2 = secondBody.lead;
+
+  await page.goto("/leads?search=" + phone, { waitUntil: "networkidle" });
+  // Exactly one customer card for this phone, carrying a "2 Projects" badge — the
+  // bug this locks in: before grouping, this same search would show two cards.
+  await expect(page.getByText(customerName, { exact: true })).toHaveCount(1);
+  await expect(page.getByText(/2\s*Projects/)).toBeVisible();
+
+  // Clicking through lands on the customer page with both projects as separate sections.
+  await page.getByText(customerName, { exact: true }).click();
+  await expect(page).toHaveURL(/\/leads\/customer\//);
+  await expect(page.getByText("Project 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("Project 2", { exact: true })).toBeVisible();
+  // "First site" only appears in its project section; "Second site" (the more recent
+  // lead) also appears in the customer-header summary, hence .first() there.
+  await expect(page.getByText("First site")).toBeVisible();
+  await expect(page.getByText("Second site").first()).toBeVisible();
+
+  // Each section deep-links to the existing full lead detail page.
+  await page.getByRole("link", { name: "View full details" }).last().click();
+  await expect(page).toHaveURL(new RegExp(`/leads/${lead2.id}$`));
+});

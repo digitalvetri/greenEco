@@ -118,6 +118,106 @@ export async function listClients(ctx: Ctx, filters: ClientFilters = {}) {
   return { items, nextCursor: hasMore ? page[page.length - 1].id : null };
 }
 
+export interface ClientCustomerCard {
+  /** Representative lead id (their most-recently-updated project) — see listLeadCustomers
+   *  in lead.ts for why this is used as the URL key instead of the raw phone. */
+  id: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  projectCount: number;
+  proposalNo: string | null;
+  orderNo: string | null;
+}
+
+/**
+ * Clients grouped by customer (phone) — same fix as Leads' listLeadCustomers, applied
+ * here so a repeat customer with several projects shows one card, not one per project.
+ * Grouped + paginated server-side (groupBy + offset), sharing clientWhere with the
+ * hydration query so counts always match the hydrated rows.
+ */
+export async function listClientCustomers(
+  ctx: Ctx,
+  filters: ClientFilters & { offset?: number } = {},
+): Promise<{ items: ClientCustomerCard[]; nextOffset: number | null }> {
+  const take = Math.min(filters.take ?? 25, 100);
+  const offset = filters.offset ?? 0;
+  const where = clientWhere(ctx, filters.search);
+
+  const groups = await prisma.lead.groupBy({
+    by: ["phone"],
+    where,
+    _max: { updatedAt: true },
+    orderBy: { _max: { updatedAt: "desc" } },
+    skip: offset,
+    take: take + 1,
+  });
+  const hasMore = groups.length > take;
+  const page = hasMore ? groups.slice(0, take) : groups;
+  if (page.length === 0) return { items: [], nextOffset: null };
+
+  const phones = page.map((g) => g.phone);
+  const leads = await prisma.lead.findMany({
+    where: { ...where, phone: { in: phones } },
+    include: { proposal: { select: { number: true, order: { select: { orderNo: true } } } } },
+    orderBy: { updatedAt: "desc" },
+  });
+  const byPhone = new Map<string, typeof leads>();
+  for (const l of leads) {
+    const g = byPhone.get(l.phone) ?? [];
+    g.push(l);
+    byPhone.set(l.phone, g);
+  }
+
+  const items: ClientCustomerCard[] = page.map((g) => {
+    const group = byPhone.get(g.phone) ?? [];
+    const latest = group[0]; // hydration query is ordered updatedAt desc
+    return {
+      id: latest.id,
+      customerName: latest.customerName,
+      phone: g.phone,
+      address: latest.address,
+      projectCount: group.length,
+      proposalNo: latest.proposal?.number ?? null,
+      orderNo: latest.proposal?.order?.orderNo ?? null,
+    };
+  });
+  return { items, nextOffset: hasMore ? offset + take : null };
+}
+
+export interface ClientProjectTab {
+  id: string;
+  label: string;
+  orderNo: string | null;
+  proposalNo: string | null;
+  status: string;
+}
+
+/**
+ * Sibling projects for the Client 360 tab strip — every Lead sharing the anchor's
+ * phone, scoped by the same clientWhere as the list (so an EMPLOYEE only sees tabs
+ * for projects they themselves have access to). Empty array (not an error) when the
+ * anchor isn't visible under clientWhere, so the caller can 404 without an existence leak.
+ */
+export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<ClientProjectTab[]> {
+  const where = clientWhere(ctx);
+  const anchor = await prisma.lead.findFirst({ where: { ...where, id } });
+  if (!anchor) return [];
+
+  const leads = await prisma.lead.findMany({
+    where: { ...where, phone: anchor.phone },
+    include: { proposal: { select: { number: true, order: { select: { orderNo: true } } } } },
+    orderBy: { createdAt: "asc" },
+  });
+  return leads.map((l, i) => ({
+    id: l.id,
+    label: `Project ${i + 1}`,
+    orderNo: l.proposal?.order?.orderNo ?? null,
+    proposalNo: l.proposal?.number ?? null,
+    status: l.status,
+  }));
+}
+
 export interface ClientAnalytics {
   uniqueCustomers: number; // distinct by phone (the dedup the list doesn't do yet)
   repeatCustomers: number; // customers with > 1 project

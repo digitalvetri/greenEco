@@ -30,6 +30,21 @@ export interface LeadRow {
   estimatedValue?: { low: number; mid: number; high: number } | null;
 }
 
+/** One customer, aggregated across every enquiry/project they have in the current filter scope. */
+export interface LeadCustomerRow {
+  id: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  email: string | null;
+  assignedToName: string;
+  projectCount: number;
+  statusBreakdown: { status: string; count: number }[];
+  urgency: LeadUrgency;
+  temperature: "HOT" | "WARM" | "COLD";
+  estimatedValue?: { low: number; mid: number; high: number } | null;
+}
+
 function statusVariant(s: string) {
   if (s === "CONVERTED") return "ok" as const;
   if (s === "LOST") return "danger" as const;
@@ -50,41 +65,53 @@ function UrgencyBadge({ urgency }: { urgency: LeadUrgency }) {
 }
 
 /**
- * Client lead list with cursor-based "Load more" — before this, the list was
- * hard-capped at 50 rows and leads beyond that were unreachable (the service
- * already returned nextCursor; the UI just ignored it).
+ * Leads list: Cards (default) show one card per CUSTOMER — grouped server-side by
+ * phone (src/server/services/lead.ts listLeadCustomers), so a repeat customer with
+ * several enquiries shows once, with a project-count badge, instead of one card per
+ * enquiry. Table view (for bulk actions, which operate on individual leads) stays
+ * per-lead and lazily fetches its own rows the first time it's opened, so a normal
+ * page load doesn't pay for data the user may never look at.
  */
 export function LeadsList({
-  initialItems,
-  initialCursor,
+  initialCustomerItems,
+  initialCustomerOffset,
   query,
   members = [],
   isAdmin = false,
 }: {
-  initialItems: LeadRow[];
-  initialCursor: string | null;
-  /** Serialized filter (status/cold) to keep pagination on the same view. */
+  initialCustomerItems: LeadCustomerRow[];
+  initialCustomerOffset: number | null;
+  /** Serialized filter (status/cold/search/…) to keep pagination on the same view. */
   query: string;
   members?: { id: string; name: string }[];
   isAdmin?: boolean;
 }) {
   const router = useRouter();
-  const [items, setItems] = useState<LeadRow[]>(initialItems);
-  const [cursor, setCursor] = useState<string | null>(initialCursor);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"cards" | "table">("cards");
+  const [error, setError] = useState<string | null>(null);
+
+  // Cards (customer-grouped) — server-provided initial page + its own "load more".
+  const [customerItems, setCustomerItems] = useState<LeadCustomerRow[]>(initialCustomerItems);
+  const [customerOffset, setCustomerOffset] = useState<number | null>(initialCustomerOffset);
+  const [customerLoading, setCustomerLoading] = useState(false);
+
+  // Table (per-lead) — lazily fetched the first time this view is opened.
+  const [leadItems, setLeadItems] = useState<LeadRow[] | null>(null);
+  const [leadCursor, setLeadCursor] = useState<string | null>(null);
+  const [leadLoading, setLeadLoading] = useState(false);
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, startBulk] = useTransition();
 
+  const rows = leadItems ?? [];
   const toggle = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
-  const allSelected = items.length > 0 && items.every((l) => selected.has(l.id));
-  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(items.map((l) => l.id)));
+  const allSelected = rows.length > 0 && rows.every((l) => selected.has(l.id));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(rows.map((l) => l.id)));
   const clearSel = () => setSelected(new Set());
 
   function runBulk(fn: () => Promise<{ updated: number }>) {
@@ -100,27 +127,71 @@ export function LeadsList({
     });
   }
 
-  async function loadMore() {
-    if (!cursor) return;
-    setLoading(true);
+  async function ensureLeadItemsLoaded() {
+    if (leadItems !== null) return;
+    setLeadLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams(query);
-      params.set("cursor", cursor);
+      params.set("take", "50");
+      const res = await fetch(`/api/leads?${params.toString()}`);
+      if (!res.ok) throw new Error("Could not load leads");
+      const data: { items: LeadRow[]; nextCursor: string | null } = await res.json();
+      setLeadItems(data.items);
+      setLeadCursor(data.nextCursor);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load leads");
+    } finally {
+      setLeadLoading(false);
+    }
+  }
+
+  function switchView(v: "cards" | "table") {
+    setView(v);
+    if (v === "table") void ensureLeadItemsLoaded();
+  }
+
+  async function loadMoreCustomers() {
+    if (customerOffset === null) return;
+    setCustomerLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams(query);
+      params.set("offset", String(customerOffset));
+      params.set("take", "25");
+      const res = await fetch(`/api/leads/customers?${params.toString()}`);
+      if (!res.ok) throw new Error("Could not load more customers");
+      const data: { items: LeadCustomerRow[]; nextOffset: number | null } = await res.json();
+      setCustomerItems((prev) => [...prev, ...data.items]);
+      setCustomerOffset(data.nextOffset);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load more");
+    } finally {
+      setCustomerLoading(false);
+    }
+  }
+
+  async function loadMoreLeads() {
+    if (!leadCursor) return;
+    setLeadLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams(query);
+      params.set("cursor", leadCursor);
       params.set("take", "50");
       const res = await fetch(`/api/leads?${params.toString()}`);
       if (!res.ok) throw new Error("Could not load more leads");
       const data: { items: LeadRow[]; nextCursor: string | null } = await res.json();
-      setItems((prev) => [...prev, ...data.items]);
-      setCursor(data.nextCursor);
+      setLeadItems((prev) => [...(prev ?? []), ...data.items]);
+      setLeadCursor(data.nextCursor);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load more");
     } finally {
-      setLoading(false);
+      setLeadLoading(false);
     }
   }
 
-  if (items.length === 0) {
+  if (view === "cards" && customerItems.length === 0) {
     return (
       <EmptyState
         icon={Users}
@@ -138,14 +209,14 @@ export function LeadsList({
         <div className="text-xs text-muted">{view === "table" ? "Select rows for bulk actions" : ""}</div>
         <div className="inline-flex overflow-hidden rounded-lg border border-border">
           <button
-            onClick={() => setView("cards")}
+            onClick={() => switchView("cards")}
             aria-label="Card view"
             className={`flex size-8 items-center justify-center ${view === "cards" ? "bg-primary text-primary-foreground" : "text-muted"}`}
           >
             <LayoutGrid className="size-4" />
           </button>
           <button
-            onClick={() => setView("table")}
+            onClick={() => switchView("table")}
             aria-label="Table view"
             className={`flex size-8 items-center justify-center ${view === "table" ? "bg-primary text-primary-foreground" : "text-muted"}`}
           >
@@ -191,140 +262,132 @@ export function LeadsList({
       )}
 
       {view === "table" ? (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-surface text-left text-xs text-muted">
-              <tr>
-                <th className="w-9 p-2">
-                  <input type="checkbox" aria-label="Select all" checked={allSelected} onChange={toggleAll} />
-                </th>
-                <th className="p-2">Name</th>
-                <th className="p-2">Status</th>
-                <th className="p-2">Temp</th>
-                <th className="p-2">Owner</th>
-                <th className="p-2">Next</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((lead) => (
-                <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-surface/60">
-                  <td className="p-2">
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${lead.customerName}`}
-                      checked={selected.has(lead.id)}
-                      onChange={() => toggle(lead.id)}
-                    />
-                  </td>
-                  <td className="p-2">
-                    <Link href={`/leads/${lead.id}`} className="font-medium text-primary hover:underline">
-                      {lead.customerName}
-                    </Link>
-                  </td>
-                  <td className="p-2">
-                    <Badge variant={statusVariant(lead.status)}>{lead.status.replace(/_/g, " ")}</Badge>
-                  </td>
-                  <td className="p-2 text-muted">{lead.temperature[0] + lead.temperature.slice(1).toLowerCase()}</td>
-                  <td className="p-2 text-muted">{lead.assignedToName}</td>
-                  <td className="p-2 text-muted">
-                    {lead.followUps[0]?.nextDate ? new Date(lead.followUps[0].nextDate).toLocaleDateString("en-IN") : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-      <div className="space-y-4">
-      {(() => {
-        // Group leads by customerName
-        const groups = new Map<string, LeadRow[]>();
-        for (const lead of items) {
-          const key = lead.customerName;
-          if (!groups.has(key)) groups.set(key, []);
-          groups.get(key)!.push(lead);
-        }
-        return [...groups.entries()].map(([customer, leads]) => (
-          <div key={customer}>
-            {groups.size > 1 && (
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="text-xs font-semibold text-muted uppercase tracking-wide">{customer}</span>
-                {leads.length > 1 && (
-                  <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted">
-                    {leads.length} enquiries
-                  </span>
-                )}
-              </div>
-            )}
-            <div className="space-y-2">
-              {leads.map((lead) => (
-                <Card key={lead.id} className="flex items-center justify-between gap-3 p-3">
-                  <Link href={`/leads/${lead.id}`} className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-medium">{lead.customerName}</span>
-                      <Badge variant={statusVariant(lead.status)}>{lead.status.replace(/_/g, " ")}</Badge>
-                      {lead.temperature !== "COLD" && lead.status !== "CONVERTED" && lead.status !== "LOST" && (
-                        <Badge variant={lead.temperature === "HOT" ? "danger" : "warn"}>
-                          <Flame className="size-3" /> {lead.temperature === "HOT" ? "Hot" : "Warm"}
-                        </Badge>
-                      )}
-                      <UrgencyBadge urgency={lead.urgency} />
-                    </div>
-                    <div className="mt-0.5 truncate text-xs text-muted">
-                      {lead.source} · {lead.address}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
-                      <span className="inline-flex items-center gap-1">
-                        <User className="size-3" /> {lead.assignedToName}
-                      </span>
-                      {lead.followUps[0]?.nextDate && (
-                        <span>Next: {new Date(lead.followUps[0].nextDate).toLocaleDateString("en-IN")}</span>
-                      )}
-                      {lead.estimatedValue && (
-                        <span className="font-semibold text-primary">
-                          Est. Project Value ~₹{(lead.estimatedValue.mid / 100000).toFixed(1)}L
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                  <div className="flex shrink-0 gap-1">
-                    <a
-                      href={`tel:${lead.phone}`}
-                      className="flex size-9 items-center justify-center rounded-lg border border-border text-primary"
-                      aria-label="Call"
-                    >
-                      <Phone className="size-4" />
-                    </a>
-                    <a
-                      href={`https://wa.me/91${lead.phone}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex size-9 items-center justify-center rounded-lg border border-border text-ok"
-                      aria-label="WhatsApp"
-                    >
-                      <MessageCircle className="size-4" />
-                    </a>
-                  </div>
-                </Card>
-              ))}
-            </div>
+        leadLoading && leadItems === null ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted">
+            <Loader2 className="size-4 animate-spin" /> Loading leads…
           </div>
-        ));
-      })()}
-      </div>
+        ) : rows.length === 0 ? (
+          <EmptyState icon={Users} title="No leads in this view" description="Try a different filter." />
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-surface text-left text-xs text-muted">
+                <tr>
+                  <th className="w-9 p-2">
+                    <input type="checkbox" aria-label="Select all" checked={allSelected} onChange={toggleAll} />
+                  </th>
+                  <th className="p-2">Name</th>
+                  <th className="p-2">Status</th>
+                  <th className="p-2">Temp</th>
+                  <th className="p-2">Owner</th>
+                  <th className="p-2">Next</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((lead) => (
+                  <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-surface/60">
+                    <td className="p-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${lead.customerName}`}
+                        checked={selected.has(lead.id)}
+                        onChange={() => toggle(lead.id)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Link href={`/leads/${lead.id}`} className="font-medium text-primary hover:underline">
+                        {lead.customerName}
+                      </Link>
+                    </td>
+                    <td className="p-2">
+                      <Badge variant={statusVariant(lead.status)}>{lead.status.replace(/_/g, " ")}</Badge>
+                    </td>
+                    <td className="p-2 text-muted">{lead.temperature[0] + lead.temperature.slice(1).toLowerCase()}</td>
+                    <td className="p-2 text-muted">{lead.assignedToName}</td>
+                    <td className="p-2 text-muted">
+                      {lead.followUps[0]?.nextDate ? new Date(lead.followUps[0].nextDate).toLocaleDateString("en-IN") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : (
+        <div className="space-y-2">
+          {customerItems.map((c) => {
+            const href = c.projectCount === 1 ? `/leads/${c.id}` : `/leads/customer/${c.id}`;
+            return (
+              <Card key={c.phone} className="flex items-center justify-between gap-3 p-3">
+                <Link href={href} className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate font-medium">{c.customerName}</span>
+                    {c.projectCount > 1 && (
+                      <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted">
+                        {c.projectCount} Projects
+                      </span>
+                    )}
+                    {c.statusBreakdown.map((s) => (
+                      <Badge key={s.status} variant={statusVariant(s.status)}>
+                        {s.status.replace(/_/g, " ")}
+                        {s.count > 1 ? ` ×${s.count}` : ""}
+                      </Badge>
+                    ))}
+                    {c.temperature !== "COLD" && (
+                      <Badge variant={c.temperature === "HOT" ? "danger" : "warn"}>
+                        <Flame className="size-3" /> {c.temperature === "HOT" ? "Hot" : "Warm"}
+                      </Badge>
+                    )}
+                    <UrgencyBadge urgency={c.urgency} />
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-muted">{c.address}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
+                    <span className="inline-flex items-center gap-1">
+                      <User className="size-3" /> {c.assignedToName}
+                    </span>
+                    {c.estimatedValue && (
+                      <span className="font-semibold text-primary">
+                        {c.projectCount > 1 ? "Est. Total Project Value" : "Est. Project Value"} ~₹
+                        {(c.estimatedValue.mid / 100000).toFixed(1)}L
+                      </span>
+                    )}
+                  </div>
+                </Link>
+                <div className="flex shrink-0 gap-1">
+                  <a
+                    href={`tel:${c.phone}`}
+                    className="flex size-9 items-center justify-center rounded-lg border border-border text-primary"
+                    aria-label="Call"
+                  >
+                    <Phone className="size-4" />
+                  </a>
+                  <a
+                    href={`https://wa.me/91${c.phone}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex size-9 items-center justify-center rounded-lg border border-border text-ok"
+                    aria-label="WhatsApp"
+                  >
+                    <MessageCircle className="size-4" />
+                  </a>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {error && <p className="text-center text-xs text-danger">{error}</p>}
 
-      {cursor && (
+      {((view === "cards" && customerOffset !== null) || (view === "table" && leadCursor)) && (
         <div className="pt-2 text-center">
           <button
-            onClick={loadMore}
-            disabled={loading}
+            onClick={view === "cards" ? loadMoreCustomers : loadMoreLeads}
+            disabled={view === "cards" ? customerLoading : leadLoading}
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-muted disabled:opacity-50"
           >
-            {loading && <Loader2 className="size-4 animate-spin" />}
-            {loading ? "Loading…" : "Load more"}
+            {(view === "cards" ? customerLoading : leadLoading) && <Loader2 className="size-4 animate-spin" />}
+            {(view === "cards" ? customerLoading : leadLoading) ? "Loading…" : "Load more"}
           </button>
         </div>
       )}

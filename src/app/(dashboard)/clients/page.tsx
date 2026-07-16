@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Users, HardHat, IndianRupee, BarChart3 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { listClients, clientStats } from "@/server/services/client";
+import { listClientCustomers, clientStats } from "@/server/services/client";
 import { PageHeader, StatTile } from "@/components/ui/stat";
-import { ClientsList, type ClientRow } from "./clients-list";
+import { ClientsList } from "./clients-list";
 import { ClientsSearch } from "./clients-search";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +22,8 @@ export default async function ClientsPage({
   const { search } = await searchParams;
   const session = await getSession();
 
-  const [{ items, nextCursor }, stats] = await Promise.all([
-    listClients(session, { search: search || undefined, take: 50 }),
+  const [{ items, nextOffset }, stats] = await Promise.all([
+    listClientCustomers(session, { search: search || undefined, take: 25 }),
     clientStats(session),
   ]);
 
@@ -33,7 +33,7 @@ export default async function ClientsPage({
     <div>
       <PageHeader
         title="Clients"
-        subtitle={`${items.length}${nextCursor ? "+" : ""} shown`}
+        subtitle={`${items.length}${nextOffset !== null ? "+" : ""} shown`}
         action={
           <Link href="/clients/analytics" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
             <BarChart3 className="size-4" /> Analytics
@@ -48,7 +48,7 @@ export default async function ClientsPage({
       </div>
 
       <ClientsSearch />
-      <ClientsList key={query} initialItems={items as ClientRow[]} initialCursor={nextCursor} query={query} />
+      <ClientsList key={query} initialItems={items} initialOffset={nextOffset} query={query} />
     </div>
   );
 }

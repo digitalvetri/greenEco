@@ -104,23 +104,38 @@ const leadInclude = {
   _count: { select: { followUps: true } },
 } satisfies Prisma.LeadInclude;
 
-export async function listLeads(ctx: Ctx, filters: LeadFilters = {}) {
-  const take = Math.min(filters.take ?? 25, 100);
+/**
+ * Shared `where` builder for lead lists. Search and RBAC scoping both need `OR`
+ * clauses — building them as top-level assignments (as `listLeads` used to) means
+ * whichever runs second silently clobbers the first, so an EMPLOYEE's search results
+ * for a valid RBAC scope get dropped without a matching search hit becoming just the
+ * RBAC condition (and vice versa). Every `OR` is folded into `AND` here instead
+ * (matching the safe pattern already used by `clientWhere` in client.ts).
+ */
+function buildLeadWhere(ctx: Ctx, filters: LeadFilters): Prisma.LeadWhereInput {
+  const and: Prisma.LeadWhereInput[] = [];
+
+  if (filters.search) {
+    and.push({
+      OR: [
+        { customerName: { contains: filters.search, mode: "insensitive" } },
+        { phone: { contains: filters.search } },
+        { address: { contains: filters.search, mode: "insensitive" } },
+      ],
+    });
+  }
+  // EMPLOYEE sees only leads assigned to them or created by them (spec RBAC intent).
+  if (ctx.role !== "ADMIN") {
+    and.push({ OR: [{ assignedToId: ctx.userId }, { createdById: ctx.userId }] });
+  }
+
   const where: Prisma.LeadWhereInput = {
     companyId: ctx.companyId,
     deletedAt: null,
     ...(filters.status ? { status: filters.status as Prisma.EnumLeadStatusFilter["equals"] } : {}),
     ...(filters.source ? { source: filters.source } : {}),
     ...(filters.assignedToId ? { assignedToId: filters.assignedToId } : {}),
-    ...(filters.search
-      ? {
-          OR: [
-            { customerName: { contains: filters.search, mode: "insensitive" } },
-            { phone: { contains: filters.search } },
-            { address: { contains: filters.search, mode: "insensitive" } },
-          ],
-        }
-      : {}),
+    ...(and.length ? { AND: and } : {}),
   };
 
   if (filters.cold) {
@@ -138,10 +153,12 @@ export async function listLeads(ctx: Ctx, filters: LeadFilters = {}) {
     where.followUps = { some: { nextDate: { gte: dayStart, lt: dayEnd } } };
   }
 
-  // EMPLOYEE sees only leads assigned to them or created by them (spec RBAC intent).
-  if (ctx.role !== "ADMIN") {
-    where.OR = [{ assignedToId: ctx.userId }, { createdById: ctx.userId }];
-  }
+  return where;
+}
+
+export async function listLeads(ctx: Ctx, filters: LeadFilters = {}) {
+  const take = Math.min(filters.take ?? 25, 100);
+  const where = buildLeadWhere(ctx, filters);
 
   const rows = await prisma.lead.findMany({
     where,
@@ -169,6 +186,205 @@ export async function listLeads(ctx: Ctx, filters: LeadFilters = {}) {
   return {
     items: enriched,
     nextCursor: hasMore ? items[items.length - 1].id : null,
+  };
+}
+
+export interface LeadCustomerCard {
+  /** A representative lead id for this customer (their most-recently-updated one) —
+   *  used as the URL key instead of the raw phone number (avoids PII in URLs/logs,
+   *  and stays consistent with /leads/[id] and /clients/[id]). */
+  id: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  email: string | null;
+  assignedToName: string;
+  projectCount: number;
+  statusBreakdown: { status: string; count: number }[];
+  urgency: LeadUrgency; // the single most urgent status across all their projects
+  temperature: "HOT" | "WARM" | "COLD"; // best among their OPEN projects only; COLD if none open
+  estimatedValue: { low: number; mid: number; high: number } | null; // summed across sized projects
+}
+
+const URGENCY_RANK: Record<string, number> = { overdue: 3, "stale-new": 2, "no-date": 1 };
+const TEMP_RANK: Record<string, number> = { HOT: 2, WARM: 1, COLD: 0 };
+const CLOSED_STATUSES = new Set(["CONVERTED", "LOST"]);
+
+/**
+ * The Leads list grouped by customer (spec: "one customer card, not one card per
+ * enquiry"). Grouped server-side via a phone-keyed groupBy + its own offset
+ * pagination — grouping a single fetched page in JS would let the same customer
+ * reappear as a second card once their leads span a page boundary, which is exactly
+ * the duplicate-card problem this exists to fix. The groupBy and the hydration query
+ * below share the identical `where` (only narrowed by the resolved phone list), so
+ * project counts always match the hydrated rows.
+ */
+export async function listLeadCustomers(
+  ctx: Ctx,
+  filters: LeadFilters & { offset?: number } = {},
+): Promise<{ items: LeadCustomerCard[]; nextOffset: number | null }> {
+  const take = Math.min(filters.take ?? 25, 100);
+  const offset = filters.offset ?? 0;
+  const where = buildLeadWhere(ctx, filters);
+
+  const groups = await prisma.lead.groupBy({
+    by: ["phone"],
+    where,
+    _max: { updatedAt: true },
+    orderBy: { _max: { updatedAt: "desc" } },
+    skip: offset,
+    take: take + 1,
+  });
+  const hasMore = groups.length > take;
+  const page = hasMore ? groups.slice(0, take) : groups;
+  if (page.length === 0) return { items: [], nextOffset: null };
+
+  const phones = page.map((g) => g.phone);
+  const leads = await prisma.lead.findMany({
+    where: { ...where, phone: { in: phones } },
+    include: leadInclude,
+    orderBy: { updatedAt: "desc" },
+  });
+  const stripped = stripPricing(leads, ctx.role);
+  const names = await userNameMap(ctx.companyId);
+
+  const byPhone = new Map<string, typeof stripped>();
+  for (const l of stripped) {
+    const g = byPhone.get(l.phone) ?? [];
+    g.push(l);
+    byPhone.set(l.phone, g);
+  }
+
+  const items: LeadCustomerCard[] = page.map((g) => {
+    const groupLeads = byPhone.get(g.phone) ?? [];
+    const latest = groupLeads[0]; // hydration query is already ordered updatedAt desc
+    let bestUrgency: LeadUrgency = null;
+    let bestTemp: "HOT" | "WARM" | "COLD" = "COLD";
+    let low = 0;
+    let mid = 0;
+    let high = 0;
+    let hasEstimate = false;
+    const statusCounts = new Map<string, number>();
+    for (const l of groupLeads) {
+      statusCounts.set(l.status, (statusCounts.get(l.status) ?? 0) + 1);
+      const u = leadUrgency(l);
+      if (u && (!bestUrgency || URGENCY_RANK[u.kind] > URGENCY_RANK[bestUrgency.kind])) bestUrgency = u;
+      if (!CLOSED_STATUSES.has(l.status)) {
+        const score = leadScore({
+          capacityKLD: l.capacityKLD,
+          budgetBand: l.budgetBand,
+          decisionTimeline: l.decisionTimeline,
+          source: l.source,
+          latestOutcome: l.followUps[0]?.outcome ?? null,
+        });
+        if (TEMP_RANK[score.temperature] > TEMP_RANK[bestTemp]) bestTemp = score.temperature;
+      }
+      const est = l.capacityKLD ? boqPreview(l.capacityKLD) : null;
+      if (est) {
+        low += est.low;
+        mid += est.mid;
+        high += est.high;
+        hasEstimate = true;
+      }
+    }
+    return {
+      id: latest.id,
+      customerName: latest.customerName,
+      phone: g.phone,
+      address: latest.address,
+      email: latest.email,
+      assignedToName: names.get(latest.assignedToId) ?? "Unassigned",
+      projectCount: groupLeads.length,
+      statusBreakdown: [...statusCounts.entries()].map(([status, count]) => ({ status, count })),
+      urgency: bestUrgency,
+      temperature: bestTemp,
+      estimatedValue: hasEstimate ? { low, mid, high } : null,
+    };
+  });
+
+  return { items, nextOffset: hasMore ? offset + take : null };
+}
+
+export interface LeadCustomerProject {
+  id: string;
+  label: string; // "Project 1", "Project 2", … in creation order
+  status: string;
+  source: string;
+  address: string;
+  createdAt: string;
+  assignedToName: string;
+  temperature: "HOT" | "WARM" | "COLD";
+  urgency: LeadUrgency;
+  nextFollowUpDate: string | null;
+  estimatedValue: { low: number; mid: number; high: number } | null;
+  proposalNumber: string | null;
+  proposalStatus: string | null;
+}
+
+export interface LeadCustomerDetail {
+  customerName: string;
+  phone: string;
+  address: string;
+  email: string | null;
+  projects: LeadCustomerProject[];
+}
+
+/**
+ * A customer's full project list — every Lead sharing the anchor lead's phone number,
+ * each rendered as its own "Project N" section rather than merging their data. `id`
+ * is a representative lead id (never the raw phone — see listLeadCustomers for why),
+ * so this resolves it back to a phone and re-derives the group. RBAC is enforced by
+ * requiring the anchor lead itself to be visible under buildLeadWhere — an EMPLOYEE
+ * who doesn't own/create the anchor lead gets a clean "not found" (no existence leak),
+ * and the sibling-project hydration below reuses that exact scope, so an EMPLOYEE only
+ * ever sees the sub-projects of this customer that they themselves have access to.
+ */
+export async function getLeadCustomer(ctx: Ctx, id: string): Promise<LeadCustomerDetail | null> {
+  const where = buildLeadWhere(ctx, {});
+  const anchor = await prisma.lead.findFirst({ where: { ...where, id } });
+  if (!anchor) return null;
+
+  const leads = await prisma.lead.findMany({
+    where: { ...where, phone: anchor.phone },
+    include: {
+      followUps: { orderBy: { datetime: "desc" }, take: 1 },
+      proposal: { select: { number: true, status: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const stripped = stripPricing(leads, ctx.role);
+  const names = await userNameMap(ctx.companyId);
+  const latest = [...stripped].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+
+  return {
+    customerName: latest.customerName,
+    phone: anchor.phone,
+    address: latest.address,
+    email: latest.email,
+    projects: stripped.map((l, i) => {
+      const score = leadScore({
+        capacityKLD: l.capacityKLD,
+        budgetBand: l.budgetBand,
+        decisionTimeline: l.decisionTimeline,
+        source: l.source,
+        latestOutcome: l.followUps[0]?.outcome ?? null,
+      });
+      return {
+        id: l.id,
+        label: `Project ${i + 1}`,
+        status: l.status,
+        source: l.source,
+        address: l.address,
+        createdAt: l.createdAt.toISOString(),
+        assignedToName: names.get(l.assignedToId) ?? "Unassigned",
+        temperature: score.temperature,
+        urgency: leadUrgency(l),
+        nextFollowUpDate: l.followUps[0]?.nextDate?.toISOString() ?? null,
+        estimatedValue: l.capacityKLD ? boqPreview(l.capacityKLD) : null,
+        proposalNumber: l.proposal?.number ?? null,
+        proposalStatus: l.proposal?.status ?? null,
+      };
+    }),
   };
 }
 

@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { Plus, Sparkles, CalendarClock, Snowflake, CheckCircle2, BarChart3 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { listLeads, leadStats, listCompanyUsers } from "@/server/services/lead";
+import { listLeadCustomers, leadStats, listCompanyUsers } from "@/server/services/lead";
 import { PageHeader, StatTile } from "@/components/ui/stat";
 import { Button } from "@/components/ui/button";
-import { boqPreview } from "@/lib/constants";
 import { LeadImportExport } from "./lead-import";
-import { LeadsList, type LeadRow } from "./leads-list";
+import { LeadsList } from "./leads-list";
 import { LeadsFilters } from "./leads-filters";
 
 export const dynamic = "force-dynamic";
@@ -32,15 +31,15 @@ export default async function LeadsPage({
   const cold = status === "cold";
   const due = dueToday === "1";
 
-  const [{ items, nextCursor }, stats, members] = await Promise.all([
-    listLeads(session, {
+  const [{ items, nextOffset }, stats, members] = await Promise.all([
+    listLeadCustomers(session, {
       status: cold || due ? undefined : status || undefined,
       cold,
       dueToday: due,
       search: search || undefined,
       source: source || undefined,
       assignedToId: assignee || undefined,
-      take: 50,
+      take: 25,
     }),
     leadStats(session),
     isAdmin ? listCompanyUsers(session) : Promise.resolve([]),
@@ -71,25 +70,11 @@ export default async function LeadsPage({
     return `/leads?${p.toString()}`;
   };
 
-  const rows: LeadRow[] = items.map((l) => ({
-    id: l.id,
-    customerName: l.customerName,
-    status: l.status,
-    source: l.source,
-    address: l.address,
-    phone: l.phone,
-    assignedToName: l.assignedToName,
-    urgency: l.urgency,
-    temperature: l.score.temperature,
-    followUps: l.followUps.map((f) => ({ nextDate: f.nextDate })),
-    estimatedValue: l.capacityKLD ? boqPreview(l.capacityKLD) : null,
-  }));
-
   return (
     <div>
       <PageHeader
         title="Leads"
-        subtitle={`${items.length}${nextCursor ? "+" : ""} shown`}
+        subtitle={`${items.length}${nextOffset !== null ? "+" : ""} customers shown`}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Link
@@ -159,8 +144,8 @@ export default async function LeadsPage({
           list with fresh state instead of keeping the previous view's rows. */}
       <LeadsList
         key={query}
-        initialItems={rows}
-        initialCursor={nextCursor}
+        initialCustomerItems={items}
+        initialCustomerOffset={nextOffset}
         query={query}
         members={members}
         isAdmin={isAdmin}

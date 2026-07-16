@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
-import { getClient360 } from "@/server/services/client";
+import { getClient360, listClientProjectTabs } from "@/server/services/client";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,16 +22,41 @@ const KIND_LABEL: Record<string, string> = {
 export default async function Client360({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  const data = await getClient360(session, id);
+  const [data, tabs] = await Promise.all([getClient360(session, id), listClientProjectTabs(session, id)]);
   if (!data) notFound();
   const { lead, timeline } = data;
   const proposal = lead.proposal;
   const order = proposal?.order;
   const isAdmin = session.role === "ADMIN";
+  const hasMultipleProjects = tabs.length > 1;
 
   return (
     <div>
-      <PageHeader title={lead.customerName} subtitle="Client 360" />
+      <PageHeader
+        title={lead.customerName}
+        subtitle={hasMultipleProjects ? `Client 360 · ${tabs.length} projects` : "Client 360"}
+      />
+
+      {hasMultipleProjects && (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {tabs.map((t) => {
+            const active = t.id === id;
+            return (
+              <Link
+                key={t.id}
+                href={`/clients/${t.id}`}
+                className={
+                  "rounded-full px-3 py-1 text-xs font-medium " +
+                  (active ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted")
+                }
+              >
+                {t.label}
+                {(t.orderNo || t.proposalNo) && <span className="opacity-70"> · {t.orderNo ?? t.proposalNo}</span>}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -104,7 +129,9 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      <h2 className="mb-2 mt-6 text-sm font-semibold text-muted">Timeline ({timeline.length})</h2>
+      <h2 className="mb-2 mt-6 text-sm font-semibold text-muted">
+        {hasMultipleProjects ? "Timeline — this project only" : "Timeline"} ({timeline.length})
+      </h2>
       <div className="space-y-1.5">
         {timeline.map((t, i) => (
           <Card key={i} className="flex items-start gap-3 p-3">
