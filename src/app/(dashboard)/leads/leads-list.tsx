@@ -27,6 +27,7 @@ export interface LeadRow {
   urgency: LeadUrgency;
   temperature: "HOT" | "WARM" | "COLD";
   followUps: { nextDate: string | Date | null }[];
+  estimatedValue?: { low: number; mid: number; high: number } | null;
 }
 
 function statusVariant(s: string) {
@@ -234,52 +235,82 @@ export function LeadsList({
           </table>
         </div>
       ) : (
-      <div className="space-y-2">
-      {items.map((lead) => (
-        <Card key={lead.id} className="flex items-center justify-between gap-3 p-3">
-          <Link href={`/leads/${lead.id}`} className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate font-medium">{lead.customerName}</span>
-              <Badge variant={statusVariant(lead.status)}>{lead.status.replace(/_/g, " ")}</Badge>
-              {lead.temperature !== "COLD" && lead.status !== "CONVERTED" && lead.status !== "LOST" && (
-                <Badge variant={lead.temperature === "HOT" ? "danger" : "warn"}>
-                  <Flame className="size-3" /> {lead.temperature === "HOT" ? "Hot" : "Warm"}
-                </Badge>
-              )}
-              <UrgencyBadge urgency={lead.urgency} />
+      <div className="space-y-4">
+      {(() => {
+        // Group leads by customerName
+        const groups = new Map<string, LeadRow[]>();
+        for (const lead of items) {
+          const key = lead.customerName;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)!.push(lead);
+        }
+        return [...groups.entries()].map(([customer, leads]) => (
+          <div key={customer}>
+            {groups.size > 1 && (
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted uppercase tracking-wide">{customer}</span>
+                {leads.length > 1 && (
+                  <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted">
+                    {leads.length} enquiries
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="space-y-2">
+              {leads.map((lead) => (
+                <Card key={lead.id} className="flex items-center justify-between gap-3 p-3">
+                  <Link href={`/leads/${lead.id}`} className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-medium">{lead.customerName}</span>
+                      <Badge variant={statusVariant(lead.status)}>{lead.status.replace(/_/g, " ")}</Badge>
+                      {lead.temperature !== "COLD" && lead.status !== "CONVERTED" && lead.status !== "LOST" && (
+                        <Badge variant={lead.temperature === "HOT" ? "danger" : "warn"}>
+                          <Flame className="size-3" /> {lead.temperature === "HOT" ? "Hot" : "Warm"}
+                        </Badge>
+                      )}
+                      <UrgencyBadge urgency={lead.urgency} />
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-muted">
+                      {lead.source} · {lead.address}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
+                      <span className="inline-flex items-center gap-1">
+                        <User className="size-3" /> {lead.assignedToName}
+                      </span>
+                      {lead.followUps[0]?.nextDate && (
+                        <span>Next: {new Date(lead.followUps[0].nextDate).toLocaleDateString("en-IN")}</span>
+                      )}
+                      {lead.estimatedValue && (
+                        <span className="font-medium text-primary">
+                          ~₹{(lead.estimatedValue.mid / 100000).toFixed(1)}L est.
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                  <div className="flex shrink-0 gap-1">
+                    <a
+                      href={`tel:${lead.phone}`}
+                      className="flex size-9 items-center justify-center rounded-lg border border-border text-primary"
+                      aria-label="Call"
+                    >
+                      <Phone className="size-4" />
+                    </a>
+                    <a
+                      href={`https://wa.me/91${lead.phone}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex size-9 items-center justify-center rounded-lg border border-border text-ok"
+                      aria-label="WhatsApp"
+                    >
+                      <MessageCircle className="size-4" />
+                    </a>
+                  </div>
+                </Card>
+              ))}
             </div>
-            <div className="mt-0.5 truncate text-xs text-muted">
-              {lead.source} · {lead.address}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
-              <span className="inline-flex items-center gap-1">
-                <User className="size-3" /> {lead.assignedToName}
-              </span>
-              {lead.followUps[0]?.nextDate && (
-                <span>Next: {new Date(lead.followUps[0].nextDate).toLocaleDateString("en-IN")}</span>
-              )}
-            </div>
-          </Link>
-          <div className="flex shrink-0 gap-1">
-            <a
-              href={`tel:${lead.phone}`}
-              className="flex size-9 items-center justify-center rounded-lg border border-border text-primary"
-              aria-label="Call"
-            >
-              <Phone className="size-4" />
-            </a>
-            <a
-              href={`https://wa.me/91${lead.phone}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex size-9 items-center justify-center rounded-lg border border-border text-ok"
-              aria-label="WhatsApp"
-            >
-              <MessageCircle className="size-4" />
-            </a>
           </div>
-        </Card>
-      ))}
+        ));
+      })()}
       </div>
       )}
 

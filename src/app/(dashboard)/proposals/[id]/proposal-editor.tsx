@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X } from "lucide-react";
@@ -100,7 +100,12 @@ export function ProposalEditor({
   const [terms, setTerms] = useState(view.version?.paymentTerms ?? []);
   const [validity, setValidity] = useState(view.version?.validityDays ?? 30);
   const [marginWarn, setMarginWarn] = useState<null | { requiredFloor: string }>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const termsPct = terms.reduce((a, t) => a + (Number(t.percent) || 0), 0);
+
+  useEffect(() => {
+    if (!pending) setIsGenerating(false);
+  }, [pending]);
 
   const subtotal = boq.reduce((a, r) => a + (Number(r.amount) || 0), 0);
   const gst = Math.round(subtotal * 18) / 100;
@@ -184,6 +189,36 @@ export function ProposalEditor({
       <div className="mb-4">
         <ProposalStageTracker status={view.status} />
       </div>
+
+      {/* Quick action bar — secondary actions near the top for easy access */}
+      {isAdmin && !locked && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
+          {(view.status === "SENT" || view.status === "UNDER_NEGOTIATION") && (
+            <SendProposalButtons proposalId={view.id} />
+          )}
+          {view.status === "SENT" && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(() => setProposalStatusAction(view.id, "UNDER_NEGOTIATION"), "Moved to negotiation.")}
+            >
+              Mark Negotiation
+            </Button>
+          )}
+          {view.status === "UNDER_NEGOTIATION" && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(() => setProposalStatusAction(view.id, "SENT"), "Back to sent.")}
+            >
+              Back to Sent
+            </Button>
+          )}
+          <MarkLostButton id={view.id} run={run} />
+        </div>
+      )}
 
       <Tabs
         className="mb-4"
@@ -291,7 +326,8 @@ export function ProposalEditor({
               variant="subtle"
               size="sm"
               disabled={pending || !aiDesc}
-              onClick={() =>
+              onClick={() => {
+                setIsGenerating(true);
                 run(
                   () =>
                     generateAction(view.id, {
@@ -301,10 +337,10 @@ export function ProposalEditor({
                       plantType: basics.plantType,
                     }),
                   "AI draft generated. Review the orange rows.",
-                )
-              }
+                );
+              }}
             >
-              <Sparkles className="size-4" /> {pending ? "Generating…" : "Generate BOQ + write-up"}
+              <Sparkles className="size-4" /> {isGenerating ? "Generating…" : "Generate BOQ + write-up"}
             </Button>
           </CardContent>
         </Card>
@@ -337,7 +373,16 @@ export function ProposalEditor({
             </div>
           </CardHeader>
           <CardContent>
-            {editingTech ? (
+            {isGenerating ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs text-primary">
+                  <Sparkles className="size-3.5 animate-pulse" /> Generating Technical Write-up…
+                </div>
+                {[80, 100, 65, 90, 75].map((w, i) => (
+                  <div key={i} className={`h-3.5 animate-pulse rounded bg-surface`} style={{ width: `${w}%` }} />
+                ))}
+              </div>
+            ) : editingTech ? (
               <div className="space-y-3">
                 <Textarea
                   className="min-h-48 font-mono text-xs"
@@ -390,6 +435,23 @@ export function ProposalEditor({
           <CardTitle>Bill of Quantities</CardTitle>
         </CardHeader>
         <CardContent>
+          {isGenerating ? (
+            <div className="space-y-2 py-2">
+              <div className="flex items-center gap-2 text-xs text-primary">
+                <Sparkles className="size-3.5 animate-pulse" /> Generating BOQ…
+              </div>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex gap-2">
+                  <div className="h-8 flex-1 animate-pulse rounded bg-surface" />
+                  <div className="h-8 w-16 animate-pulse rounded bg-surface" />
+                  <div className="h-8 w-16 animate-pulse rounded bg-surface" />
+                  <div className="h-8 w-20 animate-pulse rounded bg-surface" />
+                  <div className="h-8 w-24 animate-pulse rounded bg-surface" />
+                </div>
+              ))}
+            </div>
+          ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -511,6 +573,8 @@ export function ProposalEditor({
               <Plus className="size-4" /> Add line
             </Button>
           )}
+          </>
+          )}
 
           <div className="mt-3 border-t border-border pt-3 text-sm">
             <Row label="Subtotal" value={formatINR(subtotal)} />
@@ -599,7 +663,7 @@ export function ProposalEditor({
         </CardContent>
       </Card>
 
-      {/* Actions */}
+      {/* Primary actions — approve / won */}
       {isAdmin && !locked && (
         <Card>
           <CardContent className="flex flex-wrap gap-2 pt-4">
@@ -627,28 +691,6 @@ export function ProposalEditor({
                 Mark Won → create Order
               </Button>
             )}
-            {view.status === "SENT" && (
-              <Button
-                variant="outline"
-                disabled={pending}
-                onClick={() => run(() => setProposalStatusAction(view.id, "UNDER_NEGOTIATION"), "Moved to negotiation.")}
-              >
-                Mark under negotiation
-              </Button>
-            )}
-            {view.status === "UNDER_NEGOTIATION" && (
-              <Button
-                variant="outline"
-                disabled={pending}
-                onClick={() => run(() => setProposalStatusAction(view.id, "SENT"), "Back to sent.")}
-              >
-                Back to sent
-              </Button>
-            )}
-            {(view.status === "SENT" || view.status === "UNDER_NEGOTIATION") && (
-              <SendProposalButtons proposalId={view.id} />
-            )}
-            <MarkLostButton id={view.id} run={run} />
           </CardContent>
         </Card>
       )}
