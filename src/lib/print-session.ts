@@ -25,6 +25,7 @@ export async function getPrintSession(
         role: r.claims.role,
         companyId: r.claims.companyId,
         name: "PDF Renderer",
+        avatarUrl: null,
       };
     }
     // A token was supplied but is invalid/mismatched — fail closed with a clean

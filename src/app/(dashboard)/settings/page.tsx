@@ -11,6 +11,7 @@ import { CheckCircle2, MinusCircle } from "lucide-react";
 import { DEFAULT_STAGES } from "@/lib/constants";
 import { ProfileCard } from "./profile-card";
 import { CompanyDetailsCard, ThresholdsCard } from "./company-settings-cards";
+import { ResetPasswordButton } from "./reset-password-button";
 
 export const dynamic = "force-dynamic";
 
@@ -68,16 +69,29 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {users.map((u) => (
-              <div key={u.id} className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{u.name}</div>
-                  <div className="text-xs text-muted">{u.phone}</div>
+              <div key={u.id} className="flex items-center justify-between gap-2 border-b border-border pb-2 last:border-0 last:pb-0">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  {u.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- user-uploaded, arbitrary storage URL
+                    <img src={u.avatarUrl} alt={u.name} className="size-8 shrink-0 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {u.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{u.name}</div>
+                    <div className="text-xs text-muted">{u.phone}</div>
+                  </div>
                 </div>
-                <Badge variant={u.role === "ADMIN" ? "primary" : "default"}>{u.role}</Badge>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge variant={u.role === "ADMIN" ? "primary" : "default"}>{u.role}</Badge>
+                  <ResetPasswordButton userId={u.id} name={u.name} />
+                </div>
               </div>
             ))}
             <p className="pt-2 text-xs text-muted">
-              User management is via Clerk in production (roles in <code>publicMetadata.role</code>).
+              Adding a new user is via Clerk in production (roles in <code>publicMetadata.role</code>).
             </p>
           </CardContent>
         </Card>

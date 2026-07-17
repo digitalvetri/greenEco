@@ -3,7 +3,8 @@
 import { ZodError } from "zod";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
-import { updateProfile, changePassword } from "@/server/services/profile";
+import { updateProfile, changePassword, updateAvatar } from "@/server/services/profile";
+import { adminResetPassword } from "@/server/services/user-admin";
 import {
   updateCompanyDetails,
   updateThresholds,
@@ -35,6 +36,18 @@ export async function updateProfileAction(_prev: ActionState, formData: FormData
   } catch (e) {
     return { ok: false, error: toMessage(e) };
   }
+}
+
+export async function updateAvatarAction(url: string | null) {
+  const session = await getSession();
+  const res = await updateAvatar(session, url);
+  revalidatePath("/", "layout"); // sidebar/mobile-nav render the avatar on every page
+  return res;
+}
+
+export async function adminResetPasswordAction(userId: string, newPassword: string) {
+  const session = await getSession();
+  return adminResetPassword(session, userId, newPassword);
 }
 
 export async function updateCompanyDetailsAction(input: CompanyDetailsInput): Promise<ActionState> {

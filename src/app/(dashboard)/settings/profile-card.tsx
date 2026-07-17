@@ -1,16 +1,74 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import { User, KeyRound, Mail, Building2, ShieldCheck } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { User, KeyRound, Mail, Building2, ShieldCheck, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Uploader } from "@/components/mobile/uploader";
 import { toast } from "@/components/ui/toast";
-import { updateProfileAction, changePasswordAction, type ActionState } from "./actions";
+import { updateProfileAction, changePasswordAction, updateAvatarAction, type ActionState } from "./actions";
 import type { MyProfile } from "@/server/services/profile";
 
 const EMPTY: ActionState = {};
+
+function AvatarEditor({ name, role, avatarUrl }: { name: string; role: string; avatarUrl: string | null }) {
+  const router = useRouter();
+  const [url, setUrl] = useState(avatarUrl);
+  const [pending, start] = useTransition();
+
+  function save(next: string | null) {
+    start(async () => {
+      try {
+        await updateAvatarAction(next);
+        setUrl(next);
+        router.refresh();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Could not update photo", "error");
+      }
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- user-uploaded, arbitrary storage URL
+        <img src={url} alt={name} className="size-12 shrink-0 rounded-full object-cover" />
+      ) : (
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-bold text-primary">
+          {initials(name)}
+        </span>
+      )}
+      <div className="min-w-0">
+        <div className="truncate font-semibold">{name}</div>
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
+          <Badge variant={role === "ADMIN" ? "primary" : "default"}>
+            <ShieldCheck className="size-3" /> {role === "ADMIN" ? "Admin" : "Field Staff"}
+          </Badge>
+        </div>
+        <div className="mt-1.5 flex items-center gap-2">
+          <Uploader
+            onUploaded={(files) => files[0] && save(files[0].url)}
+            multiple={false}
+            label={pending ? "Saving…" : url ? "Change photo" : "Add photo"}
+          />
+          {url && (
+            <button
+              type="button"
+              onClick={() => save(null)}
+              disabled={pending}
+              className="inline-flex items-center gap-1 text-xs text-muted hover:text-danger disabled:opacity-50"
+            >
+              <X className="size-3" /> Remove
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function ProfileCard({ profile }: { profile: MyProfile }) {
   const [pState, pAction, pPending] = useActionState(updateProfileAction, EMPTY);
@@ -37,18 +95,8 @@ export function ProfileCard({ profile }: { profile: MyProfile }) {
           <CardTitle>My Profile</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 flex items-center gap-3">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-bold text-primary">
-              {initials(profile.name)}
-            </span>
-            <div className="min-w-0">
-              <div className="truncate font-semibold">{profile.name}</div>
-              <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
-                <Badge variant={profile.role === "ADMIN" ? "primary" : "default"}>
-                  <ShieldCheck className="size-3" /> {profile.role === "ADMIN" ? "Admin" : "Field Staff"}
-                </Badge>
-              </div>
-            </div>
+          <div className="mb-4">
+            <AvatarEditor name={profile.name} role={profile.role} avatarUrl={profile.avatarUrl} />
           </div>
 
           <dl className="mb-4 space-y-1.5 text-sm">

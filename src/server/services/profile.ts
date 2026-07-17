@@ -16,6 +16,7 @@ export interface MyProfile {
   email: string | null;
   phone: string;
   role: string;
+  avatarUrl: string | null;
   hasPassword: boolean;
   companyName: string;
   memberSince: string | null;
@@ -32,10 +33,24 @@ export async function getMyProfile(session: Session): Promise<MyProfile> {
     email: user?.email ?? null,
     phone: user?.phone ?? "",
     role: session.role,
+    avatarUrl: user?.avatarUrl ?? null,
     hasPassword: !!user?.passwordHash,
     companyName: company?.name ?? "—",
     memberSince: user?.createdAt ? user.createdAt.toISOString() : null,
   };
+}
+
+/** Set or remove (url=null) the caller's own profile photo. Storage/validation
+ *  already happened at /api/uploads — this just records the URL. */
+export async function updateAvatar(session: Session, url: string | null): Promise<{ avatarUrl: string | null }> {
+  await prisma.user.update({ where: { id: session.userId }, data: { avatarUrl: url } });
+  await logAudit(session, {
+    action: "UPDATE",
+    entity: "User",
+    entityId: session.userId,
+    after: { avatarUrl: url },
+  });
+  return { avatarUrl: url };
 }
 
 const profileSchema = z.object({

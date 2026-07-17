@@ -119,6 +119,7 @@ model User {
   phone        String
   email        String?  @unique // credentials-login identity
   passwordHash String? // scrypt hash (credentials login)
+  avatarUrl    String? // profile photo, via the same storage adapter as other uploads
   role         Role     @default(EMPLOYEE)
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())

@@ -22,11 +22,13 @@ export function MobileNav({
   name,
   role,
   initials,
+  avatarUrl,
 }: {
   items: Item[];
   name: string;
   role: string;
   initials: string;
+  avatarUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -121,9 +123,20 @@ export function MobileNav({
             </nav>
 
             <div className="relative z-10 flex items-center gap-2.5 border-t border-white/10 px-4 py-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400/40 to-teal-400/30 text-sm font-bold text-white ring-1 ring-white/25">
-                {initials}
-              </span>
+              {avatarUrl ? (
+                <Image
+                  src={avatarUrl}
+                  alt={name}
+                  width={36}
+                  height={36}
+                  unoptimized
+                  className="size-9 shrink-0 rounded-full object-cover ring-1 ring-white/25"
+                />
+              ) : (
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400/40 to-teal-400/30 text-sm font-bold text-white ring-1 ring-white/25">
+                  {initials}
+                </span>
+              )}
               <div className="min-w-0 flex-1 leading-tight">
                 <div className="truncate text-sm font-semibold text-white">{name}</div>
                 <div className="text-[11px] text-emerald-200/70">{role === "ADMIN" ? "Admin" : "Field Staff"}</div>

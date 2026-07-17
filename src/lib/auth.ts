@@ -18,6 +18,7 @@ import { SESSION_COOKIE, verifySessionToken } from "./session";
 
 export interface Session extends Ctx {
   name: string;
+  avatarUrl: string | null;
 }
 
 export class AuthError extends Error {
@@ -57,7 +58,7 @@ async function getDevSession(): Promise<Session> {
   if (uid) {
     const dbUser = await prisma.user.findUnique({ where: { id: uid } });
     if (dbUser && dbUser.active) {
-      return { userId: dbUser.id, role: dbUser.role, companyId: dbUser.companyId, name: dbUser.name };
+      return { userId: dbUser.id, role: dbUser.role, companyId: dbUser.companyId, name: dbUser.name, avatarUrl: dbUser.avatarUrl };
     }
     // Cookie valid but the user is gone/deactivated → not signed in.
     if (!env.authDevBypass) throw new AuthError("Session no longer valid", 401);
@@ -73,6 +74,7 @@ async function getDevSession(): Promise<Session> {
       role,
       companyId: dbUser?.companyId ?? env.companyId,
       name: dbUser?.name ?? (role === "ADMIN" ? "Dev Admin" : "Dev Employee"),
+      avatarUrl: dbUser?.avatarUrl ?? null,
     };
   }
 
@@ -97,6 +99,7 @@ async function getClerkSession(): Promise<Session> {
     role: claimRole ?? dbUser.role,
     companyId: dbUser.companyId,
     name: dbUser.name,
+    avatarUrl: dbUser.avatarUrl,
   };
 }
 

@@ -88,9 +88,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
             title="Profile & settings"
             className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1.5 transition-colors hover:bg-white/10"
           >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400/40 to-teal-400/30 text-sm font-bold text-white ring-1 ring-white/25">
-              {initials}
-            </span>
+            {session.avatarUrl ? (
+              <Image
+                src={session.avatarUrl}
+                alt={session.name}
+                width={36}
+                height={36}
+                unoptimized
+                className="size-9 shrink-0 rounded-full object-cover ring-1 ring-white/25"
+              />
+            ) : (
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400/40 to-teal-400/30 text-sm font-bold text-white ring-1 ring-white/25">
+                {initials}
+              </span>
+            )}
             <div className="min-w-0 flex-1 leading-tight">
               <div className="truncate text-sm font-semibold text-white">{session.name}</div>
               <div className="text-[11px] text-emerald-200/70">{session.role === "ADMIN" ? "Admin" : "Field Staff"}</div>
@@ -103,7 +114,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Main column — scrolls independently */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center gap-2 border-b border-border bg-card/80 px-3 py-2.5 backdrop-blur-md md:gap-3 md:px-6">
-          <MobileNav items={items} name={session.name} role={session.role} initials={initials} />
+          <MobileNav items={items} name={session.name} role={session.role} initials={initials} avatarUrl={session.avatarUrl} />
           <div className="min-w-0 flex-1">
             <GlobalSearch />
           </div>
