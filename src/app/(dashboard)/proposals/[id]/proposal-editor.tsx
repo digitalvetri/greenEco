@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X } from "lucide-react";
@@ -23,7 +23,6 @@ import type { ProposalEvent } from "@/server/services/proposal";
 import {
   updateBasicsAction,
   saveVersionAction,
-  generateAction,
   approveSendAction,
   wonAction,
   lostAction,
@@ -40,6 +39,17 @@ interface BoqRow {
   rate: string;
   amount: string;
   aiSuggested: boolean;
+}
+
+/** Shape of a boqItems entry in the generate-stream route's `done` event payload. */
+interface StreamedBoqLine {
+  category: string;
+  item: string;
+  specification?: string;
+  unit: string;
+  qty: number;
+  rate: number;
+  amount: number;
 }
 
 export interface ProposalView {
@@ -103,10 +113,6 @@ export function ProposalEditor({
   const [isGenerating, setIsGenerating] = useState(false);
   const termsPct = terms.reduce((a, t) => a + (Number(t.percent) || 0), 0);
 
-  useEffect(() => {
-    if (!pending) setIsGenerating(false);
-  }, [pending]);
-
   const subtotal = boq.reduce((a, r) => a + (Number(r.amount) || 0), 0);
   const gst = Math.round(subtotal * 18) / 100;
   const grand = subtotal + gst;
@@ -156,6 +162,70 @@ export function ProposalEditor({
         }),
       "Saved.",
     );
+  }
+
+  /** SSE draft generation — parses `event: <name>\ndata: <json>\n\n` frames off the
+   *  response body as they arrive, growing techText live (word-by-word). */
+  async function handleGenerate() {
+    setIsGenerating(true);
+    setTechText("");
+    try {
+      const res = await fetch(`/api/proposals/${view.id}/generate-stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: aiDesc,
+          capacityKLD: basics.capacityKLD || undefined,
+          technology: basics.technology,
+          plantType: basics.plantType,
+        }),
+      });
+      if (!res.ok || !res.body) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Generation failed");
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let finished = false;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const frames = buf.split("\n\n");
+        buf = frames.pop() ?? "";
+        for (const frame of frames) {
+          const eventLine = frame.split("\n").find((l) => l.startsWith("event: "));
+          const dataLine = frame.split("\n").find((l) => l.startsWith("data: "));
+          if (!eventLine || !dataLine) continue;
+          const event = eventLine.slice("event: ".length);
+          const data = JSON.parse(dataLine.slice("data: ".length));
+          if (event === "token") {
+            setTechText((t) => t + data.text);
+          } else if (event === "done") {
+            finished = true;
+            setBoq(
+              ((data.boqItems ?? []) as StreamedBoqLine[]).map((b) => ({
+                category: b.category, item: b.item, specification: b.specification ?? undefined,
+                unit: b.unit, qty: String(b.qty), rate: String(b.rate), amount: String(b.amount),
+                aiSuggested: true,
+              })),
+            );
+            setTerms(data.paymentTerms ?? terms);
+          } else if (event === "error") {
+            throw new Error(data.message ?? "Generation failed");
+          }
+        }
+      }
+      if (finished) {
+        toast("AI draft generated. Review the orange rows.");
+        router.refresh(); // revalidates the version badge/timeline/aiGenerated flag
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Generation failed", "error");
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   const statusVariant =
@@ -325,20 +395,8 @@ export function ProposalEditor({
             <Button
               variant="subtle"
               size="sm"
-              disabled={pending || !aiDesc}
-              onClick={() => {
-                setIsGenerating(true);
-                run(
-                  () =>
-                    generateAction(view.id, {
-                      description: aiDesc,
-                      capacityKLD: basics.capacityKLD || undefined,
-                      technology: basics.technology,
-                      plantType: basics.plantType,
-                    }),
-                  "AI draft generated. Review the orange rows.",
-                );
-              }}
+              disabled={pending || isGenerating || !aiDesc}
+              onClick={handleGenerate}
             >
               <Sparkles className="size-4" /> {isGenerating ? "Generating…" : "Generate BOQ + write-up"}
             </Button>
@@ -373,7 +431,7 @@ export function ProposalEditor({
             </div>
           </CardHeader>
           <CardContent>
-            {isGenerating ? (
+            {isGenerating && !techText ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-xs text-primary">
                   <Sparkles className="size-3.5 animate-pulse" /> Generating Technical Write-up…
@@ -381,6 +439,11 @@ export function ProposalEditor({
                 {[80, 100, 65, 90, 75].map((w, i) => (
                   <div key={i} className={`h-3.5 animate-pulse rounded bg-surface`} style={{ width: `${w}%` }} />
                 ))}
+              </div>
+            ) : isGenerating ? (
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                {techText}
+                <span className="animate-pulse text-primary">▍</span>
               </div>
             ) : editingTech ? (
               <div className="space-y-3">

@@ -128,7 +128,7 @@ ${input.description}`;
 }
 
 /** Shared proposal-draft prompt (Claude structured path + Groq/Gemini text path). */
-function draftPrompt(input: AiProposalInput): string {
+export function draftPrompt(input: AiProposalInput): string {
   return `Generate a treatment plant proposal draft as JSON with this exact shape:
 {
   "technicalText": "process description, design basis, treatment stages, TNPCB-norm outcome language",
@@ -147,7 +147,7 @@ Ensure amount = qty * rate for each BOQ line. Payment percents must sum to 100.`
 }
 
 /** Map a parsed JSON object (from any provider) into a validated AiProposalDraft. */
-function mapDraft(
+export function mapDraft(
   parsed: Record<string, unknown>,
   input: AiProposalInput,
   source: AiProposalDraft["source"],
@@ -194,7 +194,7 @@ async function claudeDraft(input: AiProposalInput, apiKey: string, model: string
 }
 
 /** Strip markdown fences and parse; throw on failure so the caller can fall back. */
-function parseDefensively(text: string): Record<string, unknown> {
+export function parseDefensively(text: string): Record<string, unknown> {
   let t = text.trim();
   t = t.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
   const start = t.indexOf("{");
@@ -203,7 +203,7 @@ function parseDefensively(text: string): Record<string, unknown> {
   return JSON.parse(t);
 }
 
-const DRAFT_SCHEMA = {
+export const DRAFT_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["technicalText", "boqItems", "scopeOfWork", "paymentTerms"],

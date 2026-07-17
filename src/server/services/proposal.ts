@@ -9,7 +9,8 @@ import { env } from "@/lib/env";
 import { getCompanySettings } from "./company-settings";
 import { allocateNumber } from "./numbering";
 import { recordProposalOutcome } from "@/server/automations/winloss-learning";
-import { generateProposalDraft, type AiProposalInput } from "@/lib/ai";
+import { generateProposalDraft, type AiProposalInput, type AiProposalDraft } from "@/lib/ai";
+import { streamProposalDraft } from "@/lib/ai-stream";
 import { DEFAULT_STAGES } from "@/lib/constants";
 import { proposalExpiry } from "@/lib/domain/proposal-aging";
 import { formatINR } from "@/lib/money";
@@ -384,8 +385,8 @@ async function retrieveWonContext(ctx: Ctx, kld?: number): Promise<string> {
     .join("\n");
 }
 
-/** Run the AI generator and write the draft into the current version. */
-export async function generateForProposal(ctx: Ctx, proposalId: string, input: AiProposalInput) {
+/** Same retrieval + A14 win-rate calibration used by both the batch and streaming generators. */
+async function buildGenerationInput(ctx: Ctx, input: AiProposalInput): Promise<AiProposalInput> {
   let context = await retrieveWonContext(ctx, input.capacityKLD);
   // A14 — calibrate on this plant-type + KLD-band win rate.
   if (input.plantType && input.capacityKLD) {
@@ -393,22 +394,53 @@ export async function generateForProposal(ctx: Ctx, proposalId: string, input: A
     const wr = await bandWinRate(ctx.companyId, input.plantType, input.capacityKLD);
     if (wr.total > 0) context = `${context}\nWin rate in this ${input.plantType} ${input.capacityKLD} KLD band: ${Math.round(wr.rate * 100)}% (${wr.won}/${wr.total} won).`;
   }
-  const draft = await generateProposalDraft({ ...input, pastWon: context || undefined });
+  return { ...input, pastWon: context || undefined };
+}
+
+/** Persist a generated draft into the current version + mark it AI-generated.
+ *  Tenant/role-scoped via saveVersion — this is the sole write path for both generators. */
+async function persistGeneratedDraft(ctx: Ctx, proposalId: string, draft: AiProposalDraft) {
   await saveVersion(ctx, proposalId, {
     technicalText: draft.technicalText,
-    scopeOfWork: draft.scopeOfWork,
-    paymentTerms: draft.paymentTerms,
-    boqItems: draft.boqItems.map((b) => ({ ...b, aiSuggested: true })),
+    scopeOfWork: draft.scopeOfWork as never,
+    paymentTerms: draft.paymentTerms as never,
+    boqItems: draft.boqItems.map((b) => ({ ...b, aiSuggested: true })) as never,
   });
-  // Mark version AI-generated.
-  const proposal = await prisma.proposal.findUnique({ where: { id: proposalId } });
+  const proposal = await prisma.proposal.findFirst({ where: { id: proposalId, companyId: ctx.companyId } });
   if (proposal) {
     await prisma.proposalVersion.updateMany({
       where: { proposalId, versionNo: proposal.currentVersion },
       data: { aiGenerated: true },
     });
   }
+}
+
+/** Run the AI generator and write the draft into the current version. */
+export async function generateForProposal(ctx: Ctx, proposalId: string, input: AiProposalInput) {
+  const draft = await generateProposalDraft(await buildGenerationInput(ctx, input));
+  await persistGeneratedDraft(ctx, proposalId, draft);
   return { source: draft.source };
+}
+
+/**
+ * Streaming variant (Phase 6) — the technicalText prose streams token-by-token via
+ * onToken as it's generated; BOQ/scope/terms arrive once, at the end, then everything
+ * is persisted through the same saveVersion path (and its tenant/role guard) as the
+ * batch generator above. A cross-tenant proposalId is rejected by saveVersion exactly
+ * as it always was — streaming doesn't open a new door.
+ */
+export async function generateForProposalStreaming(
+  ctx: Ctx,
+  proposalId: string,
+  input: AiProposalInput,
+  onToken: (chunk: string) => void,
+) {
+  const draft = await streamProposalDraft(await buildGenerationInput(ctx, input), onToken);
+  await persistGeneratedDraft(ctx, proposalId, draft);
+  // The full draft goes back in the `done` event so the client can set state directly
+  // rather than depend on a client-component prop refresh resetting already-mounted
+  // local state (it doesn't — useState's initializer only runs on first mount).
+  return draft;
 }
 
 /**

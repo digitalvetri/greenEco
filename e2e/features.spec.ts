@@ -14,6 +14,13 @@ async function firstDetailId(request: import("@playwright/test").APIRequestConte
   return m ? m[1] : "";
 }
 
+/** A DRAFT-status proposal id (saveVersion locks WON/LOST) — needed for the streaming-generate test. */
+async function firstDraftProposalId(request: import("@playwright/test").APIRequestContext): Promise<string> {
+  const res = await request.get("/api/proposals?status=DRAFT&take=1", { headers: { cookie: "dev_role=ADMIN" } });
+  const body = await res.json();
+  return body.items?.[0]?.id ?? "";
+}
+
 test("proposal editor renders the proposal with its actions", async ({ page, request }) => {
   const id = await firstDetailId(request, "proposals");
   test.skip(!id, "no proposals in DB — run scripts/verify-sell.ts");
@@ -21,6 +28,28 @@ test("proposal editor renders the proposal with its actions", async ({ page, req
   expect(res?.status()).toBe(200);
   // The branded print link is the stable, always-present affordance.
   await expect(page.getByRole("link", { name: /print|pdf/i }).first()).toBeVisible();
+});
+
+test("AI draft generation streams the write-up live and fills the BOQ (Phase 6)", async ({ context, page, request }) => {
+  await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
+  const id = await firstDraftProposalId(request);
+  test.skip(!id, "no DRAFT proposal in DB — run scripts/verify-sell.ts");
+
+  await page.goto(`/proposals/${id}`, { waitUntil: "networkidle" });
+  await page.getByPlaceholder(/Describe the requirement/i).fill("STP 20 KLD for a residential apartment complex");
+  await page.getByRole("button", { name: /Generate BOQ \+ write-up/i }).click();
+
+  // Mid-stream: the button flips to "Generating…" and prose starts appearing before
+  // the request completes — this is the actual "word-by-word" behavior being tested,
+  // not just an eventual-consistency check after the fact.
+  await expect(page.getByRole("button", { name: "Generating…" })).toBeVisible();
+  await expect(page.getByText(/Proposed STP|Design basis/i)).toBeVisible({ timeout: 15_000 });
+
+  // Completion: button reverts, BOQ table is populated, toast confirms.
+  await expect(page.getByRole("button", { name: /Generate BOQ \+ write-up/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("AI draft generated. Review the orange rows.")).toBeVisible();
+  // BOQ rows render as editable <input>s, not text nodes — assert by attribute value.
+  await expect(page.locator('input[value*="RCC Tank"]')).toBeVisible();
 });
 
 test("materials tools expose the field actions (now on the Operations section)", async ({ context, page }) => {
