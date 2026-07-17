@@ -11,8 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
 import { ExportButton } from "@/components/ui/export-button";
+import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
 import { formatINR } from "@/lib/money";
 import { createPOAction, setPOStatusAction, receiveGRNAction } from "./actions";
+import { SendPOWhatsAppButton } from "./send-po-whatsapp-button";
 
 interface Opt {
   id: string;
@@ -158,10 +160,12 @@ export function PurchasingPanel({
                     <span className="font-mono text-xs">{p.poNo}</span> · <span className="truncate">{p.vendor}</span>
                     <div className="text-xs text-muted">{formatINR(p.totalValue)}</div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                     <Badge variant={p.status === "RECEIVED" ? "ok" : p.status === "DRAFT" ? "default" : "primary"}>
                       {p.status.replace(/_/g, " ")}
                     </Badge>
+                    <DownloadPdfButton docType="po" docId={p.poNo} label="PDF" />
+                    <SendPOWhatsAppButton poId={p.id} poNo={p.poNo} />
                     {p.status === "DRAFT" && (
                       <Button size="sm" variant="outline" loading={busy === `send-${p.id}`} disabled={pending} onClick={() => run(`send-${p.id}`, () => setPOStatusAction(p.id, "SENT"), "PO sent")}>
                         <Send className="size-3.5" /> Send

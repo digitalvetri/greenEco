@@ -6,6 +6,8 @@ import { stripPricing } from "@/lib/rbac";
 import { requireAdmin, requireProjectAccess } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
+import { sendWhatsAppText } from "@/lib/whatsapp";
+import { formatINR } from "@/lib/money";
 import { allocateNumber } from "./numbering";
 import { getCompanySettings } from "./company-settings";
 import { deriveBalances, deriveItemBalances, belowReorder, type MovementLike } from "@/lib/domain/stock";
@@ -411,6 +413,38 @@ export async function setPOStatus(ctx: Ctx, poId: string, status: "SENT" | "CLOS
   return { ok: true };
 }
 
+/** Vendor contact + a ready-to-edit default message — populates the "review before send" dialog. */
+export async function poShareDraft(ctx: Ctx, poId: string) {
+  requireAdmin(ctx);
+  const po = await prisma.purchaseOrder.findFirst({ where: { id: poId, companyId: ctx.companyId }, include: { vendor: true } });
+  if (!po) throw new Error("PO not found");
+  const body =
+    `Hi ${po.vendor.name}, please find our Purchase Order ${po.poNo} ` +
+    `for ${formatINR(po.totalValue.toString())}, expected delivery ${po.expectedDate.toLocaleDateString("en-IN")}. ` +
+    `Please confirm receipt.`;
+  return { vendorName: po.vendor.name, vendorPhone: po.vendor.phone, defaultMessage: body };
+}
+
+/**
+ * Send a PO to its vendor's WhatsApp, review-before-send (spec §8): the caller
+ * composes/edits `body` client-side (mirroring the sendProjectWhatsApp/
+ * sendContractWhatsApp convention), and generates the durable PDF first if one
+ * doesn't exist yet so the message can carry a link that works without login.
+ * Gated (no provider → logged, never sent); audited either way.
+ */
+export async function sendPOWhatsApp(ctx: Ctx, poId: string, body: string) {
+  requireAdmin(ctx);
+  if (!body.trim()) throw new Error("Message cannot be empty");
+  const po = await prisma.purchaseOrder.findFirst({ where: { id: poId, companyId: ctx.companyId }, include: { vendor: true } });
+  if (!po) throw new Error("PO not found");
+  if (!po.vendor.phone) throw new Error("This vendor has no phone number on file");
+
+  const res = await sendWhatsAppText(po.vendor.phone, body);
+  const sentStatus = res.sent ? "SENT" : res.transport === "none" ? "LOGGED" : "FAILED";
+  await logAudit(ctx, { action: "UPDATE", entity: "PurchaseOrder", entityId: poId, after: { whatsappTo: po.vendor.phone, sentStatus } });
+  return { sent: res.sent, sentStatus };
+}
+
 export async function listPOs(ctx: Ctx, take = 100) {
   requireAdmin(ctx); // POs carry rates → admin-only
   return prisma.purchaseOrder.findMany({
@@ -419,6 +453,43 @@ export async function listPOs(ctx: Ctx, take = 100) {
     orderBy: { createdAt: "desc" },
     take: Math.min(take, 200),
   });
+}
+
+/** Single PO with resolved item names + vendor + destination — for the PO PDF and WhatsApp send. Admin-only (rates). */
+export async function getPO(ctx: Ctx, poNo: string) {
+  requireAdmin(ctx);
+  const po = await prisma.purchaseOrder.findFirst({
+    where: { poNo, companyId: ctx.companyId },
+    include: { vendor: true },
+  });
+  if (!po) return null;
+  const destination = await prisma.location.findFirst({ where: { id: po.destinationId, companyId: ctx.companyId } });
+  const lines = po.items as { itemId: string; qty: number; rate: number }[];
+  const itemRows = await prisma.item.findMany({
+    where: { id: { in: lines.map((l) => l.itemId) } },
+    select: { id: true, name: true, unit: true },
+  });
+  const itemMap = new Map(itemRows.map((i) => [i.id, i]));
+
+  return {
+    id: po.id,
+    poNo: po.poNo,
+    status: po.status,
+    expectedDate: po.expectedDate,
+    createdAt: po.createdAt,
+    totalValue: po.totalValue.toString(),
+    pdfUrl: po.pdfUrl,
+    vendor: { name: po.vendor.name, phone: po.vendor.phone, address: po.vendor.address, gstin: po.vendor.gstin },
+    destination: destination ? { name: destination.name, type: destination.type } : null,
+    items: lines.map((l) => ({
+      itemId: l.itemId,
+      name: itemMap.get(l.itemId)?.name ?? "Unknown item",
+      unit: itemMap.get(l.itemId)?.unit ?? "",
+      qty: l.qty,
+      rate: l.rate,
+      amount: new Decimal(l.qty).times(l.rate).toFixed(2),
+    })),
+  };
 }
 
 /**

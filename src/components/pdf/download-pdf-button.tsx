@@ -14,7 +14,7 @@ export function DownloadPdfButton({
   docId,
   label = "PDF",
 }: {
-  docType: "invoice" | "proposal" | "closeout";
+  docType: "invoice" | "proposal" | "closeout" | "po";
   docId: string;
   label?: string;
 }) {

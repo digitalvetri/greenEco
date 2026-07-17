@@ -16,7 +16,7 @@ import { env } from "./env";
  */
 
 export interface PrintClaims {
-  docType: "invoice" | "proposal" | "closeout";
+  docType: "invoice" | "proposal" | "closeout" | "po";
   docId: string;
   /** The admin who requested the render; passed through to the print page. */
   userId: string;

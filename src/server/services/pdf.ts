@@ -18,7 +18,7 @@ import { putObject } from "@/lib/storage";
  * document creation (Chromium spin-up is ~1–2s and there is no queue yet).
  */
 
-export type PdfDocType = "invoice" | "proposal" | "closeout";
+export type PdfDocType = "invoice" | "proposal" | "closeout" | "po";
 
 interface Resolved {
   printPath: string;
@@ -83,6 +83,21 @@ async function resolve(ctx: Ctx, docType: PdfDocType, docId: string): Promise<Re
         storageKey: randomKey("closeout", order.orderNo),
       };
     }
+    case "po": {
+      // docId is the poNo (the print route keys on it, matching invoice's convention).
+      const po = await prisma.purchaseOrder.findFirst({
+        where: { poNo: docId, companyId: ctx.companyId },
+        select: { id: true },
+      });
+      if (!po) throw new Error("Purchase order not found");
+      return {
+        printPath: `/print/po/${docId}`,
+        storageKey: randomKey("po", docId),
+        persist: async (url) => {
+          await prisma.purchaseOrder.update({ where: { id: po.id }, data: { pdfUrl: url } });
+        },
+      };
+    }
   }
 }
 
@@ -102,9 +117,10 @@ export async function generatePdf(
   const url = await putObject(storageKey, bytes, "application/pdf");
   if (persist) await persist(url);
 
+  const ENTITY: Record<PdfDocType, string> = { closeout: "Order", invoice: "Invoice", proposal: "Proposal", po: "PurchaseOrder" };
   await logAudit(ctx, {
     action: "UPDATE",
-    entity: docType === "closeout" ? "Order" : docType === "invoice" ? "Invoice" : "Proposal",
+    entity: ENTITY[docType],
     entityId: docId,
     after: { pdfUrl: url, bytes: bytes.length },
   });

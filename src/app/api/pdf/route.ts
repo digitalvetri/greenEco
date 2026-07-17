@@ -3,7 +3,7 @@ import { api, jsonBody, rateLimit } from "@/lib/api";
 import { generatePdf } from "@/server/services/pdf";
 
 const bodySchema = z.object({
-  docType: z.enum(["invoice", "proposal", "closeout"]),
+  docType: z.enum(["invoice", "proposal", "closeout", "po"]),
   docId: z.string().min(1),
 });
 
