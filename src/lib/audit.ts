@@ -10,7 +10,8 @@ export type AuditAction =
   | "DELETE"
   | "VIEW_PRICE"
   | "APPROVE"
-  | "EXPORT";
+  | "EXPORT"
+  | "LOGIN";
 
 export interface AuditInput {
   action: AuditAction;

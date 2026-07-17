@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "JobTitle" AS ENUM ('MD', 'SALES', 'PROJECT_MANAGER', 'PURCHASE', 'SITE_ENGINEER', 'STORE_MANAGER', 'ACCOUNTANT', 'OTHER');
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "jobTitle" "JobTitle";

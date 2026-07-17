@@ -4,7 +4,8 @@ import { ZodError } from "zod";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { updateProfile, changePassword, updateAvatar } from "@/server/services/profile";
-import { adminResetPassword } from "@/server/services/user-admin";
+import { adminResetPassword, createUser, setUserJobTitle, type CreateUserInput } from "@/server/services/user-admin";
+import type { JobTitle } from "@prisma/client";
 import {
   updateCompanyDetails,
   updateThresholds,
@@ -48,6 +49,28 @@ export async function updateAvatarAction(url: string | null) {
 export async function adminResetPasswordAction(userId: string, newPassword: string) {
   const session = await getSession();
   return adminResetPassword(session, userId, newPassword);
+}
+
+export async function createUserAction(input: CreateUserInput): Promise<ActionState & { id?: string }> {
+  const session = await getSession();
+  try {
+    const { id } = await createUser(session, input);
+    revalidatePath("/settings");
+    return { ok: true, message: "User created", id };
+  } catch (e) {
+    return { ok: false, error: toMessage(e) };
+  }
+}
+
+export async function setUserJobTitleAction(userId: string, jobTitle: JobTitle | null): Promise<ActionState> {
+  const session = await getSession();
+  try {
+    await setUserJobTitle(session, userId, jobTitle);
+    revalidatePath("/settings");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: toMessage(e) };
+  }
 }
 
 export async function updateCompanyDetailsAction(input: CompanyDetailsInput): Promise<ActionState> {

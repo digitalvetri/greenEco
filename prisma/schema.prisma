@@ -16,6 +16,19 @@ enum Role {
   EMPLOYEE
 }
 
+/** Cosmetic org-chart label only — carries NO permission weight. `role` (above) is
+ *  the sole authorization signal everywhere in the app; do not branch on jobTitle. */
+enum JobTitle {
+  MD
+  SALES
+  PROJECT_MANAGER
+  PURCHASE
+  SITE_ENGINEER
+  STORE_MANAGER
+  ACCOUNTANT
+  OTHER
+}
+
 enum LeadStatus {
   NEW
   IN_FOLLOWUP
@@ -120,6 +133,7 @@ model User {
   email        String?  @unique // credentials-login identity
   passwordHash String? // scrypt hash (credentials login)
   avatarUrl    String? // profile photo, via the same storage adapter as other uploads
+  jobTitle     JobTitle? // display-only org-chart label; NEVER read for authorization
   role         Role     @default(EMPLOYEE)
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())

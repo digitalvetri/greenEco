@@ -94,6 +94,55 @@ test("credentials login: wrong password is rejected with a generic error", async
   await ctx.close();
 });
 
+test("admin creates a user in-app, and that user can sign in (Phase 5a)", async ({ context, page, browser }) => {
+  await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
+  await page.goto("/settings", { waitUntil: "networkidle" });
+
+  const email = `e2e-newuser-${Date.now()}@greeneco.in`;
+  await page.getByRole("button", { name: "Add user" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Full name").fill("E2E New User");
+  await dialog.getByLabel("Phone").fill("9123456780");
+  await dialog.getByLabel("Email").fill(email);
+  await dialog.getByLabel("Temporary password").fill("TempPass123");
+  await dialog.getByLabel("Job title").selectOption("SITE_ENGINEER");
+  await dialog.getByRole("button", { name: "Create user" }).click();
+  await expect(page.getByText("E2E New User can now sign in")).toBeVisible();
+
+  // The new user can actually sign in with the password the admin set — the real test,
+  // not just "a row exists" (per-advice: verify create -> sign out -> sign in).
+  const freshCtx = await browser.newContext();
+  const freshPage = await freshCtx.newPage();
+  await freshPage.goto("/sign-in", { waitUntil: "networkidle" });
+  await freshPage.getByLabel("Email").fill(email);
+  await freshPage.getByLabel("Password", { exact: true }).fill("TempPass123");
+  await freshPage.getByRole("button", { name: "Sign in" }).click();
+  await freshPage.waitForURL(/dashboard/);
+  // EMPLOYEE role from the created user, not admin's revenue surface.
+  await expect(freshPage.getByText("Revenue Collected")).toHaveCount(0);
+  await freshCtx.close();
+});
+
+test("activity log shows admin activity including sign-ins (Phase 5b)", async ({ context, page }) => {
+  await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
+  await page.goto("/settings/activity", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "Activity log" })).toBeVisible();
+  // Scoped to the row list, not the filter <select>'s own "Signed in" <option>.
+  await expect(page.locator(".divide-y").getByText("Signed in").first()).toBeVisible();
+});
+
+test("EMPLOYEE cannot reach the activity log (Phase 5b RBAC)", async ({ context, page }) => {
+  await context.addCookies([{ name: "dev_role", value: "EMPLOYEE", url: "http://localhost:3000" }]);
+  await page.goto("/settings/activity", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "Activity log" })).toHaveCount(0); // 404, admin-only
+});
+
+test("EMPLOYEE settings page has no Add-user affordance (Phase 5a RBAC)", async ({ context, page }) => {
+  await context.addCookies([{ name: "dev_role", value: "EMPLOYEE", url: "http://localhost:3000" }]);
+  await page.goto("/settings", { waitUntil: "networkidle" });
+  await expect(page.getByRole("button", { name: "Add user" })).toHaveCount(0);
+});
+
 test("reports has collection tiles + GST-filing summary (Reports P1)", async ({ context, page }) => {
   await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
   await page.goto("/reports", { waitUntil: "networkidle" });

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 
 /**
  * Credentials login. One form for both roles — the ROLE comes from the matched user
@@ -31,6 +32,14 @@ export async function loginAction(_prev: unknown, formData: FormData): Promise<{
   });
   // Clear any dev role toggle so the real login is authoritative.
   store.delete("dev_role");
+
+  // Best-effort: a logging hiccup must never block a legitimate sign-in.
+  try {
+    await logAudit({ userId: user.id, role: user.role, companyId: user.companyId }, { action: "LOGIN", entity: "User", entityId: user.id });
+  } catch {
+    // swallow — login must succeed regardless of audit-log availability
+  }
+
   redirect("/dashboard");
 }
 

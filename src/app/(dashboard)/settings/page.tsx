@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getMyProfile } from "@/server/services/profile";
 import { getSettingsFor } from "@/server/services/company-settings";
 import { getSystemStatus, type SystemStatusItem } from "@/server/services/system";
+import { env } from "@/lib/env";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,8 @@ import { DEFAULT_STAGES } from "@/lib/constants";
 import { ProfileCard } from "./profile-card";
 import { CompanyDetailsCard, ThresholdsCard } from "./company-settings-cards";
 import { ResetPasswordButton } from "./reset-password-button";
+import { CreateUserButton } from "./create-user-button";
+import { JobTitleSelect } from "./job-title-select";
 
 export const dynamic = "force-dynamic";
 
@@ -64,8 +67,9 @@ export default async function SettingsPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Users</CardTitle>
+            {env.authMode !== "clerk" && <CreateUserButton />}
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {users.map((u) => (
@@ -82,6 +86,9 @@ export default async function SettingsPage() {
                   <div className="min-w-0">
                     <div className="truncate font-medium">{u.name}</div>
                     <div className="text-xs text-muted">{u.phone}</div>
+                    <div className="mt-1 w-32">
+                      <JobTitleSelect userId={u.id} value={u.jobTitle} />
+                    </div>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
@@ -90,9 +97,11 @@ export default async function SettingsPage() {
                 </div>
               </div>
             ))}
-            <p className="pt-2 text-xs text-muted">
-              Adding a new user is via Clerk in production (roles in <code>publicMetadata.role</code>).
-            </p>
+            {env.authMode === "clerk" && (
+              <p className="pt-2 text-xs text-muted">
+                Adding a new user is via Clerk in production (roles in <code>publicMetadata.role</code>).
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -131,6 +140,7 @@ export default async function SettingsPage() {
         <CardContent className="flex flex-wrap gap-2 text-sm">
           <Link href="/settings/integrations" className="text-primary">Integrations & API keys →</Link>
           <Link href="/settings/automations" className="text-primary">Automations →</Link>
+          <Link href="/settings/activity" className="text-primary">Activity log →</Link>
         </CardContent>
       </Card>
       </>
