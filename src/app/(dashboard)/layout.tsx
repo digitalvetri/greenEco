@@ -2,7 +2,7 @@ import { CalendarDays, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/auth";
-import { getNotifications } from "@/server/services/notifications";
+import { getNotifications, unreadCount } from "@/server/services/notifications";
 import { navFor, mobileNavFor, NAV_SECTIONS } from "@/lib/nav";
 import { SidebarLink, BottomLink } from "@/components/shell/nav-link";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   const items = navFor(session.role);
-  const notifications = await getNotifications(session);
+  const [notifications, notificationsUnread] = await Promise.all([getNotifications(session), unreadCount(session)]);
   const mobileItems = mobileNavFor(session.role);
   const initials =
     session.name
@@ -119,7 +119,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <GlobalSearch />
           </div>
           <div className="flex shrink-0 items-center gap-1 md:gap-1.5">
-            <NotificationsMenu items={notifications} />
+            <NotificationsMenu items={notifications} unreadCount={notificationsUnread} />
             <Link
               href="/follow-ups"
               aria-label="Follow-ups"

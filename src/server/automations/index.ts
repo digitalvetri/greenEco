@@ -14,6 +14,7 @@ import { materialRequestRouting } from "./material-request-routing";
 import { weeklyBrief } from "./weekly-brief";
 import { winlossLearning } from "./winloss-learning";
 import { referenceMining } from "./reference-mining";
+import { notificationSweep } from "./notification-sweep";
 
 /**
  * Registers every automation into the engine. Idempotent — safe to call on each
@@ -39,6 +40,7 @@ export function registerAll(): void {
   register(weeklyBrief); // A13
   register(winlossLearning); // A14 (event-driven stub)
   register(referenceMining); // A15
+  register(notificationSweep); // A16
   registered = true;
 }
 

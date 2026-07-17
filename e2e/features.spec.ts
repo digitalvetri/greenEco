@@ -152,6 +152,25 @@ test("admin creates a user in-app, and that user can sign in (Phase 5a)", async 
   await freshCtx.close();
 });
 
+test("notification bell opens a dropdown with a link to the full inbox (Phase 7)", async ({ context, page }) => {
+  await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
+  await page.goto("/dashboard", { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Notifications \(\d+\)/ }).click();
+  const viewAll = page.getByRole("banner").getByRole("link", { name: "View all" });
+  await expect(viewAll).toBeVisible();
+  await viewAll.click();
+  await page.waitForURL(/\/notifications/);
+  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark all read" })).toBeVisible();
+});
+
+test("notifications inbox is reachable for both roles, RBAC-scoped per user (Phase 7)", async ({ context, page }) => {
+  await context.addCookies([{ name: "dev_role", value: "EMPLOYEE", url: "http://localhost:3000" }]);
+  const res = await page.goto("/notifications", { waitUntil: "networkidle" });
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
+});
+
 test("activity log shows admin activity including sign-ins (Phase 5b)", async ({ context, page }) => {
   await context.addCookies([{ name: "dev_role", value: "ADMIN", url: "http://localhost:3000" }]);
   await page.goto("/settings/activity", { waitUntil: "networkidle" });
