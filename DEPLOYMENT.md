@@ -6,6 +6,13 @@ receives all 24 `prisma migrate deploy` migrations cleanly, `next start` boots a
 logins, and headless Chromium renders a PDF inside the image (the `/print/*` pipeline).
 This doc is that exact path, run against your own Coolify server.
 
+**Also deployed and verified live on Coolify (2026-07-18)** via its REST API — own
+project, own Postgres 18 service, app resource on the Dockerfile build pack, two
+persistent volumes, deployed and healthy at an auto-generated sslip.io domain,
+`/sign-in` redirect-gated (no dev bypass), seed run via a one-off scheduled task,
+`/api/cron` scheduled every 15 min. One real bug surfaced only on the remote build
+(identical Dockerfile built fine locally) — see Troubleshooting below.
+
 ## What ships
 
 - `Dockerfile` — multi-stage build (deps → next build → runner). The runner stage
@@ -140,6 +147,13 @@ container:
   ```
   (`SEED_ADMIN_PASSWORD` / `SEED_EMPLOYEE_PASSWORD` are already in the container's
   environment from Step 4, so the script picks them up automatically.)
+- **No Terminal access / API-only** (this is how it was actually run for this deploy):
+  Coolify's public REST API has no "execute command" endpoint, but **Scheduled Tasks**
+  can run any command inside the app's container on a cron schedule. Create one with
+  `frequency: "* * * * *"` (every minute) and `command: "npx tsx prisma/seed.ts"`, wait
+  for it to fire once (check `GET /applications/{uuid}/scheduled-tasks/{task_uuid}/executions`
+  for a `status: "success"` entry with `Seed complete ✅` in `message`), then delete the
+  task. Safe to run more than once before you catch it and delete it — seeding upserts.
 - You should see `Seed complete ✅`.
 - Log in at `https://<your-coolify-domain>/sign-in` with `admin@greeneco.in` and the
   password you set as `SEED_ADMIN_PASSWORD`.
@@ -171,6 +185,14 @@ request time to build the PDF-rendering URL).
 
 ## Troubleshooting
 
+- **Build fails on `npm run build` with `Cannot find module '@tailwindcss/postcss'`
+  (or `typescript`/`tsx`), even though the identical Dockerfile builds fine locally** —
+  this bit the very first live deploy. Coolify injects every configured app env var
+  (including `NODE_ENV=production`) as a build-time ARG/ENV into **every** Dockerfile
+  stage, and plain `npm ci` respects an ambient `NODE_ENV=production` by silently
+  skipping devDependencies. The Dockerfile's `deps` stage already runs
+  `npm ci --include=dev` to force this regardless of the platform's env injection —
+  if you see this error, check that line hasn't regressed back to a bare `npm ci`.
 - **Boots then immediately errors about `SESSION_SECRET`/`PRINT_TOKEN_SECRET`** — one
   of them is missing, too short (<32 chars), or still the dev default. Re-check
   Step 4.
