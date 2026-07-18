@@ -8,10 +8,12 @@ This doc is that exact path, run against your own Coolify server.
 
 **Also deployed and verified live on Coolify (2026-07-18)** via its REST API — own
 project, own Postgres 18 service, app resource on the Dockerfile build pack, two
-persistent volumes, deployed and healthy at an auto-generated sslip.io domain,
-`/sign-in` redirect-gated (no dev bypass), seed run via a one-off scheduled task,
-`/api/cron` scheduled every 15 min. One real bug surfaced only on the remote build
-(identical Dockerfile built fine locally) — see Troubleshooting below.
+persistent volumes, deployed and healthy at an auto-generated sslip.io domain over
+HTTPS (Let's Encrypt via Traefik), `/sign-in` redirect-gated (no dev bypass) with a
+confirmed working login → other-module navigation, seed run via a one-off scheduled
+task, `/api/cron` scheduled every 15 min, and every secret env var hardened to
+runtime-only (not exposed as a build ARG). Two real bugs surfaced only on the live
+server (neither reproduced by the local Docker test) — see Troubleshooting below.
 
 ## What ships
 
@@ -37,7 +39,8 @@ persistent volumes, deployed and healthy at an auto-generated sslip.io domain,
   shadows the committed brand assets (logo, favicon, etc.).
 - **Domain**: Coolify's auto-generated `*.sslip.io`-style domain for now. A real
   domain can be attached later in the same resource's Domains tab with zero
-  redeploy — just DNS + a click.
+  redeploy — just DNS + a click. **HTTPS on that domain is not optional, even for
+  a throwaway sslip.io one** — see the callout in Step 6.
 - **Integrations** (WhatsApp/Email/AI/Clerk): left unset at deploy time. This app has
   a **Settings → Integrations & API keys** admin page (v26) that lets you paste and
   rotate all of those at runtime, no redeploy needed. Only the "hard" boot-time
@@ -111,6 +114,37 @@ Leave `WHATSAPP_*`, `RESEND_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`,
 badly if they're absent (WhatsApp/email log instead of sending, AI falls back to
 templates).
 
+### Step 4a — Harden: mark secrets runtime-only (recommended)
+
+By default Coolify makes every env var above **available at buildtime** — it's
+passed into the Docker build as a `--build-arg`, in every stage, whether that stage
+needs it or not. BuildKit itself flags this in the build log
+(`SecretsUsedInArgOrEnv` warnings) because ARG values can persist in local image/layer
+cache on the server. None of our secrets are needed at build time (only at runtime,
+where the entrypoint and the running app read them as normal env vars), so turn this
+off for every actual secret:
+
+- Dashboard: application resource → **Environment Variables** → open each of
+  `DATABASE_URL`, `SESSION_SECRET`, `PRINT_TOKEN_SECRET`, `SEED_ADMIN_PASSWORD`,
+  `SEED_EMPLOYEE_PASSWORD`, `CRON_KEY` → uncheck **Available at Buildtime** → Save.
+- API equivalent (note: the single-env `PATCH .../envs` endpoint, not the bulk one —
+  `is_buildtime` isn't in Coolify's published OpenAPI spec for either endpoint, but
+  the single one accepts and persists it):
+  ```bash
+  curl -X PATCH "$COOLIFY_URL/api/v1/applications/$APP_UUID/envs" \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+    -d '{"key":"SESSION_SECRET","value":"<the value>","is_literal":true,"is_buildtime":false}'
+  ```
+  Repeat per key (the PATCH is by `key`, matched against the app's existing envs).
+- Redeploy afterward — env-var changes don't take effect on the already-running
+  container. `NODE_ENV` is worth turning off buildtime for too, even though it's not
+  a secret: it's what causes the Step 6 build failure in the first place (see
+  Troubleshooting) — the Dockerfile's `--include=dev` already guards against that
+  independently, but removing it from the build entirely is the cleaner fix.
+- Leave `AUTH_MODE`, `AUTH_DEV_BYPASS`, `STORAGE_DRIVER`, `DEFAULT_COMPANY_ID`,
+  `COMPANY_STATE_CODE`, `NEXT_PUBLIC_APP_URL` as buildtime — they're not secrets and
+  some Next.js `NEXT_PUBLIC_*` conventions expect buildtime availability anyway.
+
 ## Step 5 — Persistent storage for uploads/PDFs
 
 Still on the application resource → **Storages** (or **Volumes**) tab → add two
@@ -133,6 +167,33 @@ Let Coolify create/manage the underlying volumes. Don't mount anything at
    of the 24 migrations apply in the runtime logs, then `next start`.
 3. Confirm health: open `https://<your-coolify-domain>/api/healthz` — expect
    `{"status":"ok","checks":{"db":"ok"},...}`.
+
+## Step 6a — Force HTTPS on the domain (critical, do this before you log in)
+
+**This bit the first live deploy**: Coolify's auto-generated domain defaults to
+`http://`, and this app's session cookie is set `Secure` whenever `NODE_ENV=production`
+(`src/app/(auth)/sign-in/actions.ts`). A `Secure` cookie is silently refused by the
+browser over plain HTTP — login appears to succeed (redirects to `/dashboard`), but
+the cookie never actually lands, so the very next click bounces straight back to
+`/sign-in`. It looks like a broken app; it's really just an HTTP/HTTPS mismatch.
+
+Fix (one PATCH or two clicks):
+- Dashboard: application resource → **Domains** → change the domain's scheme from
+  `http://` to `https://` → also enable **Force HTTPS**.
+- API equivalent:
+  ```bash
+  curl -X PATCH "$COOLIFY_URL/api/v1/applications/$APP_UUID" \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+    -d '{"domains":"https://<your-domain>","is_force_https_enabled":true}'
+  ```
+- Also update `NEXT_PUBLIC_APP_URL` to the `https://` version (used to build the
+  `/print/*` URL Chromium visits for PDFs) and redeploy.
+
+Traefik requests a real Let's Encrypt cert automatically on redeploy — this works
+even for a bare sslip.io domain, since it resolves to your server's real public IP.
+Verify: `curl -I https://<your-domain>/api/healthz` should return `200` with no
+certificate warning, and a real login (see Step 7) should let you navigate to a
+second page without bouncing back to `/sign-in`.
 
 ## Step 7 — Create the first admin login
 
@@ -193,6 +254,11 @@ request time to build the PDF-rendering URL).
   skipping devDependencies. The Dockerfile's `deps` stage already runs
   `npm ci --include=dev` to force this regardless of the platform's env injection —
   if you see this error, check that line hasn't regressed back to a bare `npm ci`.
+- **Login redirects to `/dashboard` but clicking anything else bounces straight back
+  to `/sign-in`** — you're on `http://`, not `https://`. The session cookie is set
+  `Secure` in production, so the browser accepts and shows the post-login redirect
+  but never actually stores the cookie over plain HTTP. See Step 6a — this is not
+  optional, even for a temporary sslip.io domain.
 - **Boots then immediately errors about `SESSION_SECRET`/`PRINT_TOKEN_SECRET`** — one
   of them is missing, too short (<32 chars), or still the dev default. Re-check
   Step 4.
