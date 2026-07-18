@@ -4,7 +4,10 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# --include=dev: Coolify injects the app's configured env vars (incl. NODE_ENV=production)
+# as build-time ARGs/ENV in every stage, and plain `npm ci` skips devDependencies whenever
+# NODE_ENV=production is set — but the build needs tailwindcss/typescript/tsx (all dev deps).
+RUN npm ci --include=dev
 
 # ---- builder: prisma client + next build ----
 FROM node:22-bookworm-slim AS builder
