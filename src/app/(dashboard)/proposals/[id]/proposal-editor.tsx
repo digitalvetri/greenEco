@@ -105,7 +105,14 @@ export function ProposalEditor({
   const [boq, setBoq] = useState<BoqRow[]>(view.version?.boqItems ?? []);
   const [techText, setTechText] = useState(view.version?.technicalText ?? "");
   const [editingTech, setEditingTech] = useState(false);
-  const [aiDesc, setAiDesc] = useState("");
+  // Pre-fill from the sizing already captured on the lead, so the Generate button
+  // isn't stuck disabled-with-no-explanation on a freshly-converted proposal — the
+  // admin can still edit this before generating. Pre-P2 leads coalesce capacityKLD
+  // to 0 (no real sizing was ever captured), so leave it blank in that case rather
+  // than generate a nonsensical "0 KLD" description.
+  const [aiDesc, setAiDesc] = useState(() =>
+    view.capacityKLD > 0 ? `${view.plantType} ${view.capacityKLD} KLD using ${view.technology} at ${view.siteAddress}` : "",
+  );
   const [estCost, setEstCost] = useState(view.version?.estimatedCost ?? "");
   const [terms, setTerms] = useState(view.version?.paymentTerms ?? []);
   const [validity, setValidity] = useState(view.version?.validityDays ?? 30);
@@ -400,6 +407,9 @@ export function ProposalEditor({
             >
               <Sparkles className="size-4" /> {isGenerating ? "Generating…" : "Generate BOQ + write-up"}
             </Button>
+            {!aiDesc && !pending && !isGenerating && (
+              <p className="text-xs text-muted">Type a description above (or tap the mic) to enable this.</p>
+            )}
           </CardContent>
         </Card>
       )}
