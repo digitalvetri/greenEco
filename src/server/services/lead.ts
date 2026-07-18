@@ -212,12 +212,20 @@ const CLOSED_STATUSES = new Set(["CONVERTED", "LOST"]);
 
 /**
  * The Leads list grouped by customer (spec: "one customer card, not one card per
- * enquiry"). Grouped server-side via a phone-keyed groupBy + its own offset
- * pagination — grouping a single fetched page in JS would let the same customer
- * reappear as a second card once their leads span a page boundary, which is exactly
- * the duplicate-card problem this exists to fix. The groupBy and the hydration query
- * below share the identical `where` (only narrowed by the resolved phone list), so
- * project counts always match the hydrated rows.
+ * enquiry"). Grouped server-side via a customerName-keyed groupBy (exact string
+ * match) + its own offset pagination — grouping a single fetched page in JS would
+ * let the same customer reappear as a second card once their leads span a page
+ * boundary, which is exactly the duplicate-card problem this exists to fix. The
+ * groupBy and the hydration query below share the identical `where` (only narrowed
+ * by the resolved name list), so project counts always match the hydrated rows.
+ *
+ * Grouping by name rather than phone is deliberate: a repeat referrer (an engineer
+ * or consultant bringing in several different customers' projects) often submits a
+ * different site/contact phone per project, so phone-keyed grouping was splitting
+ * their projects across separate cards. The tradeoff — two unrelated people who
+ * happen to share the exact same name would merge into one card — is accepted; this
+ * is a display grouping only and doesn't affect the create-time duplicate check
+ * (`findDuplicateByPhone`, still phone-based) or `searchExistingCustomers`.
  */
 export async function listLeadCustomers(
   ctx: Ctx,
@@ -228,7 +236,7 @@ export async function listLeadCustomers(
   const where = buildLeadWhere(ctx, filters);
 
   const groups = await prisma.lead.groupBy({
-    by: ["phone"],
+    by: ["customerName"],
     where,
     _max: { updatedAt: true },
     orderBy: { _max: { updatedAt: "desc" } },
@@ -239,24 +247,24 @@ export async function listLeadCustomers(
   const page = hasMore ? groups.slice(0, take) : groups;
   if (page.length === 0) return { items: [], nextOffset: null };
 
-  const phones = page.map((g) => g.phone);
+  const customerNames = page.map((g) => g.customerName);
   const leads = await prisma.lead.findMany({
-    where: { ...where, phone: { in: phones } },
+    where: { ...where, customerName: { in: customerNames } },
     include: leadInclude,
     orderBy: { updatedAt: "desc" },
   });
   const stripped = stripPricing(leads, ctx.role);
   const names = await userNameMap(ctx.companyId);
 
-  const byPhone = new Map<string, typeof stripped>();
+  const byCustomerName = new Map<string, typeof stripped>();
   for (const l of stripped) {
-    const g = byPhone.get(l.phone) ?? [];
+    const g = byCustomerName.get(l.customerName) ?? [];
     g.push(l);
-    byPhone.set(l.phone, g);
+    byCustomerName.set(l.customerName, g);
   }
 
   const items: LeadCustomerCard[] = page.map((g) => {
-    const groupLeads = byPhone.get(g.phone) ?? [];
+    const groupLeads = byCustomerName.get(g.customerName) ?? [];
     const latest = groupLeads[0]; // hydration query is already ordered updatedAt desc
     let bestUrgency: LeadUrgency = null;
     let bestTemp: "HOT" | "WARM" | "COLD" = "COLD";
@@ -290,7 +298,10 @@ export async function listLeadCustomers(
     return {
       id: latest.id,
       customerName: latest.customerName,
-      phone: g.phone,
+      // Representative number only — projects within a name-group can carry
+      // different phone numbers (see the grouping-rationale comment above); each
+      // project's own number is shown in the customer detail drill-in.
+      phone: latest.phone,
       address: latest.address,
       email: latest.email,
       assignedToName: names.get(latest.assignedToId) ?? "Unassigned",
@@ -311,6 +322,7 @@ export interface LeadCustomerProject {
   status: string;
   source: string;
   address: string;
+  phone: string; // this project's own contact number — can differ across a name-group
   createdAt: string;
   assignedToName: string;
   temperature: "HOT" | "WARM" | "COLD";
@@ -330,10 +342,11 @@ export interface LeadCustomerDetail {
 }
 
 /**
- * A customer's full project list — every Lead sharing the anchor lead's phone number,
- * each rendered as its own "Project N" section rather than merging their data. `id`
- * is a representative lead id (never the raw phone — see listLeadCustomers for why),
- * so this resolves it back to a phone and re-derives the group. RBAC is enforced by
+ * A customer's full project list — every Lead sharing the anchor lead's exact
+ * customer name (see listLeadCustomers for why name rather than phone), each
+ * rendered as its own "Project N" section rather than merging their data. `id`
+ * is a representative lead id (never the raw name — see listLeadCustomers for why),
+ * so this resolves it back to a name and re-derives the group. RBAC is enforced by
  * requiring the anchor lead itself to be visible under buildLeadWhere — an EMPLOYEE
  * who doesn't own/create the anchor lead gets a clean "not found" (no existence leak),
  * and the sibling-project hydration below reuses that exact scope, so an EMPLOYEE only
@@ -345,7 +358,7 @@ export async function getLeadCustomer(ctx: Ctx, id: string): Promise<LeadCustome
   if (!anchor) return null;
 
   const leads = await prisma.lead.findMany({
-    where: { ...where, phone: anchor.phone },
+    where: { ...where, customerName: anchor.customerName },
     include: {
       followUps: { orderBy: { datetime: "desc" }, take: 1 },
       proposal: { select: { number: true, status: true } },
@@ -358,7 +371,7 @@ export async function getLeadCustomer(ctx: Ctx, id: string): Promise<LeadCustome
 
   return {
     customerName: latest.customerName,
-    phone: anchor.phone,
+    phone: latest.phone,
     address: latest.address,
     email: latest.email,
     projects: stripped.map((l, i) => {
@@ -375,6 +388,7 @@ export async function getLeadCustomer(ctx: Ctx, id: string): Promise<LeadCustome
         status: l.status,
         source: l.source,
         address: l.address,
+        phone: l.phone,
         createdAt: l.createdAt.toISOString(),
         assignedToName: names.get(l.assignedToId) ?? "Unassigned",
         temperature: score.temperature,

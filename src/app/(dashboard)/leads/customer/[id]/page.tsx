@@ -39,6 +39,7 @@ export default async function LeadCustomerPage({ params }: { params: Promise<{ i
             <a href={`tel:${customer.phone}`} className="font-medium text-primary hover:underline">
               {customer.phone}
             </a>
+            {customer.projects.length > 1 && <span className="text-muted">(most recent — see each project below)</span>}
           </span>
           {customer.email && (
             <span className="inline-flex items-center gap-1.5">
@@ -78,6 +79,12 @@ export default async function LeadCustomerPage({ params }: { params: Promise<{ i
               <div className="col-span-2 sm:col-span-4">
                 <div className="text-[10px] uppercase tracking-wide">Site address</div>
                 <div className="font-medium text-foreground">{p.address}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wide">Phone</div>
+                <a href={`tel:${p.phone}`} className="font-medium text-primary hover:underline">
+                  {p.phone}
+                </a>
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wide">Source</div>
