@@ -8,7 +8,7 @@ import { Field, Input, Textarea } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { formatINR } from "@/lib/money";
-import { setOrderScheduleAction, setOrderValueAction } from "../actions";
+import { setOrderScheduleAction, setOrderValueAction, setOrderBudgetAction } from "../actions";
 
 /** yyyy-mm-dd for <input type=date> from an ISO string / Date. */
 function toDateInput(v: string | null | undefined): string {
@@ -205,6 +205,82 @@ export function ValueControl({
             </Button>
             <Button size="sm" loading={pending} onClick={save}>
               Save value
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
+/**
+ * Correct the project's execution budget — the quote-stage estimate seeded it once
+ * (or a 70%-of-value guess if none was entered); this lets an admin fix it to the
+ * real figure at any point during execution, once it's actually known.
+ */
+export function BudgetControl({ orderId, budget }: { orderId: string; budget: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+  const [amount, setAmount] = useState(budget);
+  const [reason, setReason] = useState("");
+
+  function save() {
+    if (!reason.trim()) {
+      toast("A reason for the change is required", "error");
+      return;
+    }
+    start(async () => {
+      try {
+        await setOrderBudgetAction(orderId, { amount, reason: reason.trim() });
+        toast("Budget updated");
+        setOpen(false);
+        setReason("");
+        router.refresh();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Failed to update budget", "error");
+      }
+    });
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Edit budget"
+        className="text-muted transition-colors hover:text-primary"
+      >
+        <Pencil className="size-3.5" />
+      </button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Fix final budget">
+        <div className="space-y-3">
+          <p className="text-xs text-muted">
+            Current: <span className="font-medium text-foreground">{formatINR(budget)}</span>. This was seeded from
+            the quote's estimated cost (or a 70% guess if none was entered) — correct it once the real project
+            budget is known. Affects Budget vs Actual and overrun alerts; the reason is logged.
+          </p>
+          <Field label="Final budget (₹)">
+            <Input
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
+              placeholder="e.g. 1350000"
+            />
+          </Field>
+          <Field label="Reason for change" required>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Confirmed material + labour cost after site survey"
+            />
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" loading={pending} onClick={save}>
+              Save budget
             </Button>
           </div>
         </div>
