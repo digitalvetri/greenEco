@@ -32,9 +32,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Same reason as the builder stage — the Prisma query engine needs `openssl`
-# present at runtime to match its detected libssl build correctly.
-RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
+# openssl: same reason as the builder stage (Prisma's query engine needs it to match
+# its detected libssl build). curl: used by the /api/cron Scheduled Task command
+# (see DEPLOYMENT.md Step 8) — bookworm-slim doesn't ship it by default.
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
