@@ -66,9 +66,7 @@ export function MobileNav({
           <aside className="gc-sidebar absolute inset-y-0 left-0 flex w-[80%] max-w-[300px] flex-col shadow-2xl">
             <div className="relative z-10 flex items-center justify-between px-5 pb-4 pt-5">
               <div className="flex items-center gap-2.5">
-                <span className="flex size-11 items-center justify-center overflow-hidden rounded-2xl bg-white/95 shadow-md ring-1 ring-white/40">
-                  <Image src="/brand/logo-mark.png" alt="Green Ecocare" width={44} height={44} className="size-9 object-contain" />
-                </span>
+                <Image src="/brand/logo-mark-light.png" alt="Green Ecocare" width={44} height={44} className="size-11 shrink-0 object-contain" />
                 <div className="leading-tight text-white">
                   <div className="text-base font-bold tracking-tight">Green Ecocare</div>
                   <div className="text-[10px] font-medium uppercase tracking-widest text-emerald-200/80">Wastewater Ops</div>
