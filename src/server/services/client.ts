@@ -131,10 +131,12 @@ export interface ClientCustomerCard {
 }
 
 /**
- * Clients grouped by customer (phone) — same fix as Leads' listLeadCustomers, applied
- * here so a repeat customer with several projects shows one card, not one per project.
- * Grouped + paginated server-side (groupBy + offset), sharing clientWhere with the
- * hydration query so counts always match the hydrated rows.
+ * Clients grouped by customer name — same fix as Leads' listLeadCustomers (and for
+ * the identical reason: a repeat referrer/customer often submits a different site
+ * phone per project, so phone-keyed grouping was splitting them across separate
+ * cards — confirmed live, e.g. "Pipeline Audit Customer" shown 3x). Grouped +
+ * paginated server-side (groupBy + offset), sharing clientWhere with the hydration
+ * query so counts always match the hydrated rows.
  */
 export async function listClientCustomers(
   ctx: Ctx,
@@ -145,7 +147,7 @@ export async function listClientCustomers(
   const where = clientWhere(ctx, filters.search);
 
   const groups = await prisma.lead.groupBy({
-    by: ["phone"],
+    by: ["customerName"],
     where,
     _max: { updatedAt: true },
     orderBy: { _max: { updatedAt: "desc" } },
@@ -156,26 +158,26 @@ export async function listClientCustomers(
   const page = hasMore ? groups.slice(0, take) : groups;
   if (page.length === 0) return { items: [], nextOffset: null };
 
-  const phones = page.map((g) => g.phone);
+  const names = page.map((g) => g.customerName);
   const leads = await prisma.lead.findMany({
-    where: { ...where, phone: { in: phones } },
+    where: { ...where, customerName: { in: names } },
     include: { proposal: { select: { number: true, order: { select: { orderNo: true } } } } },
     orderBy: { updatedAt: "desc" },
   });
-  const byPhone = new Map<string, typeof leads>();
+  const byName = new Map<string, typeof leads>();
   for (const l of leads) {
-    const g = byPhone.get(l.phone) ?? [];
+    const g = byName.get(l.customerName) ?? [];
     g.push(l);
-    byPhone.set(l.phone, g);
+    byName.set(l.customerName, g);
   }
 
   const items: ClientCustomerCard[] = page.map((g) => {
-    const group = byPhone.get(g.phone) ?? [];
+    const group = byName.get(g.customerName) ?? [];
     const latest = group[0]; // hydration query is ordered updatedAt desc
     return {
       id: latest.id,
       customerName: latest.customerName,
-      phone: g.phone,
+      phone: latest.phone,
       address: latest.address,
       projectCount: group.length,
       proposalNo: latest.proposal?.number ?? null,
@@ -195,8 +197,9 @@ export interface ClientProjectTab {
 
 /**
  * Sibling projects for the Client 360 tab strip — every Lead sharing the anchor's
- * phone, scoped by the same clientWhere as the list (so an EMPLOYEE only sees tabs
- * for projects they themselves have access to). Empty array (not an error) when the
+ * exact customer name (see listClientCustomers for why name rather than phone),
+ * scoped by the same clientWhere as the list (so an EMPLOYEE only sees tabs for
+ * projects they themselves have access to). Empty array (not an error) when the
  * anchor isn't visible under clientWhere, so the caller can 404 without an existence leak.
  */
 export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<ClientProjectTab[]> {
@@ -205,7 +208,7 @@ export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<Clien
   if (!anchor) return [];
 
   const leads = await prisma.lead.findMany({
-    where: { ...where, phone: anchor.phone },
+    where: { ...where, customerName: anchor.customerName },
     include: { proposal: { select: { number: true, order: { select: { orderNo: true } } } } },
     orderBy: { createdAt: "asc" },
   });
@@ -219,43 +222,44 @@ export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<Clien
 }
 
 export interface ClientAnalytics {
-  uniqueCustomers: number; // distinct by phone (the dedup the list doesn't do yet)
+  uniqueCustomers: number; // distinct by customer name — see listClientCustomers for why
   repeatCustomers: number; // customers with > 1 project
   totalLifetimeValue: number; // Σ order projectValue (sell-side)
   topClients: { name: string; phone: string; projects: number; value: number }[];
 }
 
 /**
- * Client analytics — the phone-keyed 360 the flat list doesn't do: aggregates every
- * engagement by customer phone (so a customer with two projects is ONE client here),
- * surfacing unique/repeat customers, LTV, and top clients by revenue. Sell-side
- * (projectValue); role-scoped like the list.
+ * Client analytics — the 360 the flat list doesn't do: aggregates every engagement
+ * by exact customer name (so a customer with two projects is ONE client here — same
+ * identity key as listClientCustomers/listClientProjectTabs, kept consistent so this
+ * page's unique/repeat counts always match what the list actually shows), surfacing
+ * unique/repeat customers, LTV, and top clients by revenue. Sell-side (projectValue);
+ * role-scoped like the list.
  */
 export async function clientAnalytics(ctx: Ctx): Promise<ClientAnalytics> {
   const leads = await prisma.lead.findMany({
     where: clientWhere(ctx),
     select: { customerName: true, phone: true, proposal: { select: { order: { select: { status: true, projectValue: true } } } } },
   });
-  const byPhone = new Map<string, { name: string; projects: number; value: Decimal }>();
+  const byName = new Map<string, { phone: string; projects: number; value: Decimal }>();
   let totalLifetimeValue = new Decimal(0);
   for (const l of leads) {
-    const key = l.phone.replace(/\D/g, "").slice(-10) || l.phone; // last 10 digits
-    const g = byPhone.get(key) ?? { name: l.customerName, projects: 0, value: new Decimal(0) };
+    const g = byName.get(l.customerName) ?? { phone: l.phone, projects: 0, value: new Decimal(0) };
     const order = l.proposal?.order;
     if (order) {
       g.projects += 1;
       g.value = g.value.plus(new Decimal(order.projectValue));
       totalLifetimeValue = totalLifetimeValue.plus(new Decimal(order.projectValue));
     }
-    byPhone.set(key, g);
+    byName.set(l.customerName, g);
   }
-  const entries = [...byPhone.entries()];
+  const entries = [...byName.entries()];
   return {
     uniqueCustomers: entries.length,
     repeatCustomers: entries.filter(([, g]) => g.projects > 1).length,
     totalLifetimeValue: Math.round(totalLifetimeValue.toNumber()),
     topClients: entries
-      .map(([phone, g]) => ({ name: g.name, phone, projects: g.projects, value: Math.round(g.value.toNumber()) }))
+      .map(([name, g]) => ({ name, phone: g.phone, projects: g.projects, value: Math.round(g.value.toNumber()) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10),
   };

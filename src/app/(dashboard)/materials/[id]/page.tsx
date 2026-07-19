@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { itemLedger } from "@/server/services/materials";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/money";
 
@@ -97,47 +98,45 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
           {ledger.length === 0 ? (
             <p className="text-sm text-muted">No movements yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-muted">
-                    <th className="pb-2">When</th>
-                    <th className="pb-2">Type</th>
-                    <th className="pb-2 text-right">Qty</th>
-                    <th className="pb-2 pl-3">Movement</th>
-                    {isAdmin && <th className="pb-2 text-right">Value ₹</th>}
-                    <th className="pb-2 pr-1 text-right">Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledger.map((r) => (
-                    <tr key={r.id} className="border-t border-border">
-                      <td className="whitespace-nowrap py-2 text-xs text-muted">{new Date(r.at).toLocaleString("en-IN")}</td>
-                      <td className="py-2">
-                        <Badge variant={TYPE_TONE[r.type] ?? "default"}>{r.type.replace(/_/g, " ")}</Badge>
-                      </td>
-                      <td className="py-2 text-right tabular-nums">{r.qty}</td>
-                      <td className="py-2 pl-3 text-xs text-muted">
-                        {r.fromLocation && r.toLocation
-                          ? `${r.fromLocation} → ${r.toLocation}`
-                          : r.toLocation
-                            ? `→ ${r.toLocation}`
-                            : r.fromLocation
-                              ? `${r.fromLocation} →`
-                              : "—"}
-                        {r.note ? ` · ${r.note}` : ""}
-                      </td>
-                      {isAdmin && (
-                        <td className="py-2 text-right tabular-nums">
-                          {"valueAtCost" in r && r.valueAtCost ? formatINR(String(r.valueAtCost)) : "—"}
-                        </td>
-                      )}
-                      <td className="py-2 pr-1 text-right font-medium tabular-nums">{r.runningTotal}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <THead>
+                <TR className="border-t-0">
+                  <TH>When</TH>
+                  <TH>Type</TH>
+                  <TH className="text-right">Qty</TH>
+                  <TH>Movement</TH>
+                  {isAdmin && <TH className="text-right">Value ₹</TH>}
+                  <TH className="text-right">Balance</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {ledger.map((r) => (
+                  <TR key={r.id}>
+                    <TD className="whitespace-nowrap text-xs text-muted">{new Date(r.at).toLocaleString("en-IN")}</TD>
+                    <TD>
+                      <Badge variant={TYPE_TONE[r.type] ?? "default"}>{r.type.replace(/_/g, " ")}</Badge>
+                    </TD>
+                    <TD className="text-right tabular-nums">{r.qty}</TD>
+                    <TD className="whitespace-nowrap text-xs text-muted">
+                      {r.fromLocation && r.toLocation
+                        ? `${r.fromLocation} → ${r.toLocation}`
+                        : r.toLocation
+                          ? `→ ${r.toLocation}`
+                          : r.fromLocation
+                            ? `${r.fromLocation} →`
+                            : "—"}
+                      {r.note ? ` · ${r.note}` : ""}
+                    </TD>
+                    {isAdmin && (
+                      <TD className="text-right tabular-nums">
+                        {"valueAtCost" in r && r.valueAtCost ? formatINR(String(r.valueAtCost)) : "—"}
+                      </TD>
+                    )}
+                    <TD className="text-right font-medium tabular-nums">{r.runningTotal}</TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
           )}
         </CardContent>
       </Card>

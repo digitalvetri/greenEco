@@ -35,7 +35,7 @@ export function StatTile({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-xs font-medium text-muted">{label}</div>
+          <div className="text-xs font-medium leading-snug text-muted">{label}</div>
           <div className={cn("mt-1.5 text-2xl font-bold leading-none tracking-tight tabular-nums", t.text)}>
             {value}
           </div>

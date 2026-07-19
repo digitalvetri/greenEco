@@ -89,7 +89,11 @@ export function InlineDateEdit({
   const router = useRouter();
   const [, start] = useTransition();
   const value = field === "startDate" ? startDate : targetDate;
-  const [editing, setEditing] = useState(!value);
+  // Always start in display mode — entering edit mode (and focusing the input) should
+  // only ever happen from a user click, never automatically just because the date
+  // happens to be unset (was auto-focusing on page load, popping the mobile keyboard
+  // and jumping scroll position with zero user interaction).
+  const [editing, setEditing] = useState(false);
   const [dateVal, setDateVal] = useState(toDateInput(value));
 
   function save(newVal: string) {
@@ -257,7 +261,7 @@ export function BudgetControl({ orderId, budget }: { orderId: string; budget: st
         <div className="space-y-3">
           <p className="text-xs text-muted">
             Current: <span className="font-medium text-foreground">{formatINR(budget)}</span>. This was seeded from
-            the quote's estimated cost (or a 70% guess if none was entered) — correct it once the real project
+            the quote&apos;s estimated cost (or a 70% guess if none was entered) — correct it once the real project
             budget is known. Affects Budget vs Actual and overrun alerts; the reason is logged.
           </p>
           <Field label="Final budget (₹)">

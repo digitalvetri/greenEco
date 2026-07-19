@@ -103,7 +103,7 @@ export default async function ServicePage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-[repeat(auto-fit,minmax(130px,1fr))]">
         <StatTile label="Active Contracts" value={dash.activeContracts} icon={FileCheck2} tone="primary" href={tabHref("ACTIVE")} />
         <StatTile label="Visits Due (month)" value={dash.visitsDueThisMonth} icon={CalendarClock} tone={dash.visitsDueThisMonth > 0 ? "warn" : "default"} />
         <StatTile label="Open Tickets" value={dash.openTickets} icon={Ticket} tone={dash.openTickets > 0 ? "warn" : "default"} />

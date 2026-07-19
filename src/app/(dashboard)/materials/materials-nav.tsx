@@ -22,7 +22,7 @@ export function MaterialsNav({ isAdmin, requestCount }: { isAdmin: boolean; requ
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Materials sections" className="mb-4 flex flex-wrap gap-1.5">
+    <nav aria-label="Materials sections" className="mb-4 flex gap-1.5 overflow-x-auto pb-0.5">
       {SECTIONS.filter((s) => isAdmin || !s.adminOnly).map((s) => {
         // "/materials" must only be active on the exact path, else it matches every child.
         const active = s.href === "/materials" ? pathname === "/materials" : pathname.startsWith(s.href);
@@ -33,7 +33,7 @@ export function MaterialsNav({ isAdmin, requestCount }: { isAdmin: boolean; requ
             href={s.href}
             aria-current={active ? "page" : undefined}
             className={
-              "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors " +
+              "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors " +
               (active
                 ? "bg-primary text-primary-foreground"
                 : "border border-border bg-card text-muted hover:text-fg")

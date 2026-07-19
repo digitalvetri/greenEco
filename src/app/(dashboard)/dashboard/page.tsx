@@ -84,10 +84,10 @@ export default async function DashboardPage() {
       </div>
 
       {/* Across-the-business KPIs (reuse per-module analytics; money admin-only) */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <OpsKpi label="Receivables" value={ops.receivables > 0 ? compactINR(ops.receivables) : "—"} hint={`${ops.overduePayments} overdue`} href="/reports" tone={ops.overduePayments > 0 ? "warn" : "ok"} />
-        {ops.amcRunRate != null && <OpsKpi label="AMC run-rate" value={ops.amcRunRate > 0 ? compactINR(ops.amcRunRate) : "—"} href="/service/analytics" tone="ok" />}
-        {ops.stockValue != null && <OpsKpi label="Stock value" value={ops.stockValue > 0 ? compactINR(ops.stockValue) : "—"} hint={ops.lowStock != null ? `${ops.lowStock} low` : undefined} href="/materials/analytics" tone={ops.lowStock ? "warn" : "default"} />}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+        <OpsKpi label="Receivables" value={compactINR(ops.receivables)} hint={`${ops.overduePayments} overdue`} href="/reports" tone={ops.overduePayments > 0 ? "warn" : "ok"} />
+        {ops.amcRunRate != null && <OpsKpi label="AMC run-rate" value={compactINR(ops.amcRunRate)} href="/service/analytics" tone="ok" />}
+        {ops.stockValue != null && <OpsKpi label="Stock value" value={compactINR(ops.stockValue)} hint={ops.lowStock != null ? `${ops.lowStock} low` : undefined} href="/materials/analytics" tone={ops.lowStock ? "warn" : "default"} />}
         {ops.erectionOverruns != null && <OpsKpi label="Budget overruns" value={ops.erectionOverruns} href="/erection/analytics" tone={ops.erectionOverruns > 0 ? "danger" : "default"} />}
       </div>
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label, Field, Select } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -508,6 +509,11 @@ export function ProposalEditor({
           <CardTitle>Bill of Quantities</CardTitle>
         </CardHeader>
         <CardContent>
+          {boq.some((r) => r.aiSuggested) && (
+            <div className="mb-2 flex items-center gap-1.5 rounded-lg bg-primary/5 px-3 py-1.5 text-xs text-primary">
+              <Sparkles className="size-3.5" /> AI-suggested — review every line before sending
+            </div>
+          )}
           {isGenerating ? (
             <div className="space-y-2 py-2">
               <div className="flex items-center gap-2 text-xs text-primary">
@@ -525,103 +531,98 @@ export function ProposalEditor({
             </div>
           ) : (
           <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted">
-                  <th className="pb-1">Item</th>
-                  <th className="pb-1">Cat</th>
-                  <th className="pb-1">Unit</th>
-                  <th className="pb-1 text-right">Qty</th>
-                  <th className="pb-1 text-right">Rate ₹</th>
-                  <th className="pb-1 text-right">Amount</th>
-                  {editable && <th></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {boq.map((r, i) => (
-                  <tr key={i} className="border-t border-border">
-                    <td className="py-1 pr-2">
-                      <div className="flex items-center gap-1">
-                        {r.aiSuggested && <Badge variant="review">review</Badge>}
-                        {editable ? (
-                          <Input
-                            className="h-8"
-                            value={r.item}
-                            onChange={(e) => editRow(i, { item: e.target.value })}
-                          />
-                        ) : (
-                          <span>{r.item}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-1 pr-2 text-xs text-muted">
-                      {editable ? (
-                        <Select
-                          className="h-8 w-24"
-                          value={r.category}
-                          onChange={(e) => editRow(i, { category: e.target.value })}
-                        >
-                          {BOQ_CATEGORIES.map((c) => (
-                            <option key={c}>{c}</option>
-                          ))}
-                        </Select>
-                      ) : (
-                        r.category
-                      )}
-                    </td>
-                    <td className="py-1 pr-2">
-                      {editable ? (
-                        <Select
-                          className="h-8 w-24"
-                          value={r.unit}
-                          onChange={(e) => editRow(i, { unit: e.target.value })}
-                        >
-                          {BOQ_UNITS.map((u) => (
-                            <option key={u}>{u}</option>
-                          ))}
-                        </Select>
-                      ) : (
-                        r.unit
-                      )}
-                    </td>
-                    <td className="py-1 pr-2 text-right tabular-nums">
-                      {editable ? (
-                        <Input
-                          className="h-8 w-16 text-right"
-                          value={r.qty}
-                          onChange={(e) => editRow(i, { qty: e.target.value })}
-                        />
-                      ) : (
-                        r.qty
-                      )}
-                    </td>
-                    <td className="py-1 pr-2 text-right tabular-nums">
-                      {editable ? (
-                        <Input
-                          className="h-8 w-20 text-right"
-                          value={r.rate}
-                          onChange={(e) => editRow(i, { rate: e.target.value })}
-                        />
-                      ) : (
-                        r.rate
-                      )}
-                    </td>
-                    <td className="py-1 text-right font-medium tabular-nums">
-                      {formatINR(r.amount || 0)}
-                    </td>
-                    {editable && (
-                      <td className="py-1 pl-1">
-                        <button onClick={() => setBoq(boq.filter((_, j) => j !== i))}>
-                          <Trash2 className="size-4 text-danger" />
-                        </button>
-                      </td>
+          <Table>
+            <THead>
+              <TR className="border-t-0">
+                <TH>Item</TH>
+                <TH>Cat</TH>
+                <TH>Unit</TH>
+                <TH className="text-right">Qty</TH>
+                <TH className="text-right">Rate ₹</TH>
+                <TH className="text-right">Amount</TH>
+                {editable && <TH></TH>}
+              </TR>
+            </THead>
+            <TBody>
+              {boq.map((r, i) => (
+                <TR key={i}>
+                  <TD>
+                    {editable ? (
+                      <Input
+                        className="h-8"
+                        value={r.item}
+                        onChange={(e) => editRow(i, { item: e.target.value })}
+                      />
+                    ) : (
+                      <span>{r.item}</span>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </TD>
+                  <TD className="text-xs text-muted">
+                    {editable ? (
+                      <Select
+                        className="h-8 w-24"
+                        value={r.category}
+                        onChange={(e) => editRow(i, { category: e.target.value })}
+                      >
+                        {BOQ_CATEGORIES.map((c) => (
+                          <option key={c}>{c}</option>
+                        ))}
+                      </Select>
+                    ) : (
+                      r.category
+                    )}
+                  </TD>
+                  <TD>
+                    {editable ? (
+                      <Select
+                        className="h-8 w-24"
+                        value={r.unit}
+                        onChange={(e) => editRow(i, { unit: e.target.value })}
+                      >
+                        {BOQ_UNITS.map((u) => (
+                          <option key={u}>{u}</option>
+                        ))}
+                      </Select>
+                    ) : (
+                      r.unit
+                    )}
+                  </TD>
+                  <TD className="text-right tabular-nums">
+                    {editable ? (
+                      <Input
+                        className="h-8 w-16 text-right"
+                        value={r.qty}
+                        onChange={(e) => editRow(i, { qty: e.target.value })}
+                      />
+                    ) : (
+                      r.qty
+                    )}
+                  </TD>
+                  <TD className="text-right tabular-nums">
+                    {editable ? (
+                      <Input
+                        className="h-8 w-20 text-right"
+                        value={r.rate}
+                        onChange={(e) => editRow(i, { rate: e.target.value })}
+                      />
+                    ) : (
+                      r.rate
+                    )}
+                  </TD>
+                  <TD className="text-right font-medium tabular-nums">
+                    {formatINR(r.amount || 0)}
+                  </TD>
+                  {editable && (
+                    <TD>
+                      <button onClick={() => setBoq(boq.filter((_, j) => j !== i))} aria-label="Remove line">
+                        <Trash2 className="size-4 text-danger" />
+                      </button>
+                    </TD>
+                  )}
+                </TR>
+              ))}
+            </TBody>
+          </Table>
 
           {editable && (
             <Button
@@ -909,11 +910,12 @@ function TechnicalWriteUp({ text }: { text: string }) {
           );
         }
 
-        // Plain paragraph
+        // Plain paragraph — same boxed treatment as a labelled one (minus the label),
+        // so it doesn't float unstyled next to its bordered siblings.
         return (
-          <p key={i} className="leading-relaxed text-foreground/80">
-            {para}
-          </p>
+          <div key={i} className="rounded-lg border border-border bg-surface/50 px-4 py-3">
+            <p className="leading-relaxed text-foreground/90">{para}</p>
+          </div>
         );
       })}
     </div>
