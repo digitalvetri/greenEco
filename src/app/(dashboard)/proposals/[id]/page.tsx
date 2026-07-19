@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { getProposal, proposalActivity } from "@/server/services/proposal";
+import { getSettingsFor } from "@/server/services/company-settings";
 import { ProposalEditor, type ProposalView } from "./proposal-editor";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,11 @@ export const dynamic = "force-dynamic";
 export default async function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  const [p, activity] = await Promise.all([getProposal(session, id), proposalActivity(session, id)]);
+  const [p, activity, company] = await Promise.all([
+    getProposal(session, id),
+    proposalActivity(session, id),
+    getSettingsFor(session),
+  ]);
   if (!p) notFound();
 
   const isAdmin = session.role === "ADMIN";
@@ -30,6 +35,15 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
       ? {
           versionNo: current.versionNo,
           technicalText: current.technicalText,
+          coverLetter: current.coverLetter ?? "",
+          pointsToNote: current.pointsToNote ?? "",
+          technologyExplainer: current.technologyExplainer ?? "",
+          // Legacy versions stored terms as `[]` (pre-Phase-2); normalize to a string.
+          terms: typeof current.terms === "string" ? current.terms : "",
+          technicalSpecs:
+            (current.technicalSpecs as Array<{ section: string; item: string; spec: string; qty: string }> | null) ?? [],
+          electricalLoad:
+            (current.electricalLoad as Array<{ description: string; hp: number }> | null) ?? [],
           aiGenerated: current.aiGenerated,
           approved: !!current.approvedById,
           subtotal: current.subtotal.toString(),
@@ -64,5 +78,13 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
 
   const documents = (p.documents ?? []).map((d) => ({ id: d.id, url: d.url, name: d.name }));
 
-  return <ProposalEditor view={view} isAdmin={isAdmin} events={activity ?? []} documents={documents} />;
+  return (
+    <ProposalEditor
+      view={view}
+      isAdmin={isAdmin}
+      events={activity ?? []}
+      documents={documents}
+      standardTermsTemplate={company.standardTermsTemplate}
+    />
+  );
 }

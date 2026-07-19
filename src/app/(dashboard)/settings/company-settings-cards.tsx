@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, SlidersHorizontal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, Input } from "@/components/ui/input";
+import { Field, Input, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import type { CompanySettings } from "@/server/services/company-settings";
@@ -28,6 +28,7 @@ export function CompanyDetailsCard({ settings }: { settings: CompanySettings }) 
     email: settings.email,
     website: settings.website,
     branches: settings.branches.join(", "),
+    standardTermsTemplate: settings.standardTermsTemplate,
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
@@ -92,6 +93,22 @@ export function CompanyDetailsCard({ settings }: { settings: CompanySettings }) 
           </Field>
           <Field label="Branches" hint="Comma-separated, shown in the PDF footer.">
             <Input value={f.branches} onChange={(e) => set("branches", e.target.value)} placeholder="Bangalore, Hyderabad, Cochin, Mangalore, Chennai" />
+          </Field>
+        </div>
+
+        <div className="space-y-3 border-t border-border pt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Standard Terms &amp; Conditions
+          </p>
+          <Field
+            label="Template"
+            hint="Seeds every new proposal's T&Cs (editable per-proposal, with a Reset-to-standard and an AI-tailor option there)."
+          >
+            <Textarea
+              className="min-h-48 font-mono text-xs"
+              value={f.standardTermsTemplate}
+              onChange={(e) => set("standardTermsTemplate", e.target.value)}
+            />
           </Field>
         </div>
 

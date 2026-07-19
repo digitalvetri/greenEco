@@ -23,6 +23,10 @@ export default async function ProposalPrint({
   const v = p.versions.find((x) => x.versionNo === p.currentVersion) ?? p.versions[0];
   const scope = (v?.scopeOfWork ?? {}) as Record<string, string>;
   const terms = (v?.paymentTerms ?? []) as Array<{ description: string; percent: number }>;
+  const technicalSpecs = (v?.technicalSpecs ?? []) as Array<{ section: string; item: string; spec: string; qty: string }>;
+  const electricalLoad = (v?.electricalLoad ?? []) as Array<{ description: string; hp: number }>;
+  // Legacy versions stored tcs as `[]` (pre-Phase-2); normalize to a string.
+  const tcs = typeof v?.terms === "string" ? v.terms : "";
 
   return (
     <PrintShell title="PROPOSAL" docNo={`${p.number} · v${v?.versionNo ?? 1}`} company={company}>
@@ -34,10 +38,23 @@ export default async function ProposalPrint({
         </div>
       </section>
 
+      {v?.coverLetter && (
+        <section style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{v.coverLetter}</p>
+        </section>
+      )}
+
       {v?.technicalText && (
         <section style={{ marginBottom: 16 }}>
           <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Technical Write-up</h3>
           <p style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{v.technicalText}</p>
+        </section>
+      )}
+
+      {v?.technologyExplainer && (
+        <section style={{ marginBottom: 16 }}>
+          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>About {p.technology}</h3>
+          <p style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{v.technologyExplainer}</p>
         </section>
       )}
 
@@ -51,6 +68,60 @@ export default async function ProposalPrint({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {technicalSpecs.length > 0 && (
+        <section style={{ marginBottom: 16 }}>
+          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Technical Specifications</h3>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Section</th>
+                <th style={th}>Item</th>
+                <th style={th}>Specification</th>
+                <th style={{ ...th, textAlign: "right" }}>Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              {technicalSpecs.map((r, i) => (
+                <tr key={i}>
+                  <td style={td}>{r.section}</td>
+                  <td style={td}>{r.item}</td>
+                  <td style={td}>{r.spec}</td>
+                  <td style={{ ...td, textAlign: "right" }}>{r.qty}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {electricalLoad.length > 0 && (
+        <section style={{ marginBottom: 16 }}>
+          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Electrical Load Summary</h3>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Description</th>
+                <th style={{ ...th, textAlign: "right" }}>HP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {electricalLoad.map((r, i) => (
+                <tr key={i}>
+                  <td style={td}>{r.description}</td>
+                  <td style={{ ...td, textAlign: "right" }}>{r.hp}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ ...td, fontWeight: 700 }}>Total connected load</td>
+                <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>
+                  {electricalLoad.reduce((a, l) => a + (Number(l.hp) || 0), 0)} HP
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </section>
       )}
 
@@ -97,6 +168,24 @@ export default async function ProposalPrint({
               </li>
             ))}
           </ol>
+        </section>
+      )}
+
+      {v?.pointsToNote && (
+        <section style={{ marginBottom: 16 }}>
+          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Points to Note</h3>
+          <ul style={{ fontSize: 13, lineHeight: 1.6 }}>
+            {v.pointsToNote.split("\n").filter(Boolean).map((line, i) => (
+              <li key={i}>{line.replace(/^[-•]\s*/, "")}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {tcs && (
+        <section style={{ marginBottom: 16, pageBreakBefore: "always" }}>
+          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Terms &amp; Conditions</h3>
+          <p style={{ fontSize: 12.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{tcs}</p>
         </section>
       )}
     </PrintShell>

@@ -6,6 +6,7 @@ import {
   updateBasics,
   saveVersion,
   generateForProposal,
+  generateTermsDraft,
   approveAndSend,
   markWon,
   markLost,
@@ -27,6 +28,11 @@ export async function saveVersionAction(id: string, input: unknown) {
   const res = await saveVersion(s, id, input as Parameters<typeof saveVersion>[2]);
   revalidatePath(`/proposals/${id}`);
   return res;
+}
+
+export async function generateTermsAction(id: string) {
+  const s = await getSession();
+  return generateTermsDraft(s, id);
 }
 
 export async function generateAction(id: string, input: unknown) {

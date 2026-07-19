@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import type { Ctx } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { DEFAULT_STANDARD_TERMS } from "@/lib/constants";
 
 /**
  * Company-level settings that are editable from the Settings screen and consumed at
@@ -27,6 +28,7 @@ export interface CompanySettings {
   email: string;
   website: string;
   branches: string[];
+  standardTermsTemplate: string;
   // Thresholds
   minMarginPct: number; // 0..1
   autoApproveLimit: number; // ₹; 0 = all manual
@@ -57,6 +59,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     email: c?.email ?? "mailgreenecocare@gmail.com",
     website: c?.website ?? "www.greenecocare.com",
     branches: c?.branches?.length ? c.branches : ["Bangalore", "Hyderabad", "Cochin", "Mangalore", "Chennai"],
+    standardTermsTemplate: c?.standardTermsTemplate ?? DEFAULT_STANDARD_TERMS,
     minMarginPct: c?.minMarginPct != null ? Number(c.minMarginPct) : env.minMarginPct,
     autoApproveLimit: c?.autoApproveLimit != null ? c.autoApproveLimit : env.autoApproveLimit,
     budgetAlertPct: c?.budgetAlertPct?.length ? c.budgetAlertPct : DEFAULT_BUDGET_ALERTS,
@@ -84,6 +87,7 @@ export interface CompanyDetailsInput {
   email?: string;
   website?: string;
   branches?: string[];
+  standardTermsTemplate?: string;
 }
 
 /** Update company identity/details. Admin only, audited. */
@@ -110,6 +114,7 @@ export async function updateCompanyDetails(ctx: Ctx, input: CompanyDetailsInput)
       email: input.email?.trim() || null,
       website: input.website?.trim() || null,
       branches: input.branches?.map((b) => b.trim()).filter(Boolean) ?? [],
+      standardTermsTemplate: input.standardTermsTemplate?.trim() || null,
     },
   });
   await logAudit(ctx, {

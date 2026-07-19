@@ -2,7 +2,7 @@ import {
   KLD_BOQ_TEMPLATES,
   DEFAULT_PAYMENT_TERMS,
   nearestKldBand,
-  TERMS_LIBRARY,
+  TECHNOLOGY_EXPLAINERS,
 } from "./constants";
 import { loadConfig } from "./runtime-config";
 import { llmJson } from "./llm";
@@ -26,8 +26,23 @@ export interface AiBoqLine {
   aiSuggested: true;
 }
 
+export interface AiTechnicalSpecLine {
+  section: string;
+  item: string;
+  spec: string;
+  qty: string;
+}
+
+export interface AiElectricalLoadLine {
+  description: string;
+  hp: number;
+}
+
 export interface AiProposalDraft {
+  coverLetter: string;
   technicalText: string;
+  pointsToNote: string;
+  technologyExplainer: string;
   boqItems: AiBoqLine[];
   scopeOfWork: {
     civil: string;
@@ -36,6 +51,8 @@ export interface AiProposalDraft {
     commissioning: string;
     exclusions: string;
   };
+  technicalSpecs: AiTechnicalSpecLine[];
+  electricalLoad: AiElectricalLoadLine[];
   paymentTerms: Array<{ description: string; percent: number; trigger: string }>;
   source: "claude" | "groq" | "gemini" | "template";
 }
@@ -112,8 +129,42 @@ Design basis: The plant is designed to treat ${kld} KLD of ${plant === "ETP" ? "
 
 ${input.description}`;
 
+  const coverLetter = `We thank you for the opportunity to work on your ${plant} requirement and for considering us for delivering environmental engineering solutions as per the need envisaged.
+
+With reference to our discussions, we are pleased to place before you a technical, engineering and pricing note for ${kld} KLD capacity. We would request you to kindly go through the proposal and let us have your thoughts, so that we may finalise this for a valued order.
+
+We look forward to the pleasure of working with you on this technology to solve your wastewater treatment needs.`;
+
+  const pointsToNote = `The GST will be 18% extra, as shown in the commercial offer below.
+Please let us know the invert level before commencing civil works — if it exceeds 3 feet, a collection tank with an additional transfer pump is recommended (cost extra).
+24-hour, 3-phase power back-up is required to operate the plant smoothly.
+Disposal of non-biodegradable items and waste oil/food into the drainage system should be strictly avoided, as it affects treatment performance.`;
+
+  // Reuse the BOQ template's item/specification data (minus pricing) as a starting
+  // technical-specifications table — genuinely useful without needing an AI key.
+  const technicalSpecs: AiTechnicalSpecLine[] = KLD_BOQ_TEMPLATES[band].map((l) => ({
+    section: l.category,
+    item: l.item,
+    spec: l.specification ?? "—",
+    qty: `${Math.round(l.qty * scale * 1000) / 1000} ${l.unit}`,
+  }));
+
+  // Opportunistically parse "<N> HP" out of item names already in the BOQ template
+  // (e.g. "Air Blower 2HP") — a real, non-empty electrical-load starting point.
+  const electricalLoad: AiElectricalLoadLine[] = KLD_BOQ_TEMPLATES[band]
+    .map((l) => {
+      const m = /(\d+(?:\.\d+)?)\s*HP/i.exec(l.item);
+      if (!m) return null;
+      const qty = Math.round(l.qty * scale * 1000) / 1000;
+      return { description: l.item.replace(/\d+(?:\.\d+)?\s*HP/i, "").trim(), hp: Math.round(Number(m[1]) * qty * 100) / 100 };
+    })
+    .filter((l): l is AiElectricalLoadLine => l !== null);
+
   return {
+    coverLetter,
     technicalText,
+    pointsToNote,
+    technologyExplainer: TECHNOLOGY_EXPLAINERS[tech] ?? "",
     boqItems,
     scopeOfWork: {
       civil: "RCC tanks, foundations, and civil structures as per approved GA drawings.",
@@ -122,6 +173,8 @@ ${input.description}`;
       commissioning: "Trial run, performance guarantee test, and operator training.",
       exclusions: "Civil foundation, water & power at site, statutory fees (at actuals).",
     },
+    technicalSpecs,
+    electricalLoad,
     paymentTerms: DEFAULT_PAYMENT_TERMS,
     source: "template",
   };
@@ -131,9 +184,14 @@ ${input.description}`;
 export function draftPrompt(input: AiProposalInput): string {
   return `Generate a treatment plant proposal draft as JSON with this exact shape:
 {
+  "coverLetter": "a short, warm 2-3 paragraph cover letter/greeting to the client introducing this proposal — no pricing, no client name (we don't have it here)",
   "technicalText": "process description, design basis, treatment stages, TNPCB-norm outcome language",
+  "pointsToNote": "2-5 short caveats/operational notes specific to this plant type and technology, one per line, no bullet characters",
+  "technologyExplainer": "2-4 sentences explaining how this specific technology works, for a non-technical reader",
   "boqItems": [{"category":"Civil|Piping|PumpsBlowers|Media|Electrical|Others","item":"...","specification":"...","unit":"...","qty":number,"rate":number,"amount":number}],
   "scopeOfWork": {"civil":"...","mechanical":"...","electrical":"...","commissioning":"...","exclusions":"..."},
+  "technicalSpecs": [{"section":"e.g. Pumps|Blowers|Panel|Tanks","item":"component name","spec":"make/model/dimensions/MOC as applicable","qty":"e.g. '2 Nos'"}],
+  "electricalLoad": [{"description":"component name","hp":number}],
   "paymentTerms": [{"description":"...","percent":number,"trigger":"DATE|STAGE_COMPLETION"}]
 }
 
@@ -143,7 +201,7 @@ Technology: ${input.technology || "MBBR"}
 Capacity: ${input.capacityKLD || "unspecified"} KLD${input.budgetHint ? `\nBudget hint: ₹${input.budgetHint}` : ""}
 ${input.pastWon ? `\nFor reference, here are this company's past WON proposals in a similar capacity band — align pricing and scope with these:\n${input.pastWon}` : ""}
 
-Ensure amount = qty * rate for each BOQ line. Payment percents must sum to 100.`;
+Ensure amount = qty * rate for each BOQ line. Payment percents must sum to 100. technicalSpecs and electricalLoad should list the actual major components implied by the BOQ (pumps, blowers, panel, media, tanks) — electricalLoad only for components that draw power.`;
 }
 
 /** Map a parsed JSON object (from any provider) into a validated AiProposalDraft. */
@@ -164,11 +222,30 @@ export function mapDraft(
     aiSuggested: true,
   }));
 
+  const rawSpecs = parsed.technicalSpecs as Array<Record<string, unknown>> | undefined;
+  const technicalSpecs: AiTechnicalSpecLine[] | undefined = rawSpecs?.map((s) => ({
+    section: String(s.section ?? "Others"),
+    item: String(s.item ?? ""),
+    spec: String(s.spec ?? ""),
+    qty: String(s.qty ?? ""),
+  }));
+
+  const rawLoad = parsed.electricalLoad as Array<Record<string, unknown>> | undefined;
+  const electricalLoad: AiElectricalLoadLine[] | undefined = rawLoad?.map((l) => ({
+    description: String(l.description ?? ""),
+    hp: Number(l.hp ?? 0),
+  }));
+
+  const fallback = templateDraft(input);
   return {
-    technicalText: String(parsed.technicalText ?? ""),
+    coverLetter: parsed.coverLetter ? String(parsed.coverLetter) : fallback.coverLetter,
+    technicalText: String(parsed.technicalText ?? fallback.technicalText),
+    pointsToNote: parsed.pointsToNote ? String(parsed.pointsToNote) : fallback.pointsToNote,
+    technologyExplainer: parsed.technologyExplainer ? String(parsed.technologyExplainer) : fallback.technologyExplainer,
     boqItems,
-    scopeOfWork:
-      (parsed.scopeOfWork as AiProposalDraft["scopeOfWork"]) ?? templateDraft(input).scopeOfWork,
+    scopeOfWork: (parsed.scopeOfWork as AiProposalDraft["scopeOfWork"]) ?? fallback.scopeOfWork,
+    technicalSpecs: technicalSpecs?.length ? technicalSpecs : fallback.technicalSpecs,
+    electricalLoad: electricalLoad?.length ? electricalLoad : fallback.electricalLoad,
     paymentTerms:
       (parsed.paymentTerms as AiProposalDraft["paymentTerms"]) ?? DEFAULT_PAYMENT_TERMS,
     source,
@@ -206,9 +283,22 @@ export function parseDefensively(text: string): Record<string, unknown> {
 export const DRAFT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["technicalText", "boqItems", "scopeOfWork", "paymentTerms"],
+  required: [
+    "coverLetter",
+    "technicalText",
+    "pointsToNote",
+    "technologyExplainer",
+    "boqItems",
+    "scopeOfWork",
+    "technicalSpecs",
+    "electricalLoad",
+    "paymentTerms",
+  ],
   properties: {
+    coverLetter: { type: "string" },
     technicalText: { type: "string" },
+    pointsToNote: { type: "string" },
+    technologyExplainer: { type: "string" },
     boqItems: {
       type: "array",
       items: {
@@ -238,6 +328,32 @@ export const DRAFT_SCHEMA = {
         exclusions: { type: "string" },
       },
     },
+    technicalSpecs: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["section", "item", "spec", "qty"],
+        properties: {
+          section: { type: "string" },
+          item: { type: "string" },
+          spec: { type: "string" },
+          qty: { type: "string" },
+        },
+      },
+    },
+    electricalLoad: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["description", "hp"],
+        properties: {
+          description: { type: "string" },
+          hp: { type: "number" },
+        },
+      },
+    },
     paymentTerms: {
       type: "array",
       items: {
@@ -253,5 +369,3 @@ export const DRAFT_SCHEMA = {
     },
   },
 } as const;
-
-export { TERMS_LIBRARY };

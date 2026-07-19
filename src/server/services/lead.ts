@@ -10,6 +10,7 @@ import { leadScore } from "@/lib/domain/lead-score";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
 import { allocateNumber } from "./numbering";
+import { getCompanySettings } from "./company-settings";
 import { suggestNextFollowUpDate } from "@/server/automations/auto-next-followup";
 import type { CreateLeadInput, UpdateLeadInput, CreateFollowUpInput } from "@/lib/validation";
 
@@ -1380,6 +1381,7 @@ export async function convertToProposal(ctx: Ctx, leadId: string) {
   if (lead.status === "CONVERTED") throw new Error("Lead already converted");
 
   const year = new Date().getFullYear();
+  const { standardTermsTemplate } = await getCompanySettings(ctx.companyId);
   return prisma.$transaction(async (tx) => {
     const number = await allocateNumber(tx, ctx.companyId, "PROPOSAL", year);
     const proposal = await tx.proposal.create({
@@ -1405,7 +1407,7 @@ export async function convertToProposal(ctx: Ctx, leadId: string) {
             gstAmount: 0,
             grandTotal: 0,
             paymentTerms: [],
-            terms: [],
+            terms: standardTermsTemplate,
           },
         },
       },

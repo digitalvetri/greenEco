@@ -41,6 +41,41 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v29 — Client corrections phase 2: richer AI-generated proposal content
+
+Driven by the client's real sample proposal/invoice `.docx` files (`Green-sample` folder). Phase 1 (letterhead,
+v28-era) shipped the branded header/footer; this phase makes the AI-generated proposal *document* match the
+samples' structure. **Gate: tsc 0 · lint 0 · 75 unit · `next build` clean · new `verify-proposals-p5`
+(9 checks) + verify-proposals-p0…p4 + verify-sell green · browser-verified (AI generate → persist →
+reload → PDF).**
+
+- **New `ProposalVersion` content** (migration `proposal_richness`): `coverLetter`, `pointsToNote`,
+  `technologyExplainer`, `technicalSpecs` (Json — `{section,item,spec,qty}[]`), `electricalLoad`
+  (Json — `{description,hp}[]`). `terms` — previously an unused `Json` field always saved as `[]` — is
+  repurposed to hold the actual Terms & Conditions text.
+- **`Company.standardTermsTemplate`** (`Text`) — the fixed T&Cs template, editable in Settings, seeds
+  `terms` on every new proposal via `convertToProposal`.
+- **AI generation** (`lib/ai.ts` `templateDraft`/`draftPrompt`/`mapDraft`/`DRAFT_SCHEMA`, `lib/ai-stream.ts`
+  `DRAFT_SCHEMA_NO_TEXT`) — both the template fallback and the Claude/Groq/Gemini paths now produce all
+  five new fields alongside the existing BOQ/scope/payment-terms. `TECHNOLOGY_EXPLAINERS` (constants.ts)
+  gives each technology (MBBR/SBR/MBR/ASP/SAFF/DAF) a reusable "how this works" write-up.
+- **T&Cs — both options the client asked for**: a "Reset to standard template" button (fixed path) and an
+  "AI-tailor for this deal" button — new `generateTermsDraft` (proposal.ts) calls the existing
+  provider-agnostic `llmText` helper directly (deliberately NOT folded into `DRAFT_SCHEMA` — keeps the
+  structured draft schema untouched); degrades cleanly to the template when no AI key is configured
+  (verified — this environment has no keys).
+- **Editor UI** (`proposals/[id]/proposal-editor.tsx`) — new Cover Letter, Technology-explainer +
+  Points-to-note, Technical Specifications table, and Electrical Load Summary table cards, all editable
+  and saved through the existing "Save proposal" flow (`saveVersion` merges omitted fields from the
+  current version, so partial saves — e.g. the standalone "Save write-up" button — never blank them).
+- **Print PDF** (`print/proposal/[id]/page.tsx`) — full document order: cover letter → technical write-up →
+  technology explainer → scope of work → technical specifications → electrical load → BOQ → payment terms
+  → points to note → Terms & Conditions (own page-break section). Legacy pre-migration versions guard
+  `terms` (was `[]`, now a string) so old proposals don't crash the renderer.
+- **Settings** — new "Standard Terms & Conditions" template editor on the Company details card.
+- **Gotcha (same class as v10's)**: after this migration, a **already-running dev server** still serves
+  the old generated Prisma Client — `saveVersion` throws "Unknown argument `coverLetter`" until restarted.
+
 ### v28 — Pre-deploy audit + go-live blocker fixes (see `GO-LIVE-AUDIT.md`)
 
 Full end-to-end audit (12-lens multi-agent review + adversarial verification) ahead of a production deploy,
