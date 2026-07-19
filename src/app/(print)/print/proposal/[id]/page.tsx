@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { getPrintSession } from "@/lib/print-session";
 import { getProposal } from "@/server/services/proposal";
+import { getCompanySettings } from "@/server/services/company-settings";
 import { formatINR } from "@/lib/money";
-import { env } from "@/lib/env";
 import { PrintShell, td, th } from "@/components/print/print-shell";
 
 export const dynamic = "force-dynamic";
@@ -19,12 +19,13 @@ export default async function ProposalPrint({
   const session = await getPrintSession(t, "proposal", id);
   const p = await getProposal(session, id);
   if (!p) notFound();
+  const company = await getCompanySettings(session.companyId);
   const v = p.versions.find((x) => x.versionNo === p.currentVersion) ?? p.versions[0];
   const scope = (v?.scopeOfWork ?? {}) as Record<string, string>;
   const terms = (v?.paymentTerms ?? []) as Array<{ description: string; percent: number }>;
 
   return (
-    <PrintShell title="PROPOSAL" docNo={`${p.number} · v${v?.versionNo ?? 1}`} gstin={env.companyGstin}>
+    <PrintShell title="PROPOSAL" docNo={`${p.number} · v${v?.versionNo ?? 1}`} company={company}>
       <section style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 16, fontWeight: 700 }}>{p.projectName}</div>
         <div style={{ fontSize: 13, color: "#555" }}>{p.siteAddress}</div>

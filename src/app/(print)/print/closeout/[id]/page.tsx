@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { getPrintSession } from "@/lib/print-session";
 import { closeoutData } from "@/server/services/erection";
+import { getCompanySettings } from "@/server/services/company-settings";
 import { formatINR } from "@/lib/money";
-import { env } from "@/lib/env";
 import { PrintShell, td, th } from "@/components/print/print-shell";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +24,10 @@ export default async function CloseoutPrint({
   } catch {
     notFound();
   }
+  const company = await getCompanySettings(session.companyId);
 
   return (
-    <PrintShell title="PROJECT CLOSE-OUT" docNo={data.order.orderNo} gstin={env.companyGstin}>
+    <PrintShell title="PROJECT CLOSE-OUT" docNo={data.order.orderNo} company={company}>
       <section style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 16, fontWeight: 700 }}>{data.order.clientName}</div>
         <div style={{ fontSize: 13, color: "#555" }}>{data.order.siteAddress}</div>

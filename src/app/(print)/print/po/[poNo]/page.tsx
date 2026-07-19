@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { getPrintSession } from "@/lib/print-session";
 import { getPO } from "@/server/services/materials";
+import { getCompanySettings } from "@/server/services/company-settings";
 import { formatINR } from "@/lib/money";
-import { env } from "@/lib/env";
 import { PrintShell, td, th } from "@/components/print/print-shell";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +20,10 @@ export default async function PurchaseOrderPrint({
   if (session.role !== "ADMIN") notFound();
   const po = await getPO(session, poNo);
   if (!po) notFound();
+  const company = await getCompanySettings(session.companyId);
 
   return (
-    <PrintShell title="PURCHASE ORDER" docNo={`${po.poNo} · ${new Date(po.createdAt).toLocaleDateString("en-IN")}`} gstin={env.companyGstin}>
+    <PrintShell title="PURCHASE ORDER" docNo={`${po.poNo} · ${new Date(po.createdAt).toLocaleDateString("en-IN")}`} company={company}>
       <section style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", gap: 24 }}>
         <div>
           <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase" }}>Vendor</div>

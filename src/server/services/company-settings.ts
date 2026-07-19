@@ -21,6 +21,12 @@ export interface CompanySettings {
   orderPrefix: string;
   proposalPrefix: string;
   poPrefix: string;
+  // Letterhead (every print/* PDF header/footer)
+  tagline: string;
+  phone: string;
+  email: string;
+  website: string;
+  branches: string[];
   // Thresholds
   minMarginPct: number; // 0..1
   autoApproveLimit: number; // ₹; 0 = all manual
@@ -46,6 +52,11 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     orderPrefix: c?.orderPrefix || env.orderPrefix,
     proposalPrefix: c?.proposalPrefix || env.proposalPrefix,
     poPrefix: c?.poPrefix || env.poPrefix,
+    tagline: c?.tagline ?? "It's our future",
+    phone: c?.phone ?? "6304984052, 8122773433",
+    email: c?.email ?? "mailgreenecocare@gmail.com",
+    website: c?.website ?? "www.greenecocare.com",
+    branches: c?.branches?.length ? c.branches : ["Bangalore", "Hyderabad", "Cochin", "Mangalore", "Chennai"],
     minMarginPct: c?.minMarginPct != null ? Number(c.minMarginPct) : env.minMarginPct,
     autoApproveLimit: c?.autoApproveLimit != null ? c.autoApproveLimit : env.autoApproveLimit,
     budgetAlertPct: c?.budgetAlertPct?.length ? c.budgetAlertPct : DEFAULT_BUDGET_ALERTS,
@@ -68,6 +79,11 @@ export interface CompanyDetailsInput {
   orderPrefix?: string;
   proposalPrefix?: string;
   poPrefix?: string;
+  tagline?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  branches?: string[];
 }
 
 /** Update company identity/details. Admin only, audited. */
@@ -89,6 +105,11 @@ export async function updateCompanyDetails(ctx: Ctx, input: CompanyDetailsInput)
       orderPrefix: input.orderPrefix?.trim() || null,
       proposalPrefix: input.proposalPrefix?.trim() || null,
       poPrefix: input.poPrefix?.trim() || null,
+      tagline: input.tagline?.trim() || null,
+      phone: input.phone?.trim() || null,
+      email: input.email?.trim() || null,
+      website: input.website?.trim() || null,
+      branches: input.branches?.map((b) => b.trim()).filter(Boolean) ?? [],
     },
   });
   await logAudit(ctx, {

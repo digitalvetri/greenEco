@@ -848,6 +848,13 @@ model Company {
   proposalPrefix String?
   poPrefix      String?
 
+  // Letterhead (Settings → print-shell.tsx header/footer on every PDF).
+  tagline  String?
+  phone    String?
+  email    String?
+  website  String?
+  branches String[] @default([])
+
   // Editable thresholds (Settings) — read at automation runtime, no redeploy.
   minMarginPct      Decimal? @db.Decimal(5, 4) // e.g. 0.1000 = 10%
   autoApproveLimit  Int? // ₹ ceiling for erection auto-approve (0/null = all manual)

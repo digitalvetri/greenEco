@@ -29,7 +29,7 @@ export default async function InvoicePrint({
     <PrintShell
       title={inv.isCreditNote ? "CREDIT NOTE" : "TAX INVOICE"}
       docNo={`${inv.invoiceNo} · ${new Date(inv.date).toLocaleDateString("en-IN")}`}
-      gstin={company.gstin}
+      company={company}
     >
       {order && (
         <section style={{ marginBottom: 16, fontSize: 13 }}>
