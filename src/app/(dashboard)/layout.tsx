@@ -1,4 +1,4 @@
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/auth";
@@ -123,6 +123,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 <Image src="/brand/logo-mark.png" alt="" width={28} height={28} className="size-6 object-contain" />
               </span>
               <span className="text-xs font-semibold">Green Ecocare</span>
+              <ChevronDown className="size-3.5 text-muted" />
             </Link>
           </div>
         </header>

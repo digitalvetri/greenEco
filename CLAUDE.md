@@ -41,6 +41,27 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v32 — Dashboard/shell visual refresh (matched to a reference mockup)
+
+The client shared an AI-generated mockup image and asked for "exactly" that design. Since it's a
+ChatGPT-drawn concept, chased the design *language* (card treatments, color tone, sidebar mood),
+not literal pixels — its sparkline squiggles and exact wave art aren't real, data-backed elements
+worth copying. **Gate: tsc 0 · lint 0 (2 pre-existing warnings) · 75 unit · `next build` clean ·
+browser-verified light + dark + /leads + /projects (sidebar is global — checked it didn't regress
+non-dashboard pages) · zero console errors.**
+
+- **Sidebar** (`.gc-sidebar`, shared by desktop + mobile drawer) — darkened the gradient (near-black
+  top fading to green/teal, was a flatter green start) and layered in a faint decorative wave
+  (`public/brand/sidebar-wave.svg`, translucent white/emerald curves) via a new `::before` layer.
+- **Hero stat cards** (`.gc-hero`, dashboard) — added a soft per-tone pastel background
+  (`color-mix(in srgb, currentColor 12%, var(--card))`, so each card's existing tone class drives
+  its own tint automatically) and switched icon badges from rounded-square to fully circular.
+- **Top bar** — chevron-down added to the company chip.
+- **Deliberately not built**: sparklines on the 4 ops-KPI cards (Receivables/AMC/Stock/Budget) — the
+  mockup shows trend squiggles next to those numbers, but there's no real historical time-series for
+  them, and fabricating one (or faking a decorative trend line) would misrepresent real data next to
+  a real number. Flagged rather than silently skipped.
+
 ### v31 — PO print polish round 2: real vendor payment terms, drop-ship-to-client, one-page fit
 
 A second real sample (`6 A1 BLOWERS 47 M MODEL ACOUSTIC HOOD…docx`) showed detail the first PO

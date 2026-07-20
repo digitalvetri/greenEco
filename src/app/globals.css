@@ -307,15 +307,25 @@ body {
   animation: gc-shimmer 1.4s infinite;
 }
 
-/* Premium sidebar: layered water gradient + ambient glows (matches the login) */
+/* Premium sidebar: near-black-to-green gradient + a faint flowing wave + ambient glows */
 .gc-sidebar {
   background:
-    radial-gradient(90% 38% at 100% 0%, rgba(52, 211, 153, 0.22), transparent 60%),
-    radial-gradient(85% 45% at 0% 100%, rgba(45, 212, 191, 0.20), transparent 55%),
-    radial-gradient(70% 42% at 50% 62%, rgba(24, 155, 220, 0.20), transparent 64%),
-    linear-gradient(168deg, #06392a 0%, #0a5a43 42%, #0f766e 76%, #0b5a8c 100%);
+    radial-gradient(90% 38% at 100% 0%, rgba(52, 211, 153, 0.18), transparent 60%),
+    radial-gradient(85% 45% at 0% 100%, rgba(45, 212, 191, 0.16), transparent 55%),
+    radial-gradient(70% 42% at 50% 62%, rgba(24, 155, 220, 0.14), transparent 64%),
+    linear-gradient(168deg, #04140f 0%, #06392a 34%, #0a5a43 62%, #0f766e 86%, #0b5a8c 100%);
   position: relative;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07);
+}
+.gc-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/brand/sidebar-wave.svg");
+  background-repeat: no-repeat;
+  background-position: bottom left;
+  background-size: 100% auto;
+  pointer-events: none;
 }
 .gc-sidebar::after {
   content: "";
@@ -324,10 +334,12 @@ body {
   background: radial-gradient(55% 26% at 100% 10%, rgba(255, 255, 255, 0.10), transparent 60%);
   pointer-events: none;
 }
-/* Frosted stat-card wash */
+/* Frosted stat-card wash — a soft per-tone pastel background (currentColor comes from
+   the tone's text-color class, e.g. text-c-emerald) plus a blurred corner blob. */
 .gc-hero {
   position: relative;
   overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in srgb, currentColor 12%, var(--card)) 0%, var(--card) 70%);
 }
 .gc-hero::before {
   content: "";

@@ -337,8 +337,8 @@ function HeroStat({
             <div className="mt-1.5 text-2xl font-bold leading-none tracking-tight tabular-nums text-foreground">{value}</div>
           </div>
           <span
-            className="flex size-11 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3"
-            style={{ background: "color-mix(in srgb, currentColor 14%, transparent)" }}
+            className="flex size-11 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3"
+            style={{ background: "color-mix(in srgb, currentColor 18%, transparent)" }}
           >
             <Icon className="size-5" />
           </span>
