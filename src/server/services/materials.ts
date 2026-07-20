@@ -538,7 +538,7 @@ export async function receiveGRN(
   challanUrl?: string,
 ) {
   requireAdmin(ctx);
-  const po = await prisma.purchaseOrder.findUnique({ where: { id: poId } });
+  const po = await prisma.purchaseOrder.findFirst({ where: { id: poId, companyId: ctx.companyId } });
   if (!po) throw new Error("PO not found");
   const poItems = (po.items as Array<{ itemId: string; qty: number; rate: number }>) ?? [];
 
@@ -591,9 +591,15 @@ export async function receiveGRN(
 
 // ---------- Transfers & consumption ----------
 
-/** On-hand for one item at one location (derived from the scoped ledger). */
-async function onHandAt(companyId: string, itemId: string, locationId: string): Promise<Decimal> {
-  const movements = await prisma.stockMovement.findMany({
+/** On-hand for one item at one location (derived from the scoped ledger).
+ *  Accepts a transaction client so it can be called inside a $transaction. */
+async function onHandAt(
+  db: typeof prisma | Prisma.TransactionClient,
+  companyId: string,
+  itemId: string,
+  locationId: string,
+): Promise<Decimal> {
+  const movements = await db.stockMovement.findMany({
     where: { companyId, itemId },
     select: { itemId: true, qty: true, type: true, fromLocationId: true, toLocationId: true },
   });
@@ -606,12 +612,13 @@ export async function transferStock(
 ) {
   requireAdmin(ctx);
   const qty = new Decimal(data.qty).toFixed(3);
-  // Over-issue guard: can't move more than the source location holds (no negatives).
-  const available = await onHandAt(ctx.companyId, data.itemId, data.fromLocationId);
-  if (new Decimal(qty).gt(available)) {
-    throw new Error(`Only ${available.toString()} in stock at the source location — cannot transfer ${qty}`);
-  }
   return prisma.$transaction(async (tx) => {
+    // Over-issue guard inside the transaction — balance read and stock write are atomic,
+    // preventing two concurrent transfers from both passing on the same starting balance.
+    const available = await onHandAt(tx, ctx.companyId, data.itemId, data.fromLocationId);
+    if (new Decimal(qty).gt(available)) {
+      throw new Error(`Only ${available.toString()} in stock at the source location — cannot transfer ${qty}`);
+    }
     const out = await tx.stockMovement.create({
       data: { companyId: ctx.companyId, itemId: data.itemId, qty, type: "TRANSFER_OUT", fromLocationId: data.fromLocationId, refDocType: "TRANSFER", note: data.note, createdById: ctx.userId },
     });
@@ -629,28 +636,30 @@ export async function consumeStock(
   data: { itemId: string; qty: number; fromLocationId: string; note?: string },
 ) {
   requireAdmin(ctx);
-  // Over-issue guard: can't consume more than the site holds (no negatives).
-  const available = await onHandAt(ctx.companyId, data.itemId, data.fromLocationId);
-  if (new Decimal(data.qty).gt(available)) {
-    throw new Error(`Only ${available.toString()} in stock at this location — cannot issue ${data.qty}`);
-  }
-  const item = await prisma.item.findUnique({ where: { id: data.itemId } });
-  const valueAtCost = item?.purchasePrice ? new Decimal(item.purchasePrice).times(data.qty).toFixed(2) : null;
-  const mv = await prisma.stockMovement.create({
-    data: {
-      companyId: ctx.companyId,
-      itemId: data.itemId,
-      qty: new Decimal(data.qty).toFixed(3),
-      type: "CONSUME",
-      fromLocationId: data.fromLocationId,
-      refDocType: "ERECTION",
-      valueAtCost,
-      note: data.note,
-      createdById: ctx.userId,
-    },
+  return prisma.$transaction(async (tx) => {
+    // Over-issue guard inside the transaction — balance read and consumption write are atomic.
+    const available = await onHandAt(tx, ctx.companyId, data.itemId, data.fromLocationId);
+    if (new Decimal(data.qty).gt(available)) {
+      throw new Error(`Only ${available.toString()} in stock at this location — cannot issue ${data.qty}`);
+    }
+    const item = await tx.item.findUnique({ where: { id: data.itemId } });
+    const valueAtCost = item?.purchasePrice ? new Decimal(item.purchasePrice).times(data.qty).toFixed(2) : null;
+    const mv = await tx.stockMovement.create({
+      data: {
+        companyId: ctx.companyId,
+        itemId: data.itemId,
+        qty: new Decimal(data.qty).toFixed(3),
+        type: "CONSUME",
+        fromLocationId: data.fromLocationId,
+        refDocType: "ERECTION",
+        valueAtCost,
+        note: data.note,
+        createdById: ctx.userId,
+      },
+    });
+    await logAudit(ctx, { action: "CREATE", entity: "StockMovement", entityId: mv.id, after: { type: "CONSUME", itemId: data.itemId, qty: data.qty } }, tx);
+    return { ok: true };
   });
-  await logAudit(ctx, { action: "CREATE", entity: "StockMovement", entityId: mv.id, after: { type: "CONSUME", itemId: data.itemId, qty: data.qty } });
-  return { ok: true };
 }
 
 // ---------- Material requests (employee, NO prices) ----------

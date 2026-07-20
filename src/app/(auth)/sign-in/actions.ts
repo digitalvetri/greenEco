@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
+import { check } from "@/lib/rate-limit";
 
 /**
  * Credentials login. One form for both roles — the ROLE comes from the matched user
@@ -17,6 +18,10 @@ export async function loginAction(_prev: unknown, formData: FormData): Promise<{
   const password = String(formData.get("password") ?? "");
   if (!email || !password) return { error: "Enter your email and password." };
 
+  // 5 attempts per email per 60-second window — prevents brute-force on any account.
+  const rl = check(`login:${email}`, 5, 60_000);
+  if (!rl.ok) return { error: "Too many login attempts. Please wait a minute and try again." };
+
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
     return { error: "Invalid email or password." };
@@ -25,7 +30,7 @@ export async function loginAction(_prev: unknown, formData: FormData): Promise<{
   const store = await cookies();
   store.set(SESSION_COOKIE, createSessionToken(user.id), {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_MAX_AGE,

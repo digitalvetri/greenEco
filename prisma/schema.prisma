@@ -519,15 +519,14 @@ model Invoice {
   pdfUrl         String
   isCreditNote   Boolean  @default(false)
   status         String   @default("ISSUED") // DRAFT | ISSUED — A5 auto-drafts get a real number on issue
-  creditNoteOfId String? // the original invoice this credit note reverses
+  creditNoteOfId String? @unique // the original invoice this credit note reverses — @unique enforces at most one CN per invoice
 
-  milestone   PaymentMilestone? @relation(fields: [milestoneId], references: [id])
-  creditNoteOf Invoice?         @relation("CreditNote", fields: [creditNoteOfId], references: [id])
-  creditNotes  Invoice[]        @relation("CreditNote")
+  milestone    PaymentMilestone? @relation(fields: [milestoneId], references: [id])
+  creditNoteOf Invoice?          @relation("CreditNote", fields: [creditNoteOfId], references: [id])
+  creditNote   Invoice?          @relation("CreditNote")
 
   @@index([companyId])
   @@index([orderId])
-  @@index([creditNoteOfId])
 }
 
 model Item {

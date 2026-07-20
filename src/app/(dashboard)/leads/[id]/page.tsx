@@ -135,6 +135,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 {lead.inletCOD != null && <Row label="Inlet COD" value={`${lead.inletCOD} mg/l`} />}
                 {lead.inletTSS != null && <Row label="Inlet TSS" value={`${lead.inletTSS} mg/l`} />}
                 {lead.inletTDS != null && <Row label="Inlet TDS" value={`${lead.inletTDS} mg/l`} />}
+                {lead.boqPreview && (
+                  <div className="col-span-2 mt-2 border-t border-border pt-2 sm:col-span-3">
+                    <div className="text-xs text-muted">Estimated Project Value (pre-quote)</div>
+                    <div className="mt-0.5 text-sm font-semibold">
+                      ₹{(lead.boqPreview.low / 100000).toFixed(1)}L – ₹{(lead.boqPreview.high / 100000).toFixed(1)}L
+                      <span className="ml-1 text-xs font-normal text-muted">(indicative only)</span>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

@@ -290,6 +290,17 @@ function computeTotals(
  * only save while DRAFT and cannot set estimatedCost (margin guard is admin data).
  */
 export async function saveVersion(ctx: Ctx, proposalId: string, input: VersionSaveInput) {
+  // Validate BOQ lines before hitting the DB — Number("") === 0, Number("abc") === NaN,
+  // and new Decimal(NaN) constructs silently, corrupting totals.
+  if (input.boqItems) {
+    for (const line of input.boqItems) {
+      if (!Number.isFinite(line.qty) || line.qty < 0)
+        throw new Error("BOQ line has an invalid quantity — must be a non-negative number");
+      if (!Number.isFinite(line.rate) || line.rate < 0)
+        throw new Error("BOQ line has an invalid rate — must be a non-negative number");
+    }
+  }
+
   const proposal = await prisma.proposal.findFirst({
     where: { id: proposalId, companyId: ctx.companyId },
     include: { versions: { include: { boqItems: true } } },
@@ -531,13 +542,19 @@ export async function approveAndSend(ctx: Ctx, proposalId: string, overrideNote?
 export async function markLost(ctx: Ctx, proposalId: string, reason: string) {
   requireAdmin(ctx);
   if (!reason) throw new Error("Lost reason is required (feeds the AI learning loop)");
-  await prisma.proposal.update({
-    where: { id: proposalId },
-    data: { status: "LOST", lostReason: reason },
+  return prisma.$transaction(async (tx) => {
+    const proposal = await tx.proposal.findFirst({
+      where: { id: proposalId, companyId: ctx.companyId },
+    });
+    if (!proposal) throw new Error("Proposal not found");
+    await tx.proposal.update({
+      where: { id: proposalId },
+      data: { status: "LOST", lostReason: reason },
+    });
+    await recordProposalOutcome(tx, ctx.companyId, proposalId, "LOST", reason); // A14
+    await logAudit(ctx, { action: "UPDATE", entity: "Proposal", entityId: proposalId, after: { status: "LOST" } }, tx);
+    return { ok: true };
   });
-  await recordProposalOutcome(prisma, ctx.companyId, proposalId, "LOST", reason); // A14
-  await logAudit(ctx, { action: "UPDATE", entity: "Proposal", entityId: proposalId, after: { status: "LOST" } });
-  return { ok: true };
 }
 
 /**

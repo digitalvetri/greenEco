@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type StageStatus } from "@prisma/client";
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import type { Ctx } from "@/lib/rbac";
@@ -566,6 +566,10 @@ export async function setDrawingApproval(
   status: "DRAFT" | "FOR_APPROVAL" | "APPROVED",
 ) {
   requireAdmin(ctx);
+  const drawing = await prisma.drawing.findFirst({
+    where: { id: drawingId, order: { companyId: ctx.companyId } },
+  });
+  if (!drawing) throw new Error("Drawing not found");
   const updated = await prisma.drawing.update({ where: { id: drawingId }, data: { approvalStatus: status } });
   await logAudit(ctx, { action: "UPDATE", entity: "Drawing", entityId: drawingId, after: { approvalStatus: status } });
   return updated;
@@ -573,6 +577,8 @@ export async function setDrawingApproval(
 
 export async function assignTeam(ctx: Ctx, orderId: string, userId: string, role: string) {
   requireAdmin(ctx);
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId: ctx.companyId, deletedAt: null } });
+  if (!order) throw new Error("Project not found");
   const assignment = await prisma.teamAssignment.upsert({
     where: { orderId_userId: { orderId, userId } },
     update: { role },
@@ -677,8 +683,10 @@ export async function setOrderValue(
 /** Remove a team member from a project — admin only, audited. */
 export async function removeTeam(ctx: Ctx, orderId: string, userId: string) {
   requireAdmin(ctx);
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId: ctx.companyId } });
+  if (!order) throw new Error("Project not found");
   const existing = await prisma.teamAssignment.findUnique({ where: { orderId_userId: { orderId, userId } } });
-  if (!existing || existing.orderId !== orderId) throw new Error("Assignment not found");
+  if (!existing) throw new Error("Assignment not found");
   await prisma.teamAssignment.delete({ where: { orderId_userId: { orderId, userId } } });
   await logAudit(ctx, { action: "DELETE", entity: "TeamAssignment", entityId: existing.id, before: { orderId, userId, role: existing.role } });
   return { ok: true };
@@ -723,23 +731,24 @@ export async function addReceipt(
   data: { date: Date; amount: number; mode: string; refNo?: string; note?: string },
 ) {
   requireAdmin(ctx);
-  const milestone = await prisma.paymentMilestone.findFirst({
-    where: { id: milestoneId, order: { companyId: ctx.companyId } },
-    include: { receipts: { select: { amount: true } } },
-  });
-  if (!milestone) throw new Error("Milestone not found");
-  // Guard the money-in ledger: positive receipt, no over-payment beyond the balance.
-  const paid = milestone.receipts.reduce((a, r) => a.plus(new Decimal(r.amount)), new Decimal(0));
-  const outstanding = new Decimal(milestone.amount).minus(paid);
   const amt = new Decimal(data.amount);
   if (amt.lte(0)) throw new Error("Receipt amount must be positive");
-  if (amt.gt(outstanding)) throw new Error(`Receipt ₹${amt.toFixed(2)} exceeds the outstanding balance ₹${outstanding.toFixed(2)}`);
   return prisma.$transaction(async (tx) => {
+    // Read balance and write receipt inside the same transaction — prevents two concurrent
+    // submissions from both passing the guard on the same starting balance (TOCTOU race).
+    const milestone = await tx.paymentMilestone.findFirst({
+      where: { id: milestoneId, order: { companyId: ctx.companyId } },
+      include: { receipts: { select: { amount: true } } },
+    });
+    if (!milestone) throw new Error("Milestone not found");
+    const paid = milestone.receipts.reduce((a, r) => a.plus(new Decimal(r.amount)), new Decimal(0));
+    const outstanding = new Decimal(milestone.amount).minus(paid);
+    if (amt.gt(outstanding)) throw new Error(`Receipt ₹${amt.toFixed(2)} exceeds the outstanding balance ₹${outstanding.toFixed(2)}`);
     const r = await tx.receipt.create({
       data: {
         milestoneId,
         date: data.date,
-        amount: new Decimal(data.amount).toFixed(2),
+        amount: amt.toFixed(2),
         mode: data.mode,
         refNo: data.refNo,
         note: data.note,
@@ -758,12 +767,20 @@ export async function recomputeMilestones(tx: Prisma.TransactionClient, orderId:
     where: { orderId },
     include: { receipts: true },
   });
+
+  // Batch-load all linked stages in one query instead of one per milestone (N+1 fix).
+  const linkedIds = milestones.map((m) => m.linkedStageId).filter((id): id is string => !!id);
+  const stageStatusMap = new Map<string, StageStatus>();
+  if (linkedIds.length > 0) {
+    const stages = await tx.stage.findMany({
+      where: { id: { in: linkedIds } },
+      select: { id: true, status: true },
+    });
+    for (const s of stages) stageStatusMap.set(s.id, s.status);
+  }
+
   for (const m of milestones) {
-    let linkedStageStatus = null;
-    if (m.linkedStageId) {
-      const s = await tx.stage.findUnique({ where: { id: m.linkedStageId } });
-      linkedStageStatus = s?.status ?? null;
-    }
+    const linkedStageStatus = m.linkedStageId ? (stageStatusMap.get(m.linkedStageId) ?? null) : null;
     const status = computeMilestoneStatus(
       {
         amount: m.amount,

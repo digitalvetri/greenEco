@@ -36,7 +36,24 @@ const isProtected = createRouteMatcher([
   "/api/((?!webhooks|healthz|cron).*)",
 ]);
 
+// CSP: unsafe-inline required for Next.js hydration scripts + Tailwind inline styles.
+// unsafe-eval required for Next.js dev-mode source maps; safe to tighten in production
+// once a nonce strategy is wired. img-src/connect-src allow https: broadly for S3/R2
+// assets and external API calls made from the browser layer.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
 function withSecurityHeaders(res: NextResponse): NextResponse {
+  res.headers.set("Content-Security-Policy", CSP);
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("X-Frame-Options", "SAMEORIGIN");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");

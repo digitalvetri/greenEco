@@ -35,7 +35,7 @@ export async function createErectionEntry(
   const visionOn = await visionAvailable();
   // Auto-approve limit is an editable Settings threshold (0 = all manual).
   const { autoApproveLimit } = await getCompanySettings(ctx.companyId);
-  const autoApprove = autoApproveLimit > 0 && data.amount <= autoApproveLimit && !!hasBill && !visionOn;
+  const autoApprove = autoApproveLimit > 0 && new Decimal(data.amount).lte(autoApproveLimit) && !!hasBill && !visionOn;
 
   const entry = await prisma.erectionEntry.create({
     data: {

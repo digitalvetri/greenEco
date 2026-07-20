@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const back = req.nextUrl.searchParams.get("back") ?? "/dashboard";
   const res = NextResponse.redirect(new URL(back, req.url));
   if (env.authMode === "dev" && (role === "ADMIN" || role === "EMPLOYEE")) {
-    res.cookies.set("dev_role", role, { httpOnly: false, path: "/", sameSite: "lax" });
+    res.cookies.set("dev_role", role, { httpOnly: true, path: "/", sameSite: "lax" });
   }
   return res;
 }
