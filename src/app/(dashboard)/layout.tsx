@@ -121,9 +121,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="flex shrink-0 items-center gap-1 md:gap-1.5">
             <NotificationsMenu items={notifications} unreadCount={notificationsUnread} />
             <Link
-              href="/follow-ups"
-              aria-label="Follow-ups"
-              title="Follow-ups"
+              href="/calendar"
+              aria-label="Calendar"
+              title="Calendar"
               className="hidden size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground md:flex"
             >
               <CalendarDays className="size-[18px]" />
