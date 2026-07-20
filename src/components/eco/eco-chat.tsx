@@ -181,13 +181,13 @@ export function EcoChat() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close Eco AI Assistant" : "Open Eco AI Assistant"}
-        className="fixed bottom-4 right-4 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-1 ring-black/5 transition-transform hover:scale-105 md:bottom-6 md:right-6"
+        className="fixed bottom-20 right-4 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-1 ring-black/5 transition-transform hover:scale-105 md:bottom-6 md:right-6"
       >
         {open ? <X className="size-6" /> : <MessageCircle className="size-6" />}
       </button>
 
       {open && (
-        <div className="fixed bottom-20 right-4 z-40 flex h-[75vh] max-h-[600px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl md:bottom-24 md:right-6">
+        <div className="fixed bottom-36 right-4 z-40 flex h-[75vh] max-h-[600px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl md:bottom-24 md:right-6">
           {/* Header */}
           <div className="flex items-center gap-2 bg-gradient-to-r from-primary to-teal-600 px-3 py-2.5 text-white">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/20">

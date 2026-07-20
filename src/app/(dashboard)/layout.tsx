@@ -1,4 +1,4 @@
-import { CalendarDays, Sparkles } from "lucide-react";
+import { CalendarDays, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/auth";
@@ -39,9 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Persistent sidebar — laptop & desktop (>=1024px) */}
       <aside className="gc-sidebar hidden w-[264px] shrink-0 flex-col lg:flex">
         <div className="relative z-10 flex items-center gap-2.5 px-5 pb-4 pt-5">
-          <span className="flex size-11 items-center justify-center overflow-hidden rounded-2xl bg-white/95 shadow-md ring-1 ring-white/40">
-            <Image src="/brand/logo-mark.png" alt="Green Ecocare" width={44} height={44} className="size-9 object-contain" />
-          </span>
+          <Image src="/brand/logo-mark-light.png" alt="Green Ecocare" width={44} height={44} className="size-11 shrink-0 object-contain" />
           <div className="leading-tight text-white">
             <div className="text-base font-bold tracking-tight">Green Ecocare</div>
             <div className="text-[10px] font-medium uppercase tracking-widest text-emerald-200/80">Wastewater Ops</div>
@@ -69,18 +67,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
             );
           })}
         </nav>
-
-        <div className="relative z-10 mx-3 mb-3 shrink-0 overflow-hidden rounded-2xl p-4 ring-1 ring-white/15 backdrop-blur">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/25 via-teal-400/10 to-transparent" />
-          <div className="pointer-events-none absolute -right-6 -top-8 size-24 rounded-full bg-emerald-300/20 blur-2xl" />
-          <div className="relative">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-white/20 text-white ring-1 ring-white/25">
-              <Sparkles className="size-4" />
-            </span>
-            <div className="mt-2.5 text-sm font-semibold text-white">Cleaner Water, Better Tomorrow</div>
-            <p className="mt-0.5 text-[11px] leading-snug text-white/70">AI-assisted proposals, AMC & compliance.</p>
-          </div>
-        </div>
 
         <div className="relative z-10 flex shrink-0 items-center gap-1 border-t border-white/10 px-3 py-3">
           <Link
@@ -137,6 +123,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 <Image src="/brand/logo-mark.png" alt="" width={28} height={28} className="size-6 object-contain" />
               </span>
               <span className="text-xs font-semibold">Green Ecocare</span>
+              <ChevronDown className="size-3.5 text-muted" />
             </Link>
           </div>
         </header>

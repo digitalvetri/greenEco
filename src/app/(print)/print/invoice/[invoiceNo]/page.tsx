@@ -3,7 +3,8 @@ import { getPrintSession } from "@/lib/print-session";
 import { getInvoice } from "@/server/services/invoice";
 import { getCompanySettings } from "@/server/services/company-settings";
 import { formatINR } from "@/lib/money";
-import { PrintShell, td, th } from "@/components/print/print-shell";
+import { PrintShell } from "@/components/print/print-shell";
+import { td, th } from "@/components/print/print-styles";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function InvoicePrint({
     <PrintShell
       title={inv.isCreditNote ? "CREDIT NOTE" : "TAX INVOICE"}
       docNo={`${inv.invoiceNo} · ${new Date(inv.date).toLocaleDateString("en-IN")}`}
-      gstin={company.gstin}
+      company={company}
     >
       {order && (
         <section style={{ marginBottom: 16, fontSize: 13 }}>
@@ -50,6 +51,7 @@ export default async function InvoicePrint({
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
         <thead>
           <tr>
+            <th style={{ ...th, width: 32 }}>Sl.No</th>
             <th style={th}>Description</th>
             <th style={th}>SAC</th>
             <th style={{ ...th, textAlign: "right" }}>Amount</th>
@@ -58,6 +60,7 @@ export default async function InvoicePrint({
         <tbody>
           {lines.map((l, i) => (
             <tr key={i}>
+              <td style={td}>{i + 1}</td>
               <td style={td}>{l.description}</td>
               <td style={td}>{l.sac ?? "-"}</td>
               <td style={{ ...td, textAlign: "right" }}>{formatINR(l.amount)}</td>
@@ -81,6 +84,16 @@ export default async function InvoicePrint({
       <p style={{ marginTop: 14, fontSize: 13, fontStyle: "italic" }}>
         Amount in words: <strong>{inv.amountWords}</strong>
       </p>
+
+      {!inv.isCreditNote && (
+        <p style={{ marginTop: 24, fontSize: 13, lineHeight: 1.6 }}>
+          Thanking you,
+        </p>
+      )}
+
+      <div style={{ marginTop: 40, fontSize: 13 }}>
+        For {company.name}
+      </div>
     </PrintShell>
   );
 }

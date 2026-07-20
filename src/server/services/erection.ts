@@ -478,3 +478,54 @@ export async function acknowledgeOverrun(ctx: Ctx, orderId: string, note: string
     return { ok: true };
   });
 }
+
+/**
+ * Correct the project's execution budget after Won (spec gap: `Budget.baseAmount` is
+ * seeded once from the winning proposal's estimated cost — or a 70%-of-value guess if
+ * that was left blank — and until now had no way to be revised as the real budget
+ * became known during execution). Admin only, reason required, and the prior figure is
+ * kept in `Budget.adjustments` (not overwritten) so the revision history survives —
+ * same audit shape as `acknowledgeOverrun` above, distinguished by `type`.
+ */
+export async function setOrderBudget(ctx: Ctx, orderId: string, data: { amount: string; reason: string }) {
+  requireAdmin(ctx);
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, companyId: ctx.companyId, deletedAt: null },
+    include: { budget: true },
+  });
+  if (!order) throw new Error("Project not found");
+  if (!order.budget) throw new Error("Budget not found");
+
+  const reason = data.reason?.trim();
+  if (!reason) throw new Error("A reason for the change is required");
+  let amount: Decimal;
+  try {
+    amount = new Decimal(data.amount);
+  } catch {
+    throw new Error("Invalid amount");
+  }
+  if (amount.lte(0)) throw new Error("Budget must be greater than zero");
+
+  const budget = order.budget;
+  const adjustments = ((budget.adjustments as unknown[]) ?? []).concat({
+    type: "revision",
+    from: budget.baseAmount.toString(),
+    to: amount.toFixed(2),
+    reason,
+    byUserId: ctx.userId,
+    date: new Date().toISOString(),
+  });
+
+  const updated = await prisma.budget.update({
+    where: { orderId },
+    data: { baseAmount: amount.toFixed(2), adjustments: adjustments as Prisma.InputJsonValue },
+  });
+  await logAudit(ctx, {
+    action: "UPDATE",
+    entity: "Budget",
+    entityId: budget.id,
+    before: { baseAmount: budget.baseAmount.toString() },
+    after: { baseAmount: updated.baseAmount.toString(), reason },
+  });
+  return { ok: true };
+}

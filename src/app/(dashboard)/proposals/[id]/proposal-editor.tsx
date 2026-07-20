@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X, Printer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label, Field, Select } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { SpeakButton } from "@/components/mobile/speak-button";
+import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
 import { formatINR } from "@/lib/money";
 import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, BOQ_UNITS, LOST_REASONS } from "@/lib/constants";
 import { ProposalStageTracker } from "./proposal-stage-tracker";
@@ -23,6 +25,7 @@ import type { ProposalEvent } from "@/server/services/proposal";
 import {
   updateBasicsAction,
   saveVersionAction,
+  generateTermsAction,
   approveSendAction,
   wonAction,
   lostAction,
@@ -66,6 +69,12 @@ export interface ProposalView {
   version: {
     versionNo: number;
     technicalText: string;
+    coverLetter: string;
+    pointsToNote: string;
+    technologyExplainer: string;
+    terms: string;
+    technicalSpecs: TechSpecRow[];
+    electricalLoad: ElectricalLoadRow[];
     aiGenerated: boolean;
     approved: boolean;
     subtotal: string;
@@ -78,16 +87,30 @@ export interface ProposalView {
   } | null;
 }
 
+interface TechSpecRow {
+  section: string;
+  item: string;
+  spec: string;
+  qty: string;
+}
+
+interface ElectricalLoadRow {
+  description: string;
+  hp: number;
+}
+
 export function ProposalEditor({
   view,
   isAdmin,
   events,
   documents,
+  standardTermsTemplate,
 }: {
   view: ProposalView;
   isAdmin: boolean;
   events: ProposalEvent[];
   documents: { id: string; url: string; name: string }[];
+  standardTermsTemplate: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -105,12 +128,26 @@ export function ProposalEditor({
   const [boq, setBoq] = useState<BoqRow[]>(view.version?.boqItems ?? []);
   const [techText, setTechText] = useState(view.version?.technicalText ?? "");
   const [editingTech, setEditingTech] = useState(false);
-  const [aiDesc, setAiDesc] = useState("");
+  const [coverLetter, setCoverLetter] = useState(view.version?.coverLetter ?? "");
+  const [pointsToNote, setPointsToNote] = useState(view.version?.pointsToNote ?? "");
+  const [technologyExplainer, setTechnologyExplainer] = useState(view.version?.technologyExplainer ?? "");
+  const [technicalSpecs, setTechnicalSpecs] = useState<TechSpecRow[]>(view.version?.technicalSpecs ?? []);
+  const [electricalLoad, setElectricalLoad] = useState<ElectricalLoadRow[]>(view.version?.electricalLoad ?? []);
+  const [tcs, setTcs] = useState(view.version?.terms ?? "");
+  // Pre-fill from the sizing already captured on the lead, so the Generate button
+  // isn't stuck disabled-with-no-explanation on a freshly-converted proposal — the
+  // admin can still edit this before generating. Pre-P2 leads coalesce capacityKLD
+  // to 0 (no real sizing was ever captured), so leave it blank in that case rather
+  // than generate a nonsensical "0 KLD" description.
+  const [aiDesc, setAiDesc] = useState(() =>
+    view.capacityKLD > 0 ? `${view.plantType} ${view.capacityKLD} KLD using ${view.technology} at ${view.siteAddress}` : "",
+  );
   const [estCost, setEstCost] = useState(view.version?.estimatedCost ?? "");
   const [terms, setTerms] = useState(view.version?.paymentTerms ?? []);
   const [validity, setValidity] = useState(view.version?.validityDays ?? 30);
   const [marginWarn, setMarginWarn] = useState<null | { requiredFloor: string }>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [tailoringTerms, setTailoringTerms] = useState(false);
   const termsPct = terms.reduce((a, t) => a + (Number(t.percent) || 0), 0);
 
   const subtotal = boq.reduce((a, r) => a + (Number(r.amount) || 0), 0);
@@ -159,6 +196,12 @@ export function ProposalEditor({
           estimatedCost: isAdmin && estCost ? Number(estCost) : undefined,
           paymentTerms: terms,
           validityDays: Number(validity) || 30,
+          coverLetter,
+          pointsToNote,
+          technologyExplainer,
+          technicalSpecs: technicalSpecs as never,
+          electricalLoad: electricalLoad as never,
+          terms: tcs,
         }),
       "Saved.",
     );
@@ -212,6 +255,11 @@ export function ProposalEditor({
               })),
             );
             setTerms(data.paymentTerms ?? terms);
+            if (data.coverLetter) setCoverLetter(data.coverLetter);
+            if (data.pointsToNote) setPointsToNote(data.pointsToNote);
+            if (data.technologyExplainer) setTechnologyExplainer(data.technologyExplainer);
+            if (data.technicalSpecs) setTechnicalSpecs(data.technicalSpecs as TechSpecRow[]);
+            if (data.electricalLoad) setElectricalLoad(data.electricalLoad as ElectricalLoadRow[]);
           } else if (event === "error") {
             throw new Error(data.message ?? "Generation failed");
           }
@@ -242,10 +290,11 @@ export function ProposalEditor({
               href={`/print/proposal/${view.id}`}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
             >
-              PDF
+              <Printer className="size-3.5" /> Print
             </a>
+            <DownloadPdfButton docType="proposal" docId={view.id} />
             <Badge variant={statusVariant}>{view.status.replace(/_/g, " ")}</Badge>
             {view.order && (
               <Link href={`/projects/${view.order.id}`}>
@@ -400,6 +449,30 @@ export function ProposalEditor({
             >
               <Sparkles className="size-4" /> {isGenerating ? "Generating…" : "Generate BOQ + write-up"}
             </Button>
+            {!aiDesc && !pending && !isGenerating && (
+              <p className="text-xs text-muted">Type a description above (or tap the mic) to enable this.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cover letter */}
+      {(coverLetter || editable) && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Cover Letter</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {editable ? (
+              <Textarea
+                className="min-h-32"
+                value={coverLetter}
+                onChange={(e) => setCoverLetter(e.target.value)}
+                placeholder="Greeting / intro letter to the client…"
+              />
+            ) : (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{coverLetter}</p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -492,12 +565,234 @@ export function ProposalEditor({
         </Card>
       )}
 
+      {/* Technology explainer + points to note */}
+      {(technologyExplainer || pointsToNote || editable) && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>How This Technology Works &amp; Points to Note</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Field label={`About ${basics.technology}`}>
+              {editable ? (
+                <Textarea
+                  className="min-h-24"
+                  value={technologyExplainer}
+                  onChange={(e) => setTechnologyExplainer(e.target.value)}
+                  placeholder="How this technology works…"
+                />
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{technologyExplainer}</p>
+              )}
+            </Field>
+            <Field label="Points to note">
+              {editable ? (
+                <Textarea
+                  className="min-h-24"
+                  value={pointsToNote}
+                  onChange={(e) => setPointsToNote(e.target.value)}
+                  placeholder="One caveat/callout per line, e.g. GST extra, civil work by client…"
+                />
+              ) : (
+                <ul className="space-y-1 text-sm text-foreground/90">
+                  {pointsToNote.split("\n").filter(Boolean).map((line, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary/50" />
+                      <span>{line.replace(/^[-•]\s*/, "")}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Field>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Technical specifications + electrical load */}
+      {(technicalSpecs.length > 0 || electricalLoad.length > 0 || editable) && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Technical Specifications</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <THead>
+                <TR className="border-t-0">
+                  <TH>Section</TH>
+                  <TH>Item</TH>
+                  <TH>Specification</TH>
+                  <TH className="text-right">Qty</TH>
+                  {editable && <TH></TH>}
+                </TR>
+              </THead>
+              <TBody>
+                {technicalSpecs.map((r, i) => (
+                  <TR key={i}>
+                    <TD>
+                      {editable ? (
+                        <Input
+                          className="h-8"
+                          value={r.section}
+                          onChange={(e) =>
+                            setTechnicalSpecs((rows) => rows.map((x, j) => (j === i ? { ...x, section: e.target.value } : x)))
+                          }
+                        />
+                      ) : (
+                        r.section
+                      )}
+                    </TD>
+                    <TD>
+                      {editable ? (
+                        <Input
+                          className="h-8"
+                          value={r.item}
+                          onChange={(e) =>
+                            setTechnicalSpecs((rows) => rows.map((x, j) => (j === i ? { ...x, item: e.target.value } : x)))
+                          }
+                        />
+                      ) : (
+                        r.item
+                      )}
+                    </TD>
+                    <TD>
+                      {editable ? (
+                        <Input
+                          className="h-8"
+                          value={r.spec}
+                          onChange={(e) =>
+                            setTechnicalSpecs((rows) => rows.map((x, j) => (j === i ? { ...x, spec: e.target.value } : x)))
+                          }
+                        />
+                      ) : (
+                        r.spec
+                      )}
+                    </TD>
+                    <TD className="text-right tabular-nums">
+                      {editable ? (
+                        <Input
+                          className="h-8 w-20 text-right"
+                          value={r.qty}
+                          onChange={(e) =>
+                            setTechnicalSpecs((rows) => rows.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))
+                          }
+                        />
+                      ) : (
+                        r.qty
+                      )}
+                    </TD>
+                    {editable && (
+                      <TD>
+                        <button
+                          aria-label="Remove spec row"
+                          onClick={() => setTechnicalSpecs((rows) => rows.filter((_, j) => j !== i))}
+                        >
+                          <Trash2 className="size-4 text-danger" />
+                        </button>
+                      </TD>
+                    )}
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+            {editable && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() =>
+                  setTechnicalSpecs((rows) => [...rows, { section: "Others", item: "", spec: "", qty: "" }])
+                }
+              >
+                <Plus className="size-4" /> Add spec line
+              </Button>
+            )}
+
+            <div className="mt-5 border-t border-border pt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm font-semibold">Electrical Load Summary</span>
+                {electricalLoad.length > 0 && (
+                  <span className="text-xs tabular-nums text-muted">
+                    Total {electricalLoad.reduce((a, l) => a + (Number(l.hp) || 0), 0)} HP
+                  </span>
+                )}
+              </div>
+              <Table>
+                <THead>
+                  <TR className="border-t-0">
+                    <TH>Description</TH>
+                    <TH className="text-right">HP</TH>
+                    {editable && <TH></TH>}
+                  </TR>
+                </THead>
+                <TBody>
+                  {electricalLoad.map((r, i) => (
+                    <TR key={i}>
+                      <TD>
+                        {editable ? (
+                          <Input
+                            className="h-8"
+                            value={r.description}
+                            onChange={(e) =>
+                              setElectricalLoad((rows) => rows.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))
+                            }
+                          />
+                        ) : (
+                          r.description
+                        )}
+                      </TD>
+                      <TD className="text-right tabular-nums">
+                        {editable ? (
+                          <Input
+                            className="h-8 w-20 text-right"
+                            type="number"
+                            value={r.hp}
+                            onChange={(e) =>
+                              setElectricalLoad((rows) => rows.map((x, j) => (j === i ? { ...x, hp: Number(e.target.value) } : x)))
+                            }
+                          />
+                        ) : (
+                          r.hp
+                        )}
+                      </TD>
+                      {editable && (
+                        <TD>
+                          <button
+                            aria-label="Remove load row"
+                            onClick={() => setElectricalLoad((rows) => rows.filter((_, j) => j !== i))}
+                          >
+                            <Trash2 className="size-4 text-danger" />
+                          </button>
+                        </TD>
+                      )}
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+              {editable && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setElectricalLoad((rows) => [...rows, { description: "", hp: 0 }])}
+                >
+                  <Plus className="size-4" /> Add load line
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* BOQ */}
       <Card className="mb-4">
         <CardHeader>
           <CardTitle>Bill of Quantities</CardTitle>
         </CardHeader>
         <CardContent>
+          {boq.some((r) => r.aiSuggested) && (
+            <div className="mb-2 flex items-center gap-1.5 rounded-lg bg-primary/5 px-3 py-1.5 text-xs text-primary">
+              <Sparkles className="size-3.5" /> AI-suggested — review every line before sending
+            </div>
+          )}
           {isGenerating ? (
             <div className="space-y-2 py-2">
               <div className="flex items-center gap-2 text-xs text-primary">
@@ -515,103 +810,98 @@ export function ProposalEditor({
             </div>
           ) : (
           <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted">
-                  <th className="pb-1">Item</th>
-                  <th className="pb-1">Cat</th>
-                  <th className="pb-1">Unit</th>
-                  <th className="pb-1 text-right">Qty</th>
-                  <th className="pb-1 text-right">Rate ₹</th>
-                  <th className="pb-1 text-right">Amount</th>
-                  {editable && <th></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {boq.map((r, i) => (
-                  <tr key={i} className="border-t border-border">
-                    <td className="py-1 pr-2">
-                      <div className="flex items-center gap-1">
-                        {r.aiSuggested && <Badge variant="review">review</Badge>}
-                        {editable ? (
-                          <Input
-                            className="h-8"
-                            value={r.item}
-                            onChange={(e) => editRow(i, { item: e.target.value })}
-                          />
-                        ) : (
-                          <span>{r.item}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-1 pr-2 text-xs text-muted">
-                      {editable ? (
-                        <Select
-                          className="h-8 w-24"
-                          value={r.category}
-                          onChange={(e) => editRow(i, { category: e.target.value })}
-                        >
-                          {BOQ_CATEGORIES.map((c) => (
-                            <option key={c}>{c}</option>
-                          ))}
-                        </Select>
-                      ) : (
-                        r.category
-                      )}
-                    </td>
-                    <td className="py-1 pr-2">
-                      {editable ? (
-                        <Select
-                          className="h-8 w-24"
-                          value={r.unit}
-                          onChange={(e) => editRow(i, { unit: e.target.value })}
-                        >
-                          {BOQ_UNITS.map((u) => (
-                            <option key={u}>{u}</option>
-                          ))}
-                        </Select>
-                      ) : (
-                        r.unit
-                      )}
-                    </td>
-                    <td className="py-1 pr-2 text-right tabular-nums">
-                      {editable ? (
-                        <Input
-                          className="h-8 w-16 text-right"
-                          value={r.qty}
-                          onChange={(e) => editRow(i, { qty: e.target.value })}
-                        />
-                      ) : (
-                        r.qty
-                      )}
-                    </td>
-                    <td className="py-1 pr-2 text-right tabular-nums">
-                      {editable ? (
-                        <Input
-                          className="h-8 w-20 text-right"
-                          value={r.rate}
-                          onChange={(e) => editRow(i, { rate: e.target.value })}
-                        />
-                      ) : (
-                        r.rate
-                      )}
-                    </td>
-                    <td className="py-1 text-right font-medium tabular-nums">
-                      {formatINR(r.amount || 0)}
-                    </td>
-                    {editable && (
-                      <td className="py-1 pl-1">
-                        <button onClick={() => setBoq(boq.filter((_, j) => j !== i))}>
-                          <Trash2 className="size-4 text-danger" />
-                        </button>
-                      </td>
+          <Table>
+            <THead>
+              <TR className="border-t-0">
+                <TH>Item</TH>
+                <TH>Cat</TH>
+                <TH>Unit</TH>
+                <TH className="text-right">Qty</TH>
+                <TH className="text-right">Rate ₹</TH>
+                <TH className="text-right">Amount</TH>
+                {editable && <TH></TH>}
+              </TR>
+            </THead>
+            <TBody>
+              {boq.map((r, i) => (
+                <TR key={i}>
+                  <TD>
+                    {editable ? (
+                      <Input
+                        className="h-8"
+                        value={r.item}
+                        onChange={(e) => editRow(i, { item: e.target.value })}
+                      />
+                    ) : (
+                      <span>{r.item}</span>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </TD>
+                  <TD className="text-xs text-muted">
+                    {editable ? (
+                      <Select
+                        className="h-8 w-24"
+                        value={r.category}
+                        onChange={(e) => editRow(i, { category: e.target.value })}
+                      >
+                        {BOQ_CATEGORIES.map((c) => (
+                          <option key={c}>{c}</option>
+                        ))}
+                      </Select>
+                    ) : (
+                      r.category
+                    )}
+                  </TD>
+                  <TD>
+                    {editable ? (
+                      <Select
+                        className="h-8 w-24"
+                        value={r.unit}
+                        onChange={(e) => editRow(i, { unit: e.target.value })}
+                      >
+                        {BOQ_UNITS.map((u) => (
+                          <option key={u}>{u}</option>
+                        ))}
+                      </Select>
+                    ) : (
+                      r.unit
+                    )}
+                  </TD>
+                  <TD className="text-right tabular-nums">
+                    {editable ? (
+                      <Input
+                        className="h-8 w-16 text-right"
+                        value={r.qty}
+                        onChange={(e) => editRow(i, { qty: e.target.value })}
+                      />
+                    ) : (
+                      r.qty
+                    )}
+                  </TD>
+                  <TD className="text-right tabular-nums">
+                    {editable ? (
+                      <Input
+                        className="h-8 w-20 text-right"
+                        value={r.rate}
+                        onChange={(e) => editRow(i, { rate: e.target.value })}
+                      />
+                    ) : (
+                      r.rate
+                    )}
+                  </TD>
+                  <TD className="text-right font-medium tabular-nums">
+                    {formatINR(r.amount || 0)}
+                  </TD>
+                  {editable && (
+                    <TD>
+                      <button onClick={() => setBoq(boq.filter((_, j) => j !== i))} aria-label="Remove line">
+                        <Trash2 className="size-4 text-danger" />
+                      </button>
+                    </TD>
+                  )}
+                </TR>
+              ))}
+            </TBody>
+          </Table>
 
           {editable && (
             <Button
@@ -716,6 +1006,47 @@ export function ProposalEditor({
                 <Input type="number" value={validity} disabled={!isAdmin} onChange={(e) => setValidity(Number(e.target.value))} />
               </Field>
             </div>
+          </div>
+
+          {/* Terms & Conditions — fixed template (Reset) or AI-tailored per deal. */}
+          <div className="mt-4 border-t border-border pt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-semibold">Terms &amp; Conditions</span>
+              {editable && (
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setTcs(standardTermsTemplate)}>
+                    Reset to standard template
+                  </Button>
+                  <Button
+                    variant="subtle"
+                    size="sm"
+                    disabled={tailoringTerms}
+                    onClick={() => {
+                      setTailoringTerms(true);
+                      generateTermsAction(view.id)
+                        .then((res) => {
+                          setTcs(res.text);
+                          toast(res.source === "ai" ? "T&Cs tailored by AI." : "No AI provider configured — kept the standard template.");
+                        })
+                        .catch((e) => toast(e instanceof Error ? e.message : "Failed to tailor T&Cs", "error"))
+                        .finally(() => setTailoringTerms(false));
+                    }}
+                  >
+                    <Sparkles className="size-4" /> {tailoringTerms ? "Tailoring…" : "AI-tailor for this deal"}
+                  </Button>
+                </div>
+              )}
+            </div>
+            {editable ? (
+              <Textarea
+                className="min-h-48 font-mono text-xs"
+                value={tcs}
+                onChange={(e) => setTcs(e.target.value)}
+                placeholder="Standard terms & conditions…"
+              />
+            ) : (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{tcs}</p>
+            )}
           </div>
 
           {isAdmin && (
@@ -899,11 +1230,12 @@ function TechnicalWriteUp({ text }: { text: string }) {
           );
         }
 
-        // Plain paragraph
+        // Plain paragraph — same boxed treatment as a labelled one (minus the label),
+        // so it doesn't float unstyled next to its bordered siblings.
         return (
-          <p key={i} className="leading-relaxed text-foreground/80">
-            {para}
-          </p>
+          <div key={i} className="rounded-lg border border-border bg-surface/50 px-4 py-3">
+            <p className="leading-relaxed text-foreground/90">{para}</p>
+          </div>
         );
       })}
     </div>

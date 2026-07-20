@@ -18,7 +18,7 @@ import { ProjectDocumentsCard } from "./documents-card";
 import { CommPanel } from "./comm-panel";
 import { ArchiveButton } from "./archive-button";
 import { GstControl } from "./gst-control";
-import { ScheduleControl, ValueControl, InlineDateEdit } from "./schedule-value-controls";
+import { ScheduleControl, ValueControl, BudgetControl, InlineDateEdit } from "./schedule-value-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -92,7 +92,10 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                         <div className="text-lg font-bold">{formatINR(order.projectValue.toString())}</div>
                       </Card>
                       <Card className="p-3">
-                        <div className="text-xs text-muted">Budget</div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs text-muted">Budget</div>
+                          <BudgetControl orderId={order.id} budget={bva.budget} />
+                        </div>
                         <div className="text-lg font-bold">{formatINR(bva.budget)}</div>
                       </Card>
                       <Card className="p-3">

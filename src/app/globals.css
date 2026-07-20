@@ -34,7 +34,18 @@
 
   --primary: var(--primary-600);
   --primary-foreground: #ffffff;
-  --accent: #0ea5e9;
+
+  /* Accent ramp (blue) — sampled from the real client logo's water-drop blue
+     (~#189bdc), so the app's two "premium" colors are the same two colors as
+     the actual brand mark, not an arbitrary UI blue tacked on separately. */
+  --accent-50: #f0f9ff;
+  --accent-100: #e0f2fe;
+  --accent-400: #38bdf8;
+  --accent-500: #189bdc;
+  --accent-600: #0d84c4;
+  --accent-700: #0a6699;
+  --accent: var(--accent-500);
+
   --danger: #dc2626;
   --danger-soft: #fef2f2;
   --warn: #d97706;
@@ -65,6 +76,15 @@
   --shadow-sm: 0 1px 2px rgba(15, 28, 22, 0.06), 0 1px 1px rgba(15, 28, 22, 0.04);
   --shadow-md: 0 2px 10px rgba(15, 28, 22, 0.07), 0 1px 3px rgba(15, 28, 22, 0.05);
   --shadow-lg: 0 10px 30px rgba(15, 28, 22, 0.1), 0 4px 10px rgba(15, 28, 22, 0.06);
+  /* Brand-tinted glow — the two-tone (green→blue) primary CTA's hover shadow. */
+  --shadow-glow: 0 6px 20px -4px color-mix(in srgb, var(--primary) 45%, transparent),
+    0 3px 8px -2px color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* Two-tone brand gradient (the same green→blue pairing as the real logo) —
+     used for the primary CTA and a few hero moments, not everywhere. Built
+     from the semantic --primary/--accent (not fixed ramp stops) so it
+     automatically re-tunes for dark mode along with everything else. */
+  --gradient-primary: linear-gradient(115deg, var(--primary), color-mix(in srgb, var(--primary) 45%, var(--accent)), var(--accent));
 
   /* Motion */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -86,6 +106,9 @@
   --primary-50: color-mix(in srgb, var(--primary) 15%, transparent);
   --primary-100: color-mix(in srgb, var(--primary) 26%, transparent);
   --primary-700: #a7f3d0;
+  --accent: var(--accent-400);
+  --accent-50: color-mix(in srgb, var(--accent) 15%, transparent);
+  --accent-100: color-mix(in srgb, var(--accent) 26%, transparent);
   --danger: #f87171;
   --danger-soft: #2a1616;
   --warn: #fbbf24;
@@ -112,6 +135,12 @@
   --color-primary-700: var(--primary-700);
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
+  --color-accent-50: var(--accent-50);
+  --color-accent-100: var(--accent-100);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-warn: var(--warn);
@@ -133,6 +162,7 @@
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
+  --shadow-glow: var(--shadow-glow);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -277,15 +307,25 @@ body {
   animation: gc-shimmer 1.4s infinite;
 }
 
-/* Premium sidebar: layered water gradient + ambient glows (matches the login) */
+/* Premium sidebar: near-black-to-green gradient + a faint flowing wave + ambient glows */
 .gc-sidebar {
   background:
-    radial-gradient(90% 38% at 100% 0%, rgba(52, 211, 153, 0.22), transparent 60%),
-    radial-gradient(85% 45% at 0% 100%, rgba(45, 212, 191, 0.20), transparent 55%),
-    radial-gradient(70% 40% at 50% 60%, rgba(21, 96, 189, 0.13), transparent 62%),
-    linear-gradient(168deg, #06392a 0%, #0a5a43 42%, #0f766e 78%, #0d6b76 100%);
+    radial-gradient(90% 38% at 100% 0%, rgba(52, 211, 153, 0.18), transparent 60%),
+    radial-gradient(85% 45% at 0% 100%, rgba(45, 212, 191, 0.16), transparent 55%),
+    radial-gradient(70% 42% at 50% 62%, rgba(24, 155, 220, 0.14), transparent 64%),
+    linear-gradient(168deg, #04140f 0%, #06392a 34%, #0a5a43 62%, #0f766e 86%, #0b5a8c 100%);
   position: relative;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07);
+}
+.gc-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/brand/sidebar-wave.svg");
+  background-repeat: no-repeat;
+  background-position: bottom left;
+  background-size: 100% auto;
+  pointer-events: none;
 }
 .gc-sidebar::after {
   content: "";
@@ -294,10 +334,12 @@ body {
   background: radial-gradient(55% 26% at 100% 10%, rgba(255, 255, 255, 0.10), transparent 60%);
   pointer-events: none;
 }
-/* Frosted stat-card wash */
+/* Frosted stat-card wash — a soft per-tone pastel background (currentColor comes from
+   the tone's text-color class, e.g. text-c-emerald) plus a blurred corner blob. */
 .gc-hero {
   position: relative;
   overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in srgb, currentColor 12%, var(--card)) 0%, var(--card) 70%);
 }
 .gc-hero::before {
   content: "";

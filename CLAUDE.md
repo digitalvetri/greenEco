@@ -41,6 +41,123 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v32 — Dashboard/shell visual refresh (matched to a reference mockup)
+
+The client shared an AI-generated mockup image and asked for "exactly" that design. Since it's a
+ChatGPT-drawn concept, chased the design *language* (card treatments, color tone, sidebar mood),
+not literal pixels — its sparkline squiggles and exact wave art aren't real, data-backed elements
+worth copying. **Gate: tsc 0 · lint 0 (2 pre-existing warnings) · 75 unit · `next build` clean ·
+browser-verified light + dark + /leads + /projects (sidebar is global — checked it didn't regress
+non-dashboard pages) · zero console errors.**
+
+- **Sidebar** (`.gc-sidebar`, shared by desktop + mobile drawer) — darkened the gradient (near-black
+  top fading to green/teal, was a flatter green start) and layered in a faint decorative wave
+  (`public/brand/sidebar-wave.svg`, translucent white/emerald curves) via a new `::before` layer.
+- **Hero stat cards** (`.gc-hero`, dashboard) — added a soft per-tone pastel background
+  (`color-mix(in srgb, currentColor 12%, var(--card))`, so each card's existing tone class drives
+  its own tint automatically) and switched icon badges from rounded-square to fully circular.
+- **Top bar** — chevron-down added to the company chip.
+- **Deliberately not built**: sparklines on the 4 ops-KPI cards (Receivables/AMC/Stock/Budget) — the
+  mockup shows trend squiggles next to those numbers, but there's no real historical time-series for
+  them, and fabricating one (or faking a decorative trend line) would misrepresent real data next to
+  a real number. Flagged rather than silently skipped.
+
+### v31 — PO print polish round 2: real vendor payment terms, drop-ship-to-client, one-page fit
+
+A second real sample (`6 A1 BLOWERS 47 M MODEL ACOUSTIC HOOD…docx`) showed detail the first PO
+rebuild (v30) missed: **Ship To is often the client's own site, not Green Ecocare's warehouse**
+(drop-shipped straight to the project, with a delivery contact number), a formal **TERMS** block
+(Delivery + **Payment** — vendor-specific, e.g. "50% advance, balance against delivery"), and a
+full **"Yours faithfully," → For Green Ecocare → signatory + phone** closing, plus a footer
+delivery-contact note. **Gate: tsc 0 · lint 0 · 75 unit · `next build` clean ·
+verify-materials-p0 (22) green · PO PDF re-rendered, single page, browser-verified vendor edit.**
+
+- **`Vendor.terms` was a completely dead schema field** — never read or written anywhere, not even
+  in the vendor create form. Now: `createVendor` accepts it, new `updateVendor` (admin, audited —
+  vendors previously had NO edit path at all, only create/delete) lets it be added to existing
+  vendors, the PO print page shows it as the Payment line (falls back to "As mutually agreed" only
+  when genuinely unset — never fabricated). Vendor cards show a Pencil (edit) icon → inline form
+  (phone/GSTIN/address/terms); "Add vendor" gained the same Payment-terms field.
+- **`getPO` enriched** (additive, same/only caller): `createdByName`/`createdByPhone` (signature
+  block), `destination.clientName`/`clientPhone` (from the linked Order, when destination is a
+  SITE) for a proper Ship-To block distinct from Bill-To (always Green Ecocare's own address).
+- **One-page fit** — trimmed excess signature-block whitespace (double `<br/>`s, oversized margins)
+  that was pushing the last 2 footer lines onto a spilled second page.
+
+### v30 — PO print rebuilt to match the client's real vendor-PO documents + a real PDF download for proposals + a latent print-table styling bug fixed everywhere
+
+The client's "Green-sample" folder samples (re-checked) are all **vendor Purchase Orders**, not
+customer invoices — formal-letter format: REF/DATE, "M/S. Vendor…", "SUB: PURCHASE ORDER", Sl.No/
+Description/Qty/Rate/Amount table, CGST+SGST or IGST breakup, round-off, amount in words, Bill-to/
+Ship-to (Green Ecocare's own addresses — it's the buyer here), and a "For Green Ecocare" signature.
+The old PO print page had none of this (Item/Qty/Unit/Rate/Amount table + a flat total, nothing
+else). Also fixed: the proposal editor had no real PDF download, only a live-view print link.
+**Gate: tsc 0 · lint 0 · 75 unit · `next build` clean · verify-materials-p0/invoices-p0/invoices-p1
+green · all 4 print PDFs (proposal/invoice/PO/closeout) re-rendered and visually verified.**
+
+- **PO print rebuilt** (`print/po/[poNo]/page.tsx`) to the sample's exact structure. GST is
+  computed **at print time only** via the existing `computeGst()` (tax-exclusive base) — `vendor`
+  is the supplier, `company.stateCode` is the place of supply, vendor state derived from the first
+  2 digits of `vendor.gstin` (same simplification already documented for orders with no
+  `clientStateCode`: no GSTIN → default intra-state). **Nothing persisted changes** — `totalValue`
+  (used by stock costing/budget-vs-actual/committed-PO everywhere else) stays exactly what it was;
+  the tax breakup, round-off, and amount-in-words are display-only. `getPO` gained `createdByName`
+  (resolved once, for the signature block) and `destination.siteAddress` (resolved from the
+  destination Location's linked Order, for the Ship-to block) — additive, no other caller touched.
+- **Tax Invoice richness** (`print/invoice/[invoiceNo]/page.tsx`) — added a Sl.No column and a
+  "For {company}" signature block. Deliberately **no round-off line and no total recomputation** —
+  `computeGstInclusive`'s `total === milestone receivable` invariant (the v28 B1 fix) must not be
+  touched by a cosmetic change.
+- **Proposal PDF download** — the editor only had a "Print" link to the live HTML view (browser
+  print-to-PDF); `DownloadPdfButton` (the real server-rendered, durable, storable PDF — already
+  wired for invoices/POs) had never been added. Added next to Print, same as the invoice panel.
+- **Found while visually verifying the PO PDF — a latent bug in every `/print/*` table, since
+  Phase 1**: `th`/`td` were `export const` **style objects from a `"use client"` module**
+  (`print-shell.tsx`). `style={th}` (direct reference) rendered fine, but `style={{...th, x}}`
+  (spread — used for every right-aligned/narrow header cell) **silently dropped every property
+  except the override** — Next.js doesn't reliably support importing plain-object (non-component)
+  exports from a client module into a Server Component. Every "Qty"/"Rate"/"Amount"/"HP" table
+  header on every proposal/invoice/PO/closeout PDF has been rendering unstyled (black, no
+  underline) this whole time, invisible unless you looked at an actual PDF. Fixed by moving
+  `td`/`th` to a new plain module, `print/print-styles.ts` (no `"use client"`), and pointing all
+  4 print pages at it directly instead of re-exporting through `print-shell.tsx`. Confirmed via
+  raw HTML diff (`style="width:32px"` vs the full green-underlined style) before and after.
+
+### v29 — Client corrections phase 2: richer AI-generated proposal content
+
+Driven by the client's real sample proposal/invoice `.docx` files (`Green-sample` folder). Phase 1 (letterhead,
+v28-era) shipped the branded header/footer; this phase makes the AI-generated proposal *document* match the
+samples' structure. **Gate: tsc 0 · lint 0 · 75 unit · `next build` clean · new `verify-proposals-p5`
+(9 checks) + verify-proposals-p0…p4 + verify-sell green · browser-verified (AI generate → persist →
+reload → PDF).**
+
+- **New `ProposalVersion` content** (migration `proposal_richness`): `coverLetter`, `pointsToNote`,
+  `technologyExplainer`, `technicalSpecs` (Json — `{section,item,spec,qty}[]`), `electricalLoad`
+  (Json — `{description,hp}[]`). `terms` — previously an unused `Json` field always saved as `[]` — is
+  repurposed to hold the actual Terms & Conditions text.
+- **`Company.standardTermsTemplate`** (`Text`) — the fixed T&Cs template, editable in Settings, seeds
+  `terms` on every new proposal via `convertToProposal`.
+- **AI generation** (`lib/ai.ts` `templateDraft`/`draftPrompt`/`mapDraft`/`DRAFT_SCHEMA`, `lib/ai-stream.ts`
+  `DRAFT_SCHEMA_NO_TEXT`) — both the template fallback and the Claude/Groq/Gemini paths now produce all
+  five new fields alongside the existing BOQ/scope/payment-terms. `TECHNOLOGY_EXPLAINERS` (constants.ts)
+  gives each technology (MBBR/SBR/MBR/ASP/SAFF/DAF) a reusable "how this works" write-up.
+- **T&Cs — both options the client asked for**: a "Reset to standard template" button (fixed path) and an
+  "AI-tailor for this deal" button — new `generateTermsDraft` (proposal.ts) calls the existing
+  provider-agnostic `llmText` helper directly (deliberately NOT folded into `DRAFT_SCHEMA` — keeps the
+  structured draft schema untouched); degrades cleanly to the template when no AI key is configured
+  (verified — this environment has no keys).
+- **Editor UI** (`proposals/[id]/proposal-editor.tsx`) — new Cover Letter, Technology-explainer +
+  Points-to-note, Technical Specifications table, and Electrical Load Summary table cards, all editable
+  and saved through the existing "Save proposal" flow (`saveVersion` merges omitted fields from the
+  current version, so partial saves — e.g. the standalone "Save write-up" button — never blank them).
+- **Print PDF** (`print/proposal/[id]/page.tsx`) — full document order: cover letter → technical write-up →
+  technology explainer → scope of work → technical specifications → electrical load → BOQ → payment terms
+  → points to note → Terms & Conditions (own page-break section). Legacy pre-migration versions guard
+  `terms` (was `[]`, now a string) so old proposals don't crash the renderer.
+- **Settings** — new "Standard Terms & Conditions" template editor on the Company details card.
+- **Gotcha (same class as v10's)**: after this migration, a **already-running dev server** still serves
+  the old generated Prisma Client — `saveVersion` throws "Unknown argument `coverLetter`" until restarted.
+
 ### v28 — Pre-deploy audit + go-live blocker fixes (see `GO-LIVE-AUDIT.md`)
 
 Full end-to-end audit (12-lens multi-agent review + adversarial verification) ahead of a production deploy,

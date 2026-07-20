@@ -318,7 +318,7 @@ export function LeadsList({
           {customerItems.map((c) => {
             const href = c.projectCount === 1 ? `/leads/${c.id}` : `/leads/customer/${c.id}`;
             return (
-              <Card key={c.phone} className="flex items-center justify-between gap-3 p-3">
+              <Card key={c.id} className="flex items-center justify-between gap-3 p-3">
                 <Link href={href} className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-medium">{c.customerName}</span>

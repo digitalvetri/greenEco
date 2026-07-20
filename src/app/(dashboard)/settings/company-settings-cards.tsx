@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, SlidersHorizontal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, Input } from "@/components/ui/input";
+import { Field, Input, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import type { CompanySettings } from "@/server/services/company-settings";
@@ -23,12 +23,21 @@ export function CompanyDetailsCard({ settings }: { settings: CompanySettings }) 
     orderPrefix: settings.orderPrefix,
     proposalPrefix: settings.proposalPrefix,
     poPrefix: settings.poPrefix,
+    tagline: settings.tagline,
+    phone: settings.phone,
+    email: settings.email,
+    website: settings.website,
+    branches: settings.branches.join(", "),
+    standardTermsTemplate: settings.standardTermsTemplate,
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   function save() {
     start(async () => {
-      const res = await updateCompanyDetailsAction(f);
+      const res = await updateCompanyDetailsAction({
+        ...f,
+        branches: f.branches.split(",").map((b) => b.trim()).filter(Boolean),
+      });
       if (res.ok) {
         toast(res.message ?? "Saved");
         router.refresh();
@@ -63,6 +72,46 @@ export function CompanyDetailsCard({ settings }: { settings: CompanySettings }) 
         <Field label="Logo URL" hint="Public image URL used on documents (optional).">
           <Input value={f.logoUrl} onChange={(e) => set("logoUrl", e.target.value)} placeholder="https://…" />
         </Field>
+
+        <div className="space-y-3 border-t border-border pt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Letterhead — every Proposal / Invoice / PO / Close-out PDF
+          </p>
+          <Field label="Tagline">
+            <Input value={f.tagline} onChange={(e) => set("tagline", e.target.value)} placeholder="It's our future" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Phone">
+              <Input value={f.phone} onChange={(e) => set("phone", e.target.value)} placeholder="6304984052, 8122773433" />
+            </Field>
+            <Field label="Email">
+              <Input value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="you@greenecocare.com" />
+            </Field>
+          </div>
+          <Field label="Website">
+            <Input value={f.website} onChange={(e) => set("website", e.target.value)} placeholder="www.greenecocare.com" />
+          </Field>
+          <Field label="Branches" hint="Comma-separated, shown in the PDF footer.">
+            <Input value={f.branches} onChange={(e) => set("branches", e.target.value)} placeholder="Bangalore, Hyderabad, Cochin, Mangalore, Chennai" />
+          </Field>
+        </div>
+
+        <div className="space-y-3 border-t border-border pt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Standard Terms &amp; Conditions
+          </p>
+          <Field
+            label="Template"
+            hint="Seeds every new proposal's T&Cs (editable per-proposal, with a Reset-to-standard and an AI-tailor option there)."
+          >
+            <Textarea
+              className="min-h-48 font-mono text-xs"
+              value={f.standardTermsTemplate}
+              onChange={(e) => set("standardTermsTemplate", e.target.value)}
+            />
+          </Field>
+        </div>
+
         <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 sm:grid-cols-4">
           <Field label="Invoice #">
             <Input value={f.invoicePrefix} onChange={(e) => set("invoicePrefix", e.target.value)} />

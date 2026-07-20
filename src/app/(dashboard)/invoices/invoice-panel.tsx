@@ -6,6 +6,7 @@ import { Loader2, FileCheck, Printer } from "lucide-react";
 import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { toast } from "@/components/ui/toast";
 import { formatINR } from "@/lib/money";
 import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
@@ -127,25 +128,25 @@ export function InvoicePanel({
           </div>
 
           <div className="rounded-lg border border-border">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted">
-                  <th className="px-3 py-2 font-medium">Description</th>
-                  <th className="px-3 py-2 text-right font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="text-xs">
+              <THead>
+                <TR className="border-t-0 text-muted">
+                  <TH>Description</TH>
+                  <TH className="text-right">Amount</TH>
+                </TR>
+              </THead>
+              <TBody>
                 {detail.lineItems.map((l, i) => (
-                  <tr key={i} className="border-b border-border last:border-0">
-                    <td className="px-3 py-2">
+                  <TR key={i}>
+                    <TD>
                       {l.description}
                       {l.sac && <span className="ml-1 text-muted">· SAC {l.sac}</span>}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatINR(l.amount)}</td>
-                  </tr>
+                    </TD>
+                    <TD className="text-right tabular-nums">{formatINR(l.amount)}</TD>
+                  </TR>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
 
           <div className="space-y-1">

@@ -141,13 +141,7 @@ export default function SignInPage() {
               </div>
             </div>
 
-            <Button
-              type="submit"
-              size="lg"
-              loading={pending}
-              className="w-full text-white shadow-lg shadow-emerald-900/20 transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-xl hover:shadow-emerald-900/25"
-              style={{ background: "linear-gradient(100deg, #0b5e39, #128a55 55%, #157f9c)" }}
-            >
+            <Button type="submit" size="lg" loading={pending} className="w-full transition-transform hover:-translate-y-0.5">
               <LogIn className="size-4" /> Sign in
             </Button>
           </form>

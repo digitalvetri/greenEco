@@ -6,6 +6,7 @@ import { ArrowLeftRight, Send, ClipboardCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Field } from "@/components/ui/input";
+import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
 import { transferAction, consumeAction, stockAuditAction } from "./actions";
@@ -223,38 +224,36 @@ export function OperationsPanel({
 
             {auditLocationId && (
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-muted">
-                        <th className="pb-2">Item</th>
-                        <th className="w-40 pb-2 text-right">Counted qty</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((i) => (
-                        <tr key={i.id} className="border-t border-border">
-                          <td className="py-1.5">
-                            <label htmlFor={`count-${i.id}`}>{i.name}</label>
-                          </td>
-                          <td className="py-1.5 pl-2 text-right">
-                            <Input
-                              id={`count-${i.id}`}
-                              type="number"
-                              min="0"
-                              step="0.001"
-                              inputMode="decimal"
-                              className="h-8 text-right"
-                              placeholder="—"
-                              value={counts[i.id] ?? ""}
-                              onChange={(e) => setCounts((c) => ({ ...c, [i.id]: e.target.value }))}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table>
+                  <THead>
+                    <TR className="border-t-0">
+                      <TH>Item</TH>
+                      <TH className="w-40 text-right">Counted qty</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {items.map((i) => (
+                      <TR key={i.id}>
+                        <TD>
+                          <label htmlFor={`count-${i.id}`}>{i.name}</label>
+                        </TD>
+                        <TD className="text-right">
+                          <Input
+                            id={`count-${i.id}`}
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            inputMode="decimal"
+                            className="h-8 text-right"
+                            placeholder="—"
+                            value={counts[i.id] ?? ""}
+                            onChange={(e) => setCounts((c) => ({ ...c, [i.id]: e.target.value }))}
+                          />
+                        </TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
                 <div className="flex items-center gap-3">
                   <Button
                     size="sm"

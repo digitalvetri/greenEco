@@ -128,7 +128,7 @@ export default async function SettingsPage() {
           </div>
           <p className="mt-2 text-xs text-muted">
             Default payment terms: 50% advance / 30% delivery / 20% commissioning — confirm with client;
-            overridable per proposal. See <code>GO-LIVE.md</code>.
+            overridable per proposal.
           </p>
         </CardContent>
       </Card>
@@ -138,9 +138,24 @@ export default async function SettingsPage() {
           <CardTitle>System</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2 text-sm">
-          <Link href="/settings/integrations" className="text-primary">Integrations & API keys →</Link>
-          <Link href="/settings/automations" className="text-primary">Automations →</Link>
-          <Link href="/settings/activity" className="text-primary">Activity log →</Link>
+          <Link
+            href="/settings/integrations"
+            className="rounded-lg border border-border bg-surface px-3 py-2 font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
+          >
+            Integrations & API keys →
+          </Link>
+          <Link
+            href="/settings/automations"
+            className="rounded-lg border border-border bg-surface px-3 py-2 font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
+          >
+            Automations →
+          </Link>
+          <Link
+            href="/settings/activity"
+            className="rounded-lg border border-border bg-surface px-3 py-2 font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
+          >
+            Activity log →
+          </Link>
         </CardContent>
       </Card>
       </>

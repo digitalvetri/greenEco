@@ -338,13 +338,23 @@ model ProposalVersion {
   grandTotal    Decimal   @db.Decimal(14, 2)
   estimatedCost Decimal?  @db.Decimal(14, 2) // ADMIN-ONLY — margin guard
   paymentTerms  Json // [{description, percent, trigger}]
-  terms         Json
+  terms         Json // standard T&Cs text — seeded from Company.standardTermsTemplate, editable per proposal
   validityDays  Int       @default(30)
   changeNote    String?
   approvedById  String? // admin approval before send
   pdfUrl        String?
   aiGenerated   Boolean   @default(false)
   createdAt     DateTime  @default(now())
+
+  // Richer proposal document content (client corrections phase 2 — matches the
+  // client's real proposal documents: cover letter, caveats, tech explainer,
+  // component-level specs, electrical load). All nullable/optional — a pre-existing
+  // proposal just renders without these sections until regenerated or edited in.
+  coverLetter         String? // intro/greeting letter text
+  pointsToNote        String? // caveats/callouts, one per line
+  technologyExplainer String? // "how this technology works" — plant/technology specific
+  technicalSpecs      Json? // [{section, item, spec, qty}] — component-level spec table
+  electricalLoad      Json? // [{description, hp}] — electrical load summary
 
   proposal Proposal @relation(fields: [proposalId], references: [id])
 
@@ -848,6 +858,17 @@ model Company {
   orderPrefix   String?
   proposalPrefix String?
   poPrefix      String?
+
+  // Letterhead (Settings → print-shell.tsx header/footer on every PDF).
+  tagline  String?
+  phone    String?
+  email    String?
+  website  String?
+  branches String[] @default([])
+
+  // Standard proposal T&Cs (Settings) — seeds ProposalVersion.terms on every new
+  // proposal; still freely editable per-proposal afterward (not locked to this).
+  standardTermsTemplate String? @db.Text
 
   // Editable thresholds (Settings) — read at automation runtime, no redeploy.
   minMarginPct      Decimal? @db.Decimal(5, 4) // e.g. 0.1000 = 10%

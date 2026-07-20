@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { getReceivables, getReferenceAnalytics, getGstSummary, getCollectionSummary } from "@/server/services/reports";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { StatTile } from "@/components/ui/stat";
 import { ExportButton } from "@/components/ui/export-button";
@@ -67,48 +68,46 @@ export default async function ReportsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted">
-                  <th className="pb-1">Rate</th>
-                  <th className="pb-1 text-right">Invoices</th>
-                  <th className="pb-1 text-right">Taxable</th>
-                  <th className="pb-1 text-right">CGST</th>
-                  <th className="pb-1 text-right">SGST</th>
-                  <th className="pb-1 text-right">IGST</th>
-                  <th className="pb-1 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {gst.groups.length === 0 && (
-                  <tr><td colSpan={7} className="py-4 text-center text-muted">No invoices yet.</td></tr>
-                )}
-                {gst.groups.map((g) => (
-                  <tr key={g.rate} className="border-t border-border">
-                    <td className="py-1.5">{g.rate}%</td>
-                    <td className="py-1.5 text-right tabular-nums">{g.count}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(g.taxable)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(g.cgst)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(g.sgst)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(g.igst)}</td>
-                    <td className="py-1.5 text-right font-medium tabular-nums">{formatINR(g.total)}</td>
-                  </tr>
-                ))}
-                {gst.groups.length > 0 && (
-                  <tr className="border-t-2 border-border font-semibold">
-                    <td className="py-1.5">Total</td>
-                    <td className="py-1.5 text-right tabular-nums">{gst.invoiceCount}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(gst.grand.taxable)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(gst.grand.cgst)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(gst.grand.sgst)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(gst.grand.igst)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatINR(gst.grand.total)}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <THead>
+              <TR className="border-t-0">
+                <TH>Rate</TH>
+                <TH className="text-right">Invoices</TH>
+                <TH className="text-right">Taxable</TH>
+                <TH className="text-right">CGST</TH>
+                <TH className="text-right">SGST</TH>
+                <TH className="text-right">IGST</TH>
+                <TH className="text-right">Total</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {gst.groups.length === 0 && (
+                <TR><TD colSpan={7} className="py-4 text-center text-muted">No invoices yet.</TD></TR>
+              )}
+              {gst.groups.map((g) => (
+                <TR key={g.rate}>
+                  <TD>{g.rate}%</TD>
+                  <TD className="text-right tabular-nums">{g.count}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(g.taxable)}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(g.cgst)}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(g.sgst)}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(g.igst)}</TD>
+                  <TD className="text-right font-medium tabular-nums">{formatINR(g.total)}</TD>
+                </TR>
+              ))}
+              {gst.groups.length > 0 && (
+                <TR className="border-t-2 font-semibold">
+                  <TD>Total</TD>
+                  <TD className="text-right tabular-nums">{gst.invoiceCount}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(gst.grand.taxable)}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(gst.grand.cgst)}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(gst.grand.sgst)}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(gst.grand.igst)}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(gst.grand.total)}</TD>
+                </TR>
+              )}
+            </TBody>
+          </Table>
         </CardContent>
       </Card>
 
@@ -117,44 +116,42 @@ export default async function ReportsPage() {
           <CardTitle>Receivables — projects × milestones</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted">
-                  <th className="pb-1">Project</th>
-                  <th className="pb-1">Milestone</th>
-                  <th className="pb-1 text-right">Balance</th>
-                  <th className="pb-1">Due</th>
-                  <th className="pb-1 text-right">Overdue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {receivables.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-4 text-center text-muted">
-                      Nothing outstanding.
-                    </td>
-                  </tr>
-                )}
-                {receivables.rows.map((r, i) => (
-                  <tr key={i} className="border-t border-border">
-                    <td className="py-1.5">
-                      <div className="font-mono text-xs">{r.orderNo}</div>
-                      <div className="text-xs text-muted">{r.client}</div>
-                    </td>
-                    <td className="py-1.5">{r.description}</td>
-                    <td className="py-1.5 text-right font-medium tabular-nums">{formatINR(r.balance)}</td>
-                    <td className="py-1.5 text-xs text-muted">
-                      {r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN") : "-"}
-                    </td>
-                    <td className="py-1.5 text-right">
-                      {r.daysOverdue > 0 ? <Badge variant="danger">{r.daysOverdue}d</Badge> : "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <THead>
+              <TR className="border-t-0">
+                <TH>Project</TH>
+                <TH>Milestone</TH>
+                <TH className="text-right">Balance</TH>
+                <TH>Due</TH>
+                <TH className="text-right">Overdue</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {receivables.rows.length === 0 && (
+                <TR>
+                  <TD colSpan={5} className="py-4 text-center text-muted">
+                    Nothing outstanding.
+                  </TD>
+                </TR>
+              )}
+              {receivables.rows.map((r, i) => (
+                <TR key={i}>
+                  <TD>
+                    <div className="font-mono text-xs">{r.orderNo}</div>
+                    <div className="text-xs text-muted">{r.client}</div>
+                  </TD>
+                  <TD>{r.description}</TD>
+                  <TD className="text-right font-medium tabular-nums">{formatINR(r.balance)}</TD>
+                  <TD className="text-xs text-muted whitespace-nowrap">
+                    {r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN") : "-"}
+                  </TD>
+                  <TD className="text-right">
+                    {r.daysOverdue > 0 ? <Badge variant="danger">{r.daysOverdue}d</Badge> : "-"}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
         </CardContent>
       </Card>
 

@@ -2,15 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, Store, User, Plus, Trash2 } from "lucide-react";
+import { Phone, Store, User, Plus, Trash2, Pencil, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Field, Input, Select } from "@/components/ui/input";
+import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { ITEM_CATEGORIES, categoryLabel } from "@/lib/constants";
-import { createVendorAction, deleteVendorAction } from "./actions";
+import { createVendorAction, updateVendorAction, deleteVendorAction } from "./actions";
 
 export type VendorRow = {
   id: string;
@@ -19,6 +19,7 @@ export type VendorRow = {
   contact: string | null;
   address: string | null;
   gstin: string | null;
+  terms: string | null;
   categories: string[];
 };
 
@@ -32,7 +33,7 @@ export function VendorsSection({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", categories: "PumpsMotors", gstin: "" });
+  const [form, setForm] = useState({ name: "", phone: "", categories: "PumpsMotors", gstin: "", terms: "" });
   const [busy, setBusy] = useState<string | null>(null);
 
   const groups = (activeCategory ? [activeCategory] : [...ITEM_CATEGORIES]).map((cat) => ({
@@ -51,9 +52,15 @@ export function VendorsSection({
     if (!form.name || !form.phone) return;
     start(async () => {
       try {
-        await createVendorAction({ name: form.name, phone: form.phone, categories: [form.categories], gstin: form.gstin || undefined });
+        await createVendorAction({
+          name: form.name,
+          phone: form.phone,
+          categories: [form.categories],
+          gstin: form.gstin || undefined,
+          terms: form.terms || undefined,
+        });
         toast("Vendor added");
-        setForm({ name: "", phone: "", categories: "PumpsMotors", gstin: "" });
+        setForm({ name: "", phone: "", categories: "PumpsMotors", gstin: "", terms: "" });
         setShowForm(false);
         router.refresh();
       } catch (e) {
@@ -112,6 +119,9 @@ export function VendorsSection({
                 <Input placeholder="Optional" value={form.gstin} onChange={(e) => setForm({ ...form, gstin: e.target.value })} />
               </Field>
             </div>
+            <Field label="Payment terms" hint="Printed on the PO, e.g. &quot;100% against delivery&quot;.">
+              <Input placeholder="Optional" value={form.terms} onChange={(e) => setForm({ ...form, terms: e.target.value })} />
+            </Field>
             <Button size="sm" loading={pending} disabled={!form.name || !form.phone} onClick={addVendor}>
               <Plus className="size-4" /> Save vendor
             </Button>
@@ -165,12 +175,69 @@ function VendorCard({
   onDelete: (id: string, name: string) => void;
   deleting: boolean;
 }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [pending, start] = useTransition();
+  const [f, setF] = useState({ phone: v.phone, gstin: v.gstin ?? "", address: v.address ?? "", terms: v.terms ?? "" });
+
+  function save() {
+    start(async () => {
+      try {
+        await updateVendorAction(v.id, {
+          phone: f.phone,
+          gstin: f.gstin || undefined,
+          address: f.address || undefined,
+          terms: f.terms || undefined,
+        });
+        toast("Vendor updated");
+        setEditing(false);
+        router.refresh();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Failed to update vendor", "error");
+      }
+    });
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-2 rounded-lg border border-primary/30 bg-surface p-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">{v.name}</span>
+          <button type="button" onClick={() => setEditing(false)} aria-label="Cancel edit" className="rounded p-1 text-muted hover:bg-card">
+            <X className="size-3.5" />
+          </button>
+        </div>
+        <Field label="Phone">
+          <Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+        </Field>
+        <Field label="GSTIN">
+          <Input value={f.gstin} onChange={(e) => setF({ ...f, gstin: e.target.value })} placeholder="Optional" />
+        </Field>
+        <Field label="Address">
+          <Textarea value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} placeholder="Optional" />
+        </Field>
+        <Field label="Payment terms" hint="Printed on the PO, e.g. &quot;100% against delivery&quot;.">
+          <Input value={f.terms} onChange={(e) => setF({ ...f, terms: e.target.value })} placeholder="Optional" />
+        </Field>
+        <Button size="sm" loading={pending} onClick={save}>Save</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border border-border bg-surface/40 p-3">
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-semibold">{v.name}</span>
         <div className="flex shrink-0 items-center gap-1">
           {v.gstin && <Badge variant="default">GST</Badge>}
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={`Edit vendor ${v.name}`}
+            className="rounded p-1 text-muted transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            <Pencil className="size-3.5" />
+          </button>
           <button
             type="button"
             onClick={() => onDelete(v.id, v.name)}
@@ -196,6 +263,7 @@ function VendorCard({
         {v.gstin && (
           <div className="font-mono text-[10px] text-muted/80">{v.gstin}</div>
         )}
+        {v.terms && <div className="italic">Terms: {v.terms}</div>}
         <div className="flex flex-wrap gap-1 pt-0.5">
           {v.categories.map((c) => (
             <span key={c} className="rounded-full bg-card px-1.5 py-0.5 text-[10px] ring-1 ring-border">

@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MessageCircle, Pencil, User, Activity, Flame, FileText } from "lucide-react";
+import { MessageCircle, Pencil, User, Activity, Flame } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { getLead, listCompanyUsers, leadActivity } from "@/server/services/lead";
-import { formatINR } from "@/lib/money";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -138,21 +137,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 {lead.inletTDS != null && <Row label="Inlet TDS" value={`${lead.inletTDS} mg/l`} />}
               </CardContent>
             </Card>
-          )}
-
-          {lead.boqPreview && (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                <FileText className="size-4" /> Estimated Project Value (pre-quote)
-              </div>
-              <p className="mt-1 text-lg font-bold tabular-nums">
-                {formatINR(String(lead.boqPreview.low))} – {formatINR(String(lead.boqPreview.high))}
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted">
-                Scaled from the {lead.boqPreview.band} KLD template · a full BOQ is generated on conversion.
-                Estimate only, not a firm quote.
-              </p>
-            </div>
           )}
 
           <DocumentsCard leadId={lead.id} documents={lead.documents} />

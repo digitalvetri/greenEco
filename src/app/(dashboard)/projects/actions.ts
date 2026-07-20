@@ -24,6 +24,7 @@ import {
 } from "@/server/services/order";
 import { redirect } from "next/navigation";
 import { createInvoiceFromMilestone } from "@/server/services/invoice";
+import { setOrderBudget } from "@/server/services/erection";
 
 export async function setOrderStatusAction(orderId: string, status: "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED") {
   const s = await getSession();
@@ -133,6 +134,13 @@ export async function setOrderScheduleAction(
 export async function setOrderValueAction(orderId: string, data: { projectValue: string; reason: string }) {
   const s = await getSession();
   await setOrderValue(s, orderId, data);
+  revalidatePath(`/projects/${orderId}`);
+  return { ok: true };
+}
+
+export async function setOrderBudgetAction(orderId: string, data: { amount: string; reason: string }) {
+  const s = await getSession();
+  await setOrderBudget(s, orderId, data);
   revalidatePath(`/projects/${orderId}`);
   return { ok: true };
 }

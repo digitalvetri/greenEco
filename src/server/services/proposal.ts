@@ -16,6 +16,7 @@ import { proposalExpiry } from "@/lib/domain/proposal-aging";
 import { formatINR } from "@/lib/money";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
+import { llmText } from "@/lib/llm";
 
 const GST_RATE = 18;
 
@@ -249,6 +250,11 @@ export async function updateBasics(
 
 interface VersionSaveInput {
   technicalText?: string;
+  coverLetter?: string;
+  pointsToNote?: string;
+  technologyExplainer?: string;
+  technicalSpecs?: Prisma.InputJsonValue;
+  electricalLoad?: Prisma.InputJsonValue;
   scopeOfWork?: Prisma.InputJsonValue;
   terms?: Prisma.InputJsonValue;
   paymentTerms?: Prisma.InputJsonValue;
@@ -311,6 +317,11 @@ export async function saveVersion(ctx: Ctx, proposalId: string, input: VersionSa
   return prisma.$transaction(async (tx) => {
     const versionData = {
       technicalText: input.technicalText ?? current.technicalText,
+      coverLetter: input.coverLetter ?? current.coverLetter,
+      pointsToNote: input.pointsToNote ?? current.pointsToNote,
+      technologyExplainer: input.technologyExplainer ?? current.technologyExplainer,
+      technicalSpecs: input.technicalSpecs ?? (current.technicalSpecs as Prisma.InputJsonValue),
+      electricalLoad: input.electricalLoad ?? (current.electricalLoad as Prisma.InputJsonValue),
       scopeOfWork: input.scopeOfWork ?? (current.scopeOfWork as Prisma.InputJsonValue),
       terms: input.terms ?? (current.terms as Prisma.InputJsonValue),
       paymentTerms: input.paymentTerms ?? (current.paymentTerms as Prisma.InputJsonValue),
@@ -402,6 +413,11 @@ async function buildGenerationInput(ctx: Ctx, input: AiProposalInput): Promise<A
 async function persistGeneratedDraft(ctx: Ctx, proposalId: string, draft: AiProposalDraft) {
   await saveVersion(ctx, proposalId, {
     technicalText: draft.technicalText,
+    coverLetter: draft.coverLetter,
+    pointsToNote: draft.pointsToNote,
+    technologyExplainer: draft.technologyExplainer,
+    technicalSpecs: draft.technicalSpecs as never,
+    electricalLoad: draft.electricalLoad as never,
     scopeOfWork: draft.scopeOfWork as never,
     paymentTerms: draft.paymentTerms as never,
     boqItems: draft.boqItems.map((b) => ({ ...b, aiSuggested: true })) as never,
@@ -420,6 +436,30 @@ export async function generateForProposal(ctx: Ctx, proposalId: string, input: A
   const draft = await generateProposalDraft(await buildGenerationInput(ctx, input));
   await persistGeneratedDraft(ctx, proposalId, draft);
   return { source: draft.source };
+}
+
+/**
+ * "AI-tailor T&Cs" — the second of the two T&Cs paths the client asked for (the first is
+ * the fixed `Company.standardTermsTemplate`, reset via the editor's Reset button). Adapts
+ * the standard template's wording to this specific deal (plant type/technology/capacity).
+ * Not part of generateProposalDraft/DRAFT_SCHEMA — a separate, lightweight llmText call so
+ * this doesn't reopen the structured draft schema. Degrades cleanly: no provider configured
+ * → returns the template unchanged (never throws, never blanks the field).
+ */
+export async function generateTermsDraft(
+  ctx: Ctx,
+  proposalId: string,
+): Promise<{ text: string; source: "ai" | "template" }> {
+  const proposal = await prisma.proposal.findFirst({ where: { id: proposalId, companyId: ctx.companyId } });
+  if (!proposal) throw new Error("Proposal not found");
+  const { standardTermsTemplate } = await getCompanySettings(ctx.companyId);
+
+  const res = await llmText(
+    "You are a contracts assistant for Green Ecocare, a wastewater treatment plant contractor in India. Adapt the given standard Terms & Conditions template to the specific deal described, keeping the same section structure and legal intent, tightening/adding only what's relevant to this plant type and technology. Return plain text only — no markdown, no preamble.",
+    `Standard template:\n${standardTermsTemplate}\n\nDeal: ${proposal.plantType} plant, ${proposal.technology} technology, ${proposal.capacityKLD || "unspecified"} KLD capacity, project "${proposal.projectName}".`,
+    { maxTokens: 2000 },
+  );
+  return res ? { text: res.text, source: "ai" } : { text: standardTermsTemplate, source: "template" };
 }
 
 /**

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Loader2, Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatINR } from "@/lib/money";
 
@@ -61,45 +62,43 @@ export function StockList({
 
   return (
     <div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-muted">
-              <th className="pb-2">Item</th>
-              <th className="pb-2">Cat</th>
-              <th className="pb-2 pr-6 text-right">Total</th>
-              <th className="pb-2 pl-2">Split by location</th>
-              {isAdmin && <th className="pb-2 text-right">Purch. ₹</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((i) => (
-              <tr key={i.id} className="border-t border-border">
-                <td className="py-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Link href={`/materials/${i.id}`} className="font-medium text-primary hover:underline">
-                      {i.name}
-                    </Link>
-                    {i.lowStock && <Badge variant="danger">low</Badge>}
-                  </div>
-                </td>
-                <td className="py-1.5 text-xs text-muted">{i.category}</td>
-                <td className="whitespace-nowrap py-2 pr-6 text-right font-medium tabular-nums">
-                  {i.total} <span className="text-xs text-muted">{i.unit}</span>
-                </td>
-                <td className="py-2 pl-2 text-xs text-muted">
-                  {i.byLocation.length === 0 ? "—" : i.byLocation.map((b) => `${b.location}: ${b.qty}`).join(" · ")}
-                </td>
-                {isAdmin && (
-                  <td className="py-1.5 text-right tabular-nums">
-                    {i.purchasePrice ? formatINR(i.purchasePrice) : "—"}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table>
+        <THead>
+          <TR className="border-t-0">
+            <TH>Item</TH>
+            <TH>Cat</TH>
+            <TH className="text-right">Total</TH>
+            <TH>Split by location</TH>
+            {isAdmin && <TH className="text-right">Purch. ₹</TH>}
+          </TR>
+        </THead>
+        <TBody>
+          {items.map((i) => (
+            <TR key={i.id}>
+              <TD>
+                <div className="flex items-center gap-1.5">
+                  <Link href={`/materials/${i.id}`} className="font-medium text-primary hover:underline">
+                    {i.name}
+                  </Link>
+                  {i.lowStock && <Badge variant="danger">low</Badge>}
+                </div>
+              </TD>
+              <TD className="text-xs text-muted">{i.category}</TD>
+              <TD className="whitespace-nowrap text-right font-medium tabular-nums">
+                {i.total} <span className="text-xs text-muted">{i.unit}</span>
+              </TD>
+              <TD className="whitespace-nowrap text-xs text-muted">
+                {i.byLocation.length === 0 ? "—" : i.byLocation.map((b) => `${b.location}: ${b.qty}`).join(" · ")}
+              </TD>
+              {isAdmin && (
+                <TD className="text-right tabular-nums">
+                  {i.purchasePrice ? formatINR(i.purchasePrice) : "—"}
+                </TD>
+              )}
+            </TR>
+          ))}
+        </TBody>
+      </Table>
 
       {error && <p className="mt-2 text-center text-xs text-danger">{error}</p>}
       {cursor && (

@@ -17,10 +17,25 @@ import { draftPrompt, mapDraft, parseDefensively, DRAFT_SCHEMA, generateProposal
 
 const DRAFT_SCHEMA_NO_TEXT = {
   ...DRAFT_SCHEMA,
-  required: ["boqItems", "scopeOfWork", "paymentTerms"],
+  // Everything except technicalText, which streams separately via onToken.
+  required: [
+    "coverLetter",
+    "pointsToNote",
+    "technologyExplainer",
+    "boqItems",
+    "scopeOfWork",
+    "technicalSpecs",
+    "electricalLoad",
+    "paymentTerms",
+  ],
   properties: {
+    coverLetter: DRAFT_SCHEMA.properties.coverLetter,
+    pointsToNote: DRAFT_SCHEMA.properties.pointsToNote,
+    technologyExplainer: DRAFT_SCHEMA.properties.technologyExplainer,
     boqItems: DRAFT_SCHEMA.properties.boqItems,
     scopeOfWork: DRAFT_SCHEMA.properties.scopeOfWork,
+    technicalSpecs: DRAFT_SCHEMA.properties.technicalSpecs,
+    electricalLoad: DRAFT_SCHEMA.properties.electricalLoad,
     paymentTerms: DRAFT_SCHEMA.properties.paymentTerms,
   },
 } as const;
@@ -66,7 +81,7 @@ async function claudeStreamDraft(
     }
   }
 
-  const jsonSystem = `You are a wastewater treatment proposal engineer for Green Ecocare (Coimbatore, Tamil Nadu, India). Produce a KLD-scaled Bill of Quantity (BOQ), scope of work, and payment terms for STP/ETP/WTP plants that meet TNPCB discharge norms. Respond with STRICT JSON only. Rates are in INR. Keep BOQ realistic for the Indian market.`;
+  const jsonSystem = `You are a wastewater treatment proposal engineer for Green Ecocare (Coimbatore, Tamil Nadu, India). Produce a cover letter, points to note, technology explainer, a KLD-scaled Bill of Quantity (BOQ), scope of work, technical specifications, electrical load summary, and payment terms for STP/ETP/WTP plants that meet TNPCB discharge norms. Respond with STRICT JSON only. Rates are in INR. Keep BOQ realistic for the Indian market.`;
   const res = await client.messages.create({
     model,
     max_tokens: 6000,
