@@ -41,6 +41,28 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v31 — PO print polish round 2: real vendor payment terms, drop-ship-to-client, one-page fit
+
+A second real sample (`6 A1 BLOWERS 47 M MODEL ACOUSTIC HOOD…docx`) showed detail the first PO
+rebuild (v30) missed: **Ship To is often the client's own site, not Green Ecocare's warehouse**
+(drop-shipped straight to the project, with a delivery contact number), a formal **TERMS** block
+(Delivery + **Payment** — vendor-specific, e.g. "50% advance, balance against delivery"), and a
+full **"Yours faithfully," → For Green Ecocare → signatory + phone** closing, plus a footer
+delivery-contact note. **Gate: tsc 0 · lint 0 · 75 unit · `next build` clean ·
+verify-materials-p0 (22) green · PO PDF re-rendered, single page, browser-verified vendor edit.**
+
+- **`Vendor.terms` was a completely dead schema field** — never read or written anywhere, not even
+  in the vendor create form. Now: `createVendor` accepts it, new `updateVendor` (admin, audited —
+  vendors previously had NO edit path at all, only create/delete) lets it be added to existing
+  vendors, the PO print page shows it as the Payment line (falls back to "As mutually agreed" only
+  when genuinely unset — never fabricated). Vendor cards show a Pencil (edit) icon → inline form
+  (phone/GSTIN/address/terms); "Add vendor" gained the same Payment-terms field.
+- **`getPO` enriched** (additive, same/only caller): `createdByName`/`createdByPhone` (signature
+  block), `destination.clientName`/`clientPhone` (from the linked Order, when destination is a
+  SITE) for a proper Ship-To block distinct from Bill-To (always Green Ecocare's own address).
+- **One-page fit** — trimmed excess signature-block whitespace (double `<br/>`s, oversized margins)
+  that was pushing the last 2 footer lines onto a spilled second page.
+
 ### v30 — PO print rebuilt to match the client's real vendor-PO documents + a real PDF download for proposals + a latent print-table styling bug fixed everywhere
 
 The client's "Green-sample" folder samples (re-checked) are all **vendor Purchase Orders**, not

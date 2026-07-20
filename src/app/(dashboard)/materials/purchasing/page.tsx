@@ -51,6 +51,7 @@ export default async function PurchasingPage() {
           contact: v.contact,
           address: v.address,
           gstin: v.gstin,
+          terms: v.terms,
           categories: v.categories,
         }))}
       />

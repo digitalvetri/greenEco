@@ -40,7 +40,11 @@ export default async function PurchaseOrderPrint({
   const roundedTotal = exactTotal.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
   const roundOff = roundedTotal.minus(exactTotal);
 
+  // Ship-to is often a client's site, not Green Ecocare's own warehouse (drop-ship
+  // straight to the project) — show the site's client + contact when there is one.
+  const shipToName = po.destination?.clientName || po.destination?.name || "—";
   const shipToAddress = po.destination?.siteAddress || company.address || "—";
+  const shipToPhone = po.destination?.clientPhone;
 
   return (
     <PrintShell title="PURCHASE ORDER" docNo={`${po.poNo} · ${new Date(po.createdAt).toLocaleDateString("en-IN")}`} company={company}>
@@ -104,21 +108,24 @@ export default async function PurchaseOrderPrint({
       </p>
 
       <section style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 700 }}>TERMS:</div>
         <div>Delivery: Expected by {new Date(po.expectedDate).toLocaleDateString("en-IN")}</div>
-        <div>Please confirm receipt of this purchase order and expected delivery date.</div>
+        <div>Payment: {po.vendor.terms || "As mutually agreed"}</div>
+        {shipToPhone && <div>Call before delivery: {shipToPhone}</div>}
       </section>
 
-      <p style={{ fontSize: 13, marginBottom: 40 }}>
-        We would request you kindly dispatch as early as possible.
+      <p style={{ fontSize: 13, marginBottom: 20 }}>
+        Kindly let us have your confirmation and dispatch details for the above. We would request you
+        kindly dispatch as early as possible.
         <br />
-        Thanking you,
+        Yours faithfully,
       </p>
 
-      <div style={{ fontSize: 13, marginBottom: 24 }}>
+      <div style={{ fontSize: 13, marginBottom: 16 }}>
         For {company.name}
         <br />
-        <br />
         {po.createdByName ?? ""}
+        {po.createdByPhone && <div style={{ color: "#555" }}>Phone: {po.createdByPhone}</div>}
       </div>
 
       <section style={{ display: "flex", justifyContent: "space-between", gap: 24, borderTop: "1px solid #ddd", paddingTop: 12, fontSize: 12 }}>
@@ -131,10 +138,17 @@ export default async function PurchaseOrderPrint({
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ color: "#888", textTransform: "uppercase", fontSize: 10 }}>Shipping to address</div>
-          <div style={{ fontWeight: 700 }}>{po.destination?.name ?? "—"}</div>
+          <div style={{ fontWeight: 700 }}>{shipToName}</div>
           <div>{shipToAddress}</div>
+          {shipToPhone && <div>Contact: {shipToPhone}</div>}
         </div>
       </section>
+
+      {shipToPhone && (
+        <p style={{ marginTop: 16, fontSize: 11, color: "#888" }}>
+          Note: Before delivery please call the above number.
+        </p>
+      )}
     </PrintShell>
   );
 }

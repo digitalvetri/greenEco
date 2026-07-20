@@ -348,12 +348,27 @@ export async function listVendors(ctx: Ctx, category?: string, take = 200) {
 
 export async function createVendor(
   ctx: Ctx,
-  data: { name: string; phone: string; categories: string[]; gstin?: string; address?: string },
+  data: { name: string; phone: string; categories: string[]; gstin?: string; address?: string; terms?: string },
 ) {
   requireAdmin(ctx);
   const vendor = await prisma.vendor.create({ data: { companyId: ctx.companyId, ...data } });
   await logAudit(ctx, { action: "CREATE", entity: "Vendor", entityId: vendor.id, after: { name: data.name } });
   return vendor;
+}
+
+/** Edit an existing vendor's details — e.g. filling in payment terms ("100% against
+ *  delivery") after the fact, since createVendor's quick-add form doesn't ask for it. */
+export async function updateVendor(
+  ctx: Ctx,
+  vendorId: string,
+  data: { name?: string; phone?: string; categories?: string[]; gstin?: string; address?: string; terms?: string },
+) {
+  requireAdmin(ctx);
+  const vendor = await prisma.vendor.findFirst({ where: { id: vendorId, companyId: ctx.companyId } });
+  if (!vendor) throw new Error("Vendor not found");
+  const updated = await prisma.vendor.update({ where: { id: vendorId }, data });
+  await logAudit(ctx, { action: "UPDATE", entity: "Vendor", entityId: vendorId, before: { name: vendor.name }, after: { name: updated.name } });
+  return updated;
 }
 
 export async function deleteVendor(ctx: Ctx, vendorId: string) {
@@ -465,9 +480,9 @@ export async function getPO(ctx: Ctx, poNo: string) {
   if (!po) return null;
   const destination = await prisma.location.findFirst({
     where: { id: po.destinationId, companyId: ctx.companyId },
-    include: { order: { select: { siteAddress: true } } },
+    include: { order: { select: { siteAddress: true, clientName: true, clientPhone: true } } },
   });
-  const createdBy = await prisma.user.findUnique({ where: { id: po.createdById }, select: { name: true } });
+  const createdBy = await prisma.user.findUnique({ where: { id: po.createdById }, select: { name: true, phone: true } });
   const lines = po.items as { itemId: string; qty: number; rate: number }[];
   const itemRows = await prisma.item.findMany({
     where: { id: { in: lines.map((l) => l.itemId) } },
@@ -484,9 +499,22 @@ export async function getPO(ctx: Ctx, poNo: string) {
     totalValue: po.totalValue.toString(),
     pdfUrl: po.pdfUrl,
     createdByName: createdBy?.name ?? null,
-    vendor: { name: po.vendor.name, phone: po.vendor.phone, address: po.vendor.address, gstin: po.vendor.gstin },
+    createdByPhone: createdBy?.phone ?? null,
+    vendor: {
+      name: po.vendor.name,
+      phone: po.vendor.phone,
+      address: po.vendor.address,
+      gstin: po.vendor.gstin,
+      terms: po.vendor.terms,
+    },
     destination: destination
-      ? { name: destination.name, type: destination.type, siteAddress: destination.order?.siteAddress ?? null }
+      ? {
+          name: destination.name,
+          type: destination.type,
+          siteAddress: destination.order?.siteAddress ?? null,
+          clientName: destination.order?.clientName ?? null,
+          clientPhone: destination.order?.clientPhone ?? null,
+        }
       : null,
     items: lines.map((l) => ({
       itemId: l.itemId,
