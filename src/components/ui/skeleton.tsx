@@ -4,9 +4,9 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("gc-skeleton h-4 w-full", className)} />;
 }
 
-export function SkeletonRows({ rows = 5 }: { rows?: number }) {
+export function SkeletonRows({ rows = 5, className }: { rows?: number; className?: string }) {
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", className)}>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="rounded-xl border border-border bg-card p-3">
           <Skeleton className="h-4 w-1/3" />
