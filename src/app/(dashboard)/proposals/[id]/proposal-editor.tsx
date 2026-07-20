@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X, Printer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { SpeakButton } from "@/components/mobile/speak-button";
+import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
 import { formatINR } from "@/lib/money";
 import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, BOQ_UNITS, LOST_REASONS } from "@/lib/constants";
 import { ProposalStageTracker } from "./proposal-stage-tracker";
@@ -289,10 +290,11 @@ export function ProposalEditor({
               href={`/print/proposal/${view.id}`}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
             >
-              PDF
+              <Printer className="size-3.5" /> Print
             </a>
+            <DownloadPdfButton docType="proposal" docId={view.id} />
             <Badge variant={statusVariant}>{view.status.replace(/_/g, " ")}</Badge>
             {view.order && (
               <Link href={`/projects/${view.order.id}`}>
