@@ -97,11 +97,6 @@ export function PrintShell({
   );
 }
 
-export const td: React.CSSProperties = { padding: "6px 8px", borderBottom: "1px solid #eee", fontSize: 13 };
-export const th: React.CSSProperties = {
-  padding: "6px 8px",
-  borderBottom: "2px solid #0f7a4d",
-  fontSize: 12,
-  textAlign: "left",
-  color: "#0f7a4d",
-};
+// td/th moved to print-styles.ts (a plain, non-"use client" module) — see that file
+// for why re-exporting them from here would silently reintroduce the bug. Import
+// them from "@/components/print/print-styles" instead.

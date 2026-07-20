@@ -463,7 +463,11 @@ export async function getPO(ctx: Ctx, poNo: string) {
     include: { vendor: true },
   });
   if (!po) return null;
-  const destination = await prisma.location.findFirst({ where: { id: po.destinationId, companyId: ctx.companyId } });
+  const destination = await prisma.location.findFirst({
+    where: { id: po.destinationId, companyId: ctx.companyId },
+    include: { order: { select: { siteAddress: true } } },
+  });
+  const createdBy = await prisma.user.findUnique({ where: { id: po.createdById }, select: { name: true } });
   const lines = po.items as { itemId: string; qty: number; rate: number }[];
   const itemRows = await prisma.item.findMany({
     where: { id: { in: lines.map((l) => l.itemId) } },
@@ -479,8 +483,11 @@ export async function getPO(ctx: Ctx, poNo: string) {
     createdAt: po.createdAt,
     totalValue: po.totalValue.toString(),
     pdfUrl: po.pdfUrl,
+    createdByName: createdBy?.name ?? null,
     vendor: { name: po.vendor.name, phone: po.vendor.phone, address: po.vendor.address, gstin: po.vendor.gstin },
-    destination: destination ? { name: destination.name, type: destination.type } : null,
+    destination: destination
+      ? { name: destination.name, type: destination.type, siteAddress: destination.order?.siteAddress ?? null }
+      : null,
     items: lines.map((l) => ({
       itemId: l.itemId,
       name: itemMap.get(l.itemId)?.name ?? "Unknown item",

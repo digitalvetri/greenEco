@@ -3,7 +3,8 @@ import { getPrintSession } from "@/lib/print-session";
 import { getProposal } from "@/server/services/proposal";
 import { getCompanySettings } from "@/server/services/company-settings";
 import { formatINR } from "@/lib/money";
-import { PrintShell, td, th } from "@/components/print/print-shell";
+import { PrintShell } from "@/components/print/print-shell";
+import { td, th } from "@/components/print/print-styles";
 
 export const dynamic = "force-dynamic";
 

@@ -41,6 +41,45 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v30 — PO print rebuilt to match the client's real vendor-PO documents + a real PDF download for proposals + a latent print-table styling bug fixed everywhere
+
+The client's "Green-sample" folder samples (re-checked) are all **vendor Purchase Orders**, not
+customer invoices — formal-letter format: REF/DATE, "M/S. Vendor…", "SUB: PURCHASE ORDER", Sl.No/
+Description/Qty/Rate/Amount table, CGST+SGST or IGST breakup, round-off, amount in words, Bill-to/
+Ship-to (Green Ecocare's own addresses — it's the buyer here), and a "For Green Ecocare" signature.
+The old PO print page had none of this (Item/Qty/Unit/Rate/Amount table + a flat total, nothing
+else). Also fixed: the proposal editor had no real PDF download, only a live-view print link.
+**Gate: tsc 0 · lint 0 · 75 unit · `next build` clean · verify-materials-p0/invoices-p0/invoices-p1
+green · all 4 print PDFs (proposal/invoice/PO/closeout) re-rendered and visually verified.**
+
+- **PO print rebuilt** (`print/po/[poNo]/page.tsx`) to the sample's exact structure. GST is
+  computed **at print time only** via the existing `computeGst()` (tax-exclusive base) — `vendor`
+  is the supplier, `company.stateCode` is the place of supply, vendor state derived from the first
+  2 digits of `vendor.gstin` (same simplification already documented for orders with no
+  `clientStateCode`: no GSTIN → default intra-state). **Nothing persisted changes** — `totalValue`
+  (used by stock costing/budget-vs-actual/committed-PO everywhere else) stays exactly what it was;
+  the tax breakup, round-off, and amount-in-words are display-only. `getPO` gained `createdByName`
+  (resolved once, for the signature block) and `destination.siteAddress` (resolved from the
+  destination Location's linked Order, for the Ship-to block) — additive, no other caller touched.
+- **Tax Invoice richness** (`print/invoice/[invoiceNo]/page.tsx`) — added a Sl.No column and a
+  "For {company}" signature block. Deliberately **no round-off line and no total recomputation** —
+  `computeGstInclusive`'s `total === milestone receivable` invariant (the v28 B1 fix) must not be
+  touched by a cosmetic change.
+- **Proposal PDF download** — the editor only had a "Print" link to the live HTML view (browser
+  print-to-PDF); `DownloadPdfButton` (the real server-rendered, durable, storable PDF — already
+  wired for invoices/POs) had never been added. Added next to Print, same as the invoice panel.
+- **Found while visually verifying the PO PDF — a latent bug in every `/print/*` table, since
+  Phase 1**: `th`/`td` were `export const` **style objects from a `"use client"` module**
+  (`print-shell.tsx`). `style={th}` (direct reference) rendered fine, but `style={{...th, x}}`
+  (spread — used for every right-aligned/narrow header cell) **silently dropped every property
+  except the override** — Next.js doesn't reliably support importing plain-object (non-component)
+  exports from a client module into a Server Component. Every "Qty"/"Rate"/"Amount"/"HP" table
+  header on every proposal/invoice/PO/closeout PDF has been rendering unstyled (black, no
+  underline) this whole time, invisible unless you looked at an actual PDF. Fixed by moving
+  `td`/`th` to a new plain module, `print/print-styles.ts` (no `"use client"`), and pointing all
+  4 print pages at it directly instead of re-exporting through `print-shell.tsx`. Confirmed via
+  raw HTML diff (`style="width:32px"` vs the full green-underlined style) before and after.
+
 ### v29 — Client corrections phase 2: richer AI-generated proposal content
 
 Driven by the client's real sample proposal/invoice `.docx` files (`Green-sample` folder). Phase 1 (letterhead,
