@@ -25,7 +25,7 @@ export interface LeadRow {
   phone: string;
   assignedToName: string;
   urgency: LeadUrgency;
-  temperature: "HOT" | "WARM" | "COLD";
+  score: { temperature: "HOT" | "WARM" | "COLD"; score: number };
   followUps: { nextDate: string | Date | null }[];
   estimatedValue?: { low: number; mid: number; high: number } | null;
 }
@@ -302,7 +302,7 @@ export function LeadsList({
                     <td className="p-2">
                       <Badge variant={statusVariant(lead.status)}>{lead.status.replace(/_/g, " ")}</Badge>
                     </td>
-                    <td className="p-2 text-muted">{lead.temperature[0] + lead.temperature.slice(1).toLowerCase()}</td>
+                    <td className="p-2 text-muted">{lead.score.temperature[0] + lead.score.temperature.slice(1).toLowerCase()}</td>
                     <td className="p-2 text-muted">{lead.assignedToName}</td>
                     <td className="p-2 text-muted">
                       {lead.followUps[0]?.nextDate ? new Date(lead.followUps[0].nextDate).toLocaleDateString("en-IN") : "—"}
