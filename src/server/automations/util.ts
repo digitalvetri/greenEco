@@ -1,3 +1,6 @@
+import { prisma } from "@/lib/prisma";
+import { sendPushToUser } from "@/lib/push";
+
 /** Shared date helpers for automations. Server stores UTC; "today" uses server-local
  *  midnight (matches the existing cron). IST helpers back the A4 quiet-hours rule. */
 
@@ -44,3 +47,35 @@ export function firstName(name: string): string {
 }
 
 export const BRAND_FOOTER = "— Green Ecocare Pvt Ltd";
+
+/**
+ * Single choke point for creating an AutomationTask (mirrors deliver.ts's role for
+ * WhatsApp/email). Writes the row AND fires a best-effort Web Push to the assignee —
+ * callers no longer need to know push exists. Dedup-checking (one OPEN task per
+ * (type, entityId)) stays the caller's job, same as before; this only replaces the
+ * final `prisma.automationTask.create` call.
+ */
+export async function createAutomationTask(input: {
+  companyId: string;
+  type: string;
+  title: string;
+  entity: string;
+  entityId: string;
+  assigneeId: string;
+  dueDate?: Date | null;
+  /** Relative in-app path the push notification opens on click, e.g. "/leads/abc123". */
+  href?: string;
+}): Promise<void> {
+  await prisma.automationTask.create({
+    data: {
+      companyId: input.companyId,
+      type: input.type,
+      title: input.title,
+      entity: input.entity,
+      entityId: input.entityId,
+      assigneeId: input.assigneeId,
+      dueDate: input.dueDate ?? undefined,
+    },
+  });
+  sendPushToUser(input.assigneeId, { title: input.title, body: "Tap to view in Green Ecocare CRM", url: input.href }).catch(() => {});
+}

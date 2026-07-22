@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { deliver } from "./deliver";
 import { adminPhones } from "./engine";
-import { dayRange, yearWeek } from "./util";
+import { createAutomationTask, dayRange, yearWeek } from "./util";
 import type { Automation, AutomationContext, AutomationResult } from "./types";
 
 /**
@@ -49,8 +49,14 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
           where: { companyId: ctx.companyId, type: "STAGE_DELAY", entityId: s.id, status: "OPEN" },
         });
         if (!existing) {
-          await prisma.automationTask.create({
-            data: { companyId: ctx.companyId, type: "STAGE_DELAY", title: `Delay: ${s.name} on ${s.order.orderNo}`, entity: "Stage", entityId: s.id, assigneeId: engineerId },
+          await createAutomationTask({
+            companyId: ctx.companyId,
+            type: "STAGE_DELAY",
+            title: `Delay: ${s.name} on ${s.order.orderNo}`,
+            entity: "Stage",
+            entityId: s.id,
+            assigneeId: engineerId,
+            href: `/projects/${s.order.id}`,
           });
           tasks++;
         }

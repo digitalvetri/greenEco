@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { dayRange } from "./util";
+import { createAutomationTask, dayRange } from "./util";
 import type { Automation, AutomationContext, AutomationResult } from "./types";
 
 /**
@@ -28,6 +28,7 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
     title: string;
     assigneeId: string;
     dueDate?: Date | null;
+    href?: string;
   }): Promise<void> {
     if (ctx.dryRun) {
       created++;
@@ -37,16 +38,15 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
       where: { companyId: ctx.companyId, type: input.type, entityId: input.entityId, status: "OPEN" },
     });
     if (existing) return;
-    await prisma.automationTask.create({
-      data: {
-        companyId: ctx.companyId,
-        type: input.type,
-        title: input.title,
-        entity: input.entity,
-        entityId: input.entityId,
-        assigneeId: input.assigneeId,
-        dueDate: input.dueDate ?? undefined,
-      },
+    await createAutomationTask({
+      companyId: ctx.companyId,
+      type: input.type,
+      title: input.title,
+      entity: input.entity,
+      entityId: input.entityId,
+      assigneeId: input.assigneeId,
+      dueDate: input.dueDate,
+      href: input.href,
     });
     created++;
   }
@@ -59,7 +59,7 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
   // 1. Follow-ups due today → the lead's owner.
   const followUps = await prisma.followUp.findMany({
     where: { nextDate: { gte: start, lt: end }, lead: { companyId: ctx.companyId } },
-    select: { id: true, nextDate: true, lead: { select: { customerName: true, assignedToId: true } } },
+    select: { id: true, leadId: true, nextDate: true, lead: { select: { customerName: true, assignedToId: true } } },
   });
   for (const f of followUps) {
     if (!f.lead) continue; // the where clause already excludes these; guard is for TS
@@ -70,13 +70,14 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
       title: `Follow up with ${f.lead.customerName}`,
       assigneeId: f.lead.assignedToId,
       dueDate: f.nextDate,
+      href: f.leadId ? `/leads/${f.leadId}` : undefined,
     });
   }
 
   // 2. AMC preventive-maintenance visits DUE → the technician, else an admin.
   const visits = await prisma.maintenanceVisit.findMany({
     where: { contract: { companyId: ctx.companyId }, status: "DUE" },
-    select: { id: true, technicianId: true, scheduledDate: true, contract: { select: { contractNo: true, clientName: true } } },
+    select: { id: true, contractId: true, technicianId: true, scheduledDate: true, contract: { select: { contractNo: true, clientName: true } } },
   });
   for (const v of visits) {
     const assignee = v.technicianId ?? firstAdmin?.id;
@@ -88,13 +89,14 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
       title: `AMC visit due — ${v.contract.contractNo} (${v.contract.clientName})`,
       assigneeId: assignee,
       dueDate: v.scheduledDate,
+      href: `/service/${v.contractId}`,
     });
   }
 
   // 3. High-priority open/in-progress tickets → the assignee, else an admin.
   const tickets = await prisma.serviceTicket.findMany({
     where: { companyId: ctx.companyId, status: { in: ["OPEN", "IN_PROGRESS"] }, priority: { in: ["HIGH", "CRITICAL"] } },
-    select: { id: true, ticketNo: true, title: true, assignedToId: true },
+    select: { id: true, ticketNo: true, title: true, assignedToId: true, contractId: true },
   });
   for (const t of tickets) {
     const assignee = t.assignedToId ?? firstAdmin?.id;
@@ -105,6 +107,7 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
       entityId: t.id,
       title: `${t.ticketNo}: ${t.title}`,
       assigneeId: assignee,
+      href: t.contractId ? `/service/${t.contractId}` : "/service",
     });
   }
 
@@ -112,7 +115,7 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
     // 4. Erection entries pending verification (admin-only cross-author cost view).
     const entries = await prisma.erectionEntry.findMany({
       where: { order: { companyId: ctx.companyId }, status: "PENDING" },
-      select: { id: true, type: true, order: { select: { orderNo: true } } },
+      select: { id: true, type: true, orderId: true, order: { select: { orderNo: true } } },
     });
     for (const e of entries) {
       await upsertTask({
@@ -121,13 +124,14 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
         entityId: e.id,
         title: `Verify ${e.type} entry — ${e.order.orderNo}`,
         assigneeId: firstAdmin.id,
+        href: `/erection/${e.orderId}`,
       });
     }
 
     // 5. Overdue payment milestones (admin-only money surface).
     const overdue = await prisma.paymentMilestone.findMany({
       where: { order: { companyId: ctx.companyId }, status: { in: ["DUE", "PARTIALLY_PAID"] }, dueDate: { lt: ctx.now } },
-      select: { id: true, dueDate: true, order: { select: { orderNo: true, clientName: true } } },
+      select: { id: true, dueDate: true, orderId: true, order: { select: { orderNo: true, clientName: true } } },
     });
     for (const m of overdue) {
       await upsertTask({
@@ -137,6 +141,7 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
         title: `Overdue payment — ${m.order.orderNo} (${m.order.clientName})`,
         assigneeId: firstAdmin.id,
         dueDate: m.dueDate,
+        href: `/projects/${m.orderId}`,
       });
     }
   }

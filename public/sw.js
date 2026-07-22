@@ -1,5 +1,5 @@
-// GreenEco CRM service worker — offline app shell (spec §PWA).
-const CACHE = "greeneco-v1";
+// GreenEco CRM service worker — offline app shell (spec §PWA) + Web Push.
+const CACHE = "greeneco-v2";
 const SHELL = ["/", "/dashboard", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
@@ -42,4 +42,39 @@ self.addEventListener("fetch", (e) => {
       })),
     );
   }
+});
+
+// --- Web Push -------------------------------------------------------------
+// Payload shape is the PushPayload interface in src/lib/push.ts: {title, body, url?}.
+self.addEventListener("push", (e) => {
+  let data = { title: "Green Ecocare", body: "You have a new update." };
+  try {
+    if (e.data) data = { ...data, ...e.data.json() };
+  } catch {
+    if (e.data) data.body = e.data.text();
+  }
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: data.url || "/dashboard" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url || "/dashboard";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) {
+        if (c.url.includes(url) && "focus" in c) return c.focus();
+      }
+      if (clients.length > 0 && "focus" in clients[0]) {
+        return clients[0].navigate(url).then((c) => c && c.focus());
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
 });

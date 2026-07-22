@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, MinusCircle } from "lucide-react";
 import { DEFAULT_STAGES } from "@/lib/constants";
+import { PushToggle } from "@/components/pwa/push-toggle";
 import { ProfileCard } from "./profile-card";
 import { CompanyDetailsCard, ThresholdsCard } from "./company-settings-cards";
 import { ResetPasswordButton } from "./reset-password-button";
@@ -36,6 +37,10 @@ export default async function SettingsPage() {
 
       {/* Available to every role — your own account. */}
       <ProfileCard profile={profile} />
+
+      <div className="mt-4">
+        <PushToggle />
+      </div>
 
       {!isAdmin ? null : (
       <>

@@ -41,6 +41,62 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v34 — Web Push notifications (real OS/browser alerts) + PWA/offline audit
+
+User asked for offline support, Chrome installability, and "notification should be sent to mobile
+or desktop when we download the application." Investigation found two of the three were already
+in place; scoped effort onto the real gap. **Gate: tsc 0 · lint 0 (24 pre-existing warnings, 0 new) ·
+75 unit · `next build` clean · `verify-push.ts` (5 checks) · sell/execute/amc regressions green
+(verify-control and the erection-p1-4 overrun-count check were already failing on `main` before this
+work, from stale live-DB test data — confirmed via `git stash`, not a regression here).**
+
+- **Installability — already there, not touched.** `manifest.ts` (name/icons/`standalone`/start_url)
+  + the production-registered service worker already satisfy Chrome's install criteria. This is a
+  "how do I use it" answer for the client (address-bar install icon on desktop, ⋮ → Add to Home
+  screen on Android), not a code gap. **Not verifiable from `localhost`** — `OfflineBar` deliberately
+  unregisters the SW in dev to avoid serving stale chunks, so install prompts only ever appear on the
+  deployed site.
+- **Offline — already there for its actual scope, documented honestly.** App-shell caching + the
+  IndexedDB offline queue (`lib/offline-queue.ts`) already cover the two field-capture forms (lead
+  follow-ups, erection entries). This is a server-rendered (`force-dynamic`) CRM — lists/dashboards/
+  analytics **cannot** work offline without a different (offline-first) data architecture; that's out
+  of scope here and was not attempted. Real, deliverable offline story: app shell loads + the two
+  wired field forms queue and sync on reconnect. Project-stage updates are **not** offline-queued yet
+  (plain server actions) — noted as a gap, not fixed this round (matches CLAUDE.md's own pre-existing
+  "full offline coverage for stage/erection forms" backlog item).
+- **Push notifications — net new (the real gap).** `web-push` + a `PushSubscription` model (migration
+  `push_subscriptions`, one row per user+device, pruned on a 404/410 from the push service).
+  `src/lib/push.ts` (`sendPushToUser`/`sendPushToUsers`) — degrades cleanly with no VAPID keys set
+  (`npx web-push generate-vapid-keys`, env-only per AGENTS.md's auth/secret-root convention, not in
+  the Settings→Integrations store), never throws (a push failure must never break the automation or
+  mutation that triggered it). `POST /api/push/subscribe`/`/unsubscribe` (session-scoped, rate-limited).
+  `PushToggle` (`components/pwa/push-toggle.tsx`) on **every role's** Settings page — requests
+  `Notification.requestPermission()` only from a real button click (browsers reject it from an effect),
+  shows a clear "only works on the deployed app" message in dev. `public/sw.js` gained `push` +
+  `notificationclick` handlers (cache bumped `v1`→`v2` to force the new worker to activate).
+- **Wired into the existing automation engine, not a parallel system.** The `Channel = "PUSH"` type
+  already existed in `deliver.ts` as a dead no-op branch. Real delivery now happens where
+  `AutomationTask` rows are created — the notification-sweep (A16) + budget-alerts (A8) +
+  delay-detection (A9) + stale-deal-nudge (A3) call sites all now go through a new
+  `createAutomationTask()` choke point (`automations/util.ts`, same "single choke point" pattern as
+  `deliver.ts`) that writes the task row **and** fires a best-effort push to the assignee with a deep
+  link. Every existing in-app notification (follow-ups due, AMC visits, high-priority tickets,
+  verification queue, overdue payments, budget overruns, stale proposals, stage delays) now also rings
+  the user's phone/desktop — no new event taxonomy, reuses what's already there.
+- **Can't be verified live here** — push needs a real service-worker registration + a real push
+  service round-trip, neither of which exist under `next dev`/Node. `verify-push.ts` proves the
+  plumbing (subscription round-trips, sends degrade/fail cleanly, task creation never blocks on push);
+  actual delivery to a phone/desktop needs hand-testing on the deployed instance after VAPID keys are
+  set in Coolify (operator step, same class as `CRON_KEY`/`S3_*`).
+
+### v33 — Leads table-view crash (undocumented fix, recorded retroactively)
+
+`leads-list.tsx`'s `LeadRow` interface assumed a flat `temperature` field but `listLeads()` actually
+returns `score: {temperature, score}` (nested, from `leadScore()`). Card view happened to not touch
+the field; Table view read `lead.temperature[0]` → `undefined[0]` → white-screen crash. Invisible to
+`tsc` because the fetch response was type-asserted, not runtime-validated. Fixed by correcting the
+interface + render code to `lead.score.temperature`. Commit `8ed8e81`.
+
 ### v32 — Dashboard/shell visual refresh (matched to a reference mockup)
 
 The client shared an AI-generated mockup image and asked for "exactly" that design. Since it's a

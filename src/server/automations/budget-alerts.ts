@@ -4,6 +4,7 @@ import { budgetVsActual } from "@/server/services/erection";
 import { getCompanySettings } from "@/server/services/company-settings";
 import { deliver } from "./deliver";
 import { adminPhones, isEnabled } from "./engine";
+import { createAutomationTask } from "./util";
 import type { Automation, AutomationContext, AutomationResult } from "./types";
 
 /**
@@ -43,8 +44,14 @@ export async function checkBudgetThreshold(ctx: { companyId: string }, orderId: 
     if (t === 100 && !dryRun && adminUser) {
       const existing = await prisma.automationTask.findFirst({ where: { companyId: ctx.companyId, type: "BUDGET_OVERRUN", entityId: orderId, status: "OPEN" } });
       if (!existing) {
-        await prisma.automationTask.create({
-          data: { companyId: ctx.companyId, type: "BUDGET_OVERRUN", title: `Budget overrun: ${order?.orderNo}`, entity: "Order", entityId: orderId, assigneeId: adminUser.id },
+        await createAutomationTask({
+          companyId: ctx.companyId,
+          type: "BUDGET_OVERRUN",
+          title: `Budget overrun: ${order?.orderNo}`,
+          entity: "Order",
+          entityId: orderId,
+          assigneeId: adminUser.id,
+          href: `/projects/${orderId}`,
         });
       }
     }

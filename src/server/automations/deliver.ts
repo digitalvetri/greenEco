@@ -66,7 +66,10 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
         error = "email not configured";
       }
     } else if (input.channel === "INAPP" || input.channel === "PUSH") {
-      // In-app notifications are derived by the notifications service; log the intent.
+      // In-app rows come from AutomationTask (notifications.ts); real Web Push delivery
+      // rides along with that same create — see createAutomationTask() in util.ts. This
+      // branch is only reached by an automation that calls deliver() directly with no
+      // AutomationTask involved, so it just logs the intent.
       sent = true;
     } else {
       status = "SKIPPED";

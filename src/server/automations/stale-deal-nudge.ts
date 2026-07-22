@@ -3,7 +3,7 @@ import { env } from "@/lib/env";
 import { waShareLink } from "@/lib/whatsapp";
 import { deliver } from "./deliver";
 import { adminPhones } from "./engine";
-import { dayRange, addDays, yearWeek, BRAND_FOOTER } from "./util";
+import { createAutomationTask, dayRange, addDays, yearWeek, BRAND_FOOTER } from "./util";
 import type { Automation, AutomationContext, AutomationResult } from "./types";
 
 /**
@@ -54,16 +54,15 @@ async function run(ctx: AutomationContext): Promise<AutomationResult> {
           where: { companyId: ctx.companyId, type: "STALE_PROPOSAL", entityId: p.id, status: "OPEN" },
         });
         if (!existing) {
-          await prisma.automationTask.create({
-            data: {
-              companyId: ctx.companyId,
-              type: "STALE_PROPOSAL",
-              title: `Check in on ${p.number} — ${p.lead.customerName}`,
-              entity: "Proposal",
-              entityId: p.id,
-              assigneeId: p.lead.assignedToId,
-              dueDate: addDays(ctx.now, 1),
-            },
+          await createAutomationTask({
+            companyId: ctx.companyId,
+            type: "STALE_PROPOSAL",
+            title: `Check in on ${p.number} — ${p.lead.customerName}`,
+            entity: "Proposal",
+            entityId: p.id,
+            assigneeId: p.lead.assignedToId,
+            dueDate: addDays(ctx.now, 1),
+            href: `/proposals/${p.id}`,
           });
           tasks++;
         }

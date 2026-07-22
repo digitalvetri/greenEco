@@ -936,6 +936,23 @@ model AutomationTask {
   @@index([companyId, type, entityId])
 }
 
+/** Web Push subscriptions — one row per (user, browser/device). A user with the app
+ *  open on 2 devices has 2 rows; both get notified. Endpoint is the push service's
+ *  unique per-registration URL (doubles as the natural upsert key). Pruned when the
+ *  push service reports it gone (410/404) — see src/lib/push.ts. */
+model PushSubscription {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([companyId, userId])
+}
+
 /** A14 · Win/loss learning loop — a snapshot written when a proposal is decided, used as
  *  few-shot context for the AI generator + quarterly win-rate analysis. */
 model ProposalOutcome {

@@ -88,6 +88,11 @@ const schema = z
     // cookie / DEV_ROLE (the pre-login behaviour). Defaults ON in dev, OFF in prod so the
     // real deployment FAILS CLOSED — only a valid signed session authenticates.
     AUTH_DEV_BYPASS: z.enum(["0", "1"]).optional(),
+
+    /** Web Push (browser/OS notifications). Empty = push is a no-op (degrades cleanly). */
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().default(""),
+    VAPID_PRIVATE_KEY: z.string().default(""),
+    VAPID_SUBJECT: z.string().default("mailto:info@digitalvetri.com"),
   })
   .superRefine((v, ctx) => {
     if (v.AUTH_MODE === "clerk") {
@@ -199,6 +204,10 @@ export const env = {
   isProduction: e.NODE_ENV === "production",
   // ON in dev, OFF in production unless explicitly set — the real login fails closed.
   authDevBypass: e.AUTH_DEV_BYPASS ? e.AUTH_DEV_BYPASS === "1" : process.env.NODE_ENV !== "production",
+
+  vapidPublicKey: e.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+  vapidPrivateKey: e.VAPID_PRIVATE_KEY,
+  vapidSubject: e.VAPID_SUBJECT,
 } as const;
 
 export const DEV_ADMIN_ID = "dev-admin";

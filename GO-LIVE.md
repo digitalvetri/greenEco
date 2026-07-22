@@ -47,6 +47,17 @@ restart, then test as below. All are also visible in **Settings → System readi
 - `CRON_KEY` — required so `/api/cron` isn't publicly callable. Schedule the host cron to call
   `/api/cron?job=all` with header `x-cron-key: $CRON_KEY`.
 
+### Push notifications (Web Push)
+- Generate once: `npx web-push generate-vapid-keys`. Set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (a `mailto:` address). Without these, the "Enable
+  notifications" toggle in Settings stays unavailable (`sendPushToUser` is a clean no-op) —
+  everything else keeps working.
+- **Only testable on the deployed instance** — the service worker is deliberately unregistered
+  under `next dev` (see `OfflineBar`), so push has nothing to subscribe against locally. After
+  deploy + setting the keys: Settings → Notifications → Enable → approve the browser permission
+  prompt → trigger any AutomationTask condition (e.g. a follow-up due today) and confirm an OS
+  notification arrives. iOS only delivers to an **installed** (home-screen) PWA, never a Safari tab.
+
 ---
 
 ## 2. Observability (#5)
