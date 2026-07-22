@@ -61,9 +61,9 @@ export function MobileNav({
       {open &&
         mounted &&
         createPortal(
-        <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[70] h-[100dvh] lg:hidden" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <aside className="gc-sidebar absolute inset-y-0 left-0 flex w-[80%] max-w-[300px] flex-col shadow-2xl">
+          <aside className="gc-sidebar absolute inset-y-0 left-0 flex h-[100dvh] w-[80%] max-w-[300px] flex-col shadow-2xl">
             <div className="relative z-10 flex items-center justify-between px-5 pb-4 pt-5">
               <div className="flex items-center gap-2.5">
                 <Image src="/brand/logo-mark-light.png" alt="Green Ecocare" width={44} height={44} className="size-11 shrink-0 object-contain" />

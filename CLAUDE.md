@@ -41,6 +41,20 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v35 — Mobile drawer: bottom gap on dynamic-toolbar browsers
+
+Client screenshot showed a blank strip below the profile row at the bottom of the mobile hamburger
+drawer. `mobile-nav.tsx`'s overlay used `fixed inset-0` and the drawer `absolute inset-y-0` — on
+mobile Safari/Chrome, the visible viewport shrinks/grows as the address-bar toolbar shows/hides, and
+inset-based sizing doesn't always track that in real time, leaving the drawer briefly shorter than
+the actual viewport. Same root cause the v4.1 desktop-shell fix already named (`h-[100dvh]`), just
+never applied to this second, portaled overlay. Fix: added `h-[100dvh]` to both the overlay and the
+drawer `<aside>`. Verified at an iPhone-sized viewport (390×844) on both Chromium and WebKit — drawer
+height now matches `window.innerHeight` exactly (was previously only correct by accident when the
+toolbar happened to be in the state the layout assumed). **True dynamic show/hide toolbar behavior
+can't be fully exercised headlessly — real-device confirmation still recommended.**
+**Gate: tsc 0 · lint 0 (2 pre-existing warnings) · 75 unit · `next build` clean.**
+
 ### v34 — Web Push notifications (real OS/browser alerts) + PWA/offline audit
 
 User asked for offline support, Chrome installability, and "notification should be sent to mobile
