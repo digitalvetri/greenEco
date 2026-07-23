@@ -41,6 +41,24 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v36 — Dashboard hero stat cards: compact 2×2 on mobile
+
+Client screenshot showed the 4 hero cards (Active Projects/Total Clients/Open Service Requests/
+Revenue Collected) stacked full-width and full-height on mobile — each a mostly-empty bar, pushing
+everything else below the fold. **Gate: tsc 0 · lint 0 (2 pre-existing warnings) · 75 unit ·
+`next build` clean · browser-verified 390px/834px/1440px.**
+
+- Grid was `grid-cols-1 … sm:grid-cols-2` (full-width stack below 640px). Changed to
+  `grid-cols-2 … xl:grid-cols-4` — mobile now matches the 2×2 density the ops-KPI row directly
+  below it (Receivables/AMC/Stock/Budget) already used, so the two rows read as one consistent
+  block instead of one sprawling and one compact.
+- `HeroStat` card padding/icon/text scale down below the `sm` breakpoint (`p-3`→`p-4`,
+  `size-8`→`size-11` icon badge, `text-lg`→`text-2xl` value) — desktop/tablet (≥640px) render
+  pixel-identical to before, verified via screenshot at 834px and 1440px.
+- Label truncation (`truncate`, single line) replaced with wrap (`leading-tight`, no truncate) —
+  "Open Service Requests" was clipping to "Open Service Requ…" in the narrower 2-up card; now wraps
+  to 2 lines cleanly, matching how `OpsKpi` (the row below) already handles long labels.
+
 ### v35 — Mobile drawer: bottom gap on dynamic-toolbar browsers
 
 Client screenshot showed a blank strip below the profile row at the bottom of the mobile hamburger

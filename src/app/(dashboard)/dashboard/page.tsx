@@ -72,7 +72,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Hero stat cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <HeroStat tone="blue" icon={HardHat} label="Active Projects" value={d.hero.activeProjects} href="/projects" />
         <HeroStat tone="emerald" icon={Users} label="Total Clients" value={d.hero.totalClients} href="/clients" />
         <HeroStat tone="violet" icon={LifeBuoy} label="Open Service Requests" value={d.hero.openServiceRequests} href="/service" />
@@ -330,17 +330,17 @@ function HeroStat({
 }) {
   return (
     <Link href={href} className="block">
-      <div className={`gc-hero ${HERO[tone]} group rounded-2xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-current/25 hover:shadow-lg`}>
-        <div className="relative flex items-start justify-between">
-          <div>
-            <div className="text-xs font-medium text-muted">{label}</div>
-            <div className="mt-1.5 text-2xl font-bold leading-none tracking-tight tabular-nums text-foreground">{value}</div>
+      <div className={`gc-hero ${HERO[tone]} group rounded-xl border border-border bg-card p-3 shadow-sm transition-all duration-200 sm:rounded-2xl sm:p-4 hover:-translate-y-1 hover:border-current/25 hover:shadow-lg`}>
+        <div className="relative flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] font-medium leading-tight text-muted sm:text-xs">{label}</div>
+            <div className="mt-1 text-lg font-bold leading-none tracking-tight tabular-nums text-foreground sm:mt-1.5 sm:text-2xl">{value}</div>
           </div>
           <span
-            className="flex size-11 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3 sm:size-11"
             style={{ background: "color-mix(in srgb, currentColor 18%, transparent)" }}
           >
-            <Icon className="size-5" />
+            <Icon className="size-4 sm:size-5" />
           </span>
         </div>
       </div>
