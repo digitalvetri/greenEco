@@ -41,6 +41,41 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v37 — WhatsApp/email send: redirect fallback to the user's own app
+
+Every "Send WhatsApp"/"Send email" button (leads, projects, service contracts, proposals) always
+attempted the configured Cloud API/Resend transport — which isn't set up in this deployment, so
+clicking Send silently did nothing but log a `LOGGED (not sent)` row. Client asked for exactly this
+gap: when there's no (or a failed) transport, redirect the user to their own WhatsApp/mail app with
+the client's number/address and the composed message pre-filled, so the message still goes out —
+just from the user's own device instead of a business API number. **Gate: tsc 0 · lint 0 (24
+pre-existing warnings) · 76 unit (+1, `share-links.test.ts`) · `next build` clean · verify-leads-p5/
+projects-p3/service-p1/proposals-p3 green · browser-verified (WhatsApp → `api.whatsapp.com/send`
+with number+text; email → `mailto:` handler with to/subject/body — both via Chromium, actual redirect
+URLs captured, not assumed).**
+
+- **New `src/lib/share-links.ts`** (`waShareLink`/`mailtoLink`) — pure, zero-dependency link builders
+  safe to import from a `"use client"` component. `lib/whatsapp.ts`/`lib/email.ts` pull in
+  `runtime-config` → `prisma`, which can't be bundled into the browser, so `waShareLink` (previously
+  living in `whatsapp.ts`, used only server-side by the A3 stale-deal-nudge automation) moved here;
+  `mailtoLink` is net new.
+- **4 send surfaces updated** — leads/projects/service `comm-panel.tsx` + proposals'
+  `send-proposal-button.tsx`: after the existing send action returns, `r.sent` branches to either the
+  success toast (unchanged) or `window.open(waShareLink(...))` / `window.location.href =
+  mailtoLink(...)` with a "Logged — opening WhatsApp/your email app" toast. The Communication row is
+  still always written by the existing server action first (audit trail unchanged) — this only adds a
+  client-side redirect on top, no server logic touched except widening 2 return shapes.
+- **Real number/email now threaded through, not just booleans** — the 3 comm-panels previously took
+  `hasEmail`/`hasPhone` flags (couldn't build a redirect link without the actual value). Now take
+  `phone`/`email` directly. Caught 2 latent gating bugs in the process: projects' WhatsApp button was
+  never disabled even though `Order.clientPhone` is nullable, and service's was gated on `Boolean(c.order)`
+  (order *exists*) rather than the order actually having a phone — both now correctly disabled when
+  there's truly nothing to send to. `getContract` (amc.ts) gained `clientPhone` on its order select
+  (was previously fetching `orderNo`/`proposal.lead.email` only).
+- **Proposals' `sendProposalToClient`** already composed the full message (client name, proposal
+  number, durable PDF link) server-side — widened its return to include `to`/`body` so the button can
+  redirect with the exact same text, instead of duplicating message-composition logic client-side.
+
 ### v36 — Dashboard hero stat cards: compact 2×2 on mobile
 
 Client screenshot showed the 4 hero cards (Active Projects/Total Clients/Open Service Requests/

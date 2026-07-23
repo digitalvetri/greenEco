@@ -78,7 +78,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
           {/* Actions — one toolbar, uniform spacing (contact + lifecycle) */}
           <div className="flex flex-wrap items-center gap-2">
-            <CommPanel leadId={lead.id} hasEmail={!!lead.email} />
+            <CommPanel leadId={lead.id} phone={lead.phone} email={lead.email} />
             <LeadStatusControl leadId={lead.id} status={lead.status} isAdmin={isAdmin} />
           </div>
         </div>

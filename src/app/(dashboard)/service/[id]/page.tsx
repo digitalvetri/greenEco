@@ -26,7 +26,7 @@ export default async function ContractDetail({ params }: { params: Promise<{ id:
   const isAdmin = session.role === "ADMIN";
   const done = c.visits.filter((v) => v.status === "DONE").length;
   const clientEmail = c.order && "proposal" in c.order ? c.order.proposal?.lead?.email : null;
-  const hasPhone = Boolean(c.order); // phone resolves via order→proposal→lead
+  const clientPhone = c.order && "clientPhone" in c.order ? c.order.clientPhone : null;
 
   return (
     <div className="gc-animate-in">
@@ -174,7 +174,7 @@ export default async function ContractDetail({ params }: { params: Promise<{ id:
                     <CardTitle>Client communication</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CommPanel contractId={c.id} hasEmail={Boolean(clientEmail)} hasPhone={hasPhone} />
+                    <CommPanel contractId={c.id} phone={clientPhone ?? null} email={clientEmail ?? null} />
                   </CardContent>
                 </Card>
                 <AmcTimeline events={activity ?? []} />

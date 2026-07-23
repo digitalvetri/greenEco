@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
-import { waShareLink } from "@/lib/whatsapp";
+import { waShareLink } from "@/lib/share-links";
 import { deliver } from "./deliver";
 import { adminPhones } from "./engine";
 import { createAutomationTask, dayRange, addDays, yearWeek, BRAND_FOOTER } from "./util";

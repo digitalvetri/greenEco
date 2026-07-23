@@ -125,8 +125,3 @@ export async function sendWhatsAppText(to: string, body: string): Promise<SendRe
   }
   return { sent: false, transport: "none", reason: "no WhatsApp transport configured" };
 }
-
-/** Build a click-to-share wa.me link for manual send (no API needed). */
-export function waShareLink(phone: string, text: string): string {
-  return `https://wa.me/91${phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
-}

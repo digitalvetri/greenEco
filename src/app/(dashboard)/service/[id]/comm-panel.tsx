@@ -7,16 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
+import { waShareLink, mailtoLink } from "@/lib/share-links";
 import { logContractCallAction, sendContractWhatsAppAction, sendContractEmailAction } from "../actions";
 
 type Mode = "call" | "whatsapp" | "email" | null;
 
 /**
  * Log or send a client communication against an AMC contract. Contact resolves
- * contract → order → proposal → lead. "Log call" records a touch; WhatsApp/email
- * attempt a gated send. All show up in the Activity timeline.
+ * contract → order → proposal → lead. "Log call" records a touch. WhatsApp/email
+ * attempt a gated send (and always log the touch); when no provider is configured
+ * (or the send fails), it falls back to redirecting the user to their own
+ * WhatsApp/mail app with the client's number/address and message pre-filled.
  */
-export function CommPanel({ contractId, hasEmail, hasPhone }: { contractId: string; hasEmail: boolean; hasPhone: boolean }) {
+export function CommPanel({ contractId, phone, email }: { contractId: string; phone: string | null; email: string | null }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(null);
   const [body, setBody] = useState("");
@@ -37,10 +40,20 @@ export function CommPanel({ contractId, hasEmail, hasPhone }: { contractId: stri
           toast("Call logged");
         } else if (mode === "whatsapp") {
           const r = await sendContractWhatsAppAction(contractId, body);
-          toast(r.sent ? "WhatsApp sent" : "Logged (WhatsApp not configured)");
+          if (r.sent) {
+            toast("WhatsApp sent");
+          } else if (phone) {
+            window.open(waShareLink(phone, body), "_blank", "noopener,noreferrer");
+            toast("Logged — opening WhatsApp to send");
+          }
         } else if (mode === "email") {
           const r = await sendContractEmailAction(contractId, subject, body);
-          toast(r.sent ? "Email sent" : "Logged (email not configured)");
+          if (r.sent) {
+            toast("Email sent");
+          } else if (email) {
+            window.location.href = mailtoLink(email, subject, body);
+            toast("Logged — opening your email app");
+          }
         }
         close();
         router.refresh();
@@ -51,17 +64,17 @@ export function CommPanel({ contractId, hasEmail, hasPhone }: { contractId: stri
   }
 
   const title = mode === "call" ? "Log a call" : mode === "whatsapp" ? "WhatsApp message" : "Email";
-  const noContact = !hasPhone && !hasEmail;
+  const noContact = !phone && !email;
 
   return (
     <div className="flex flex-wrap gap-2">
       <Button variant="outline" size="sm" onClick={() => setMode("call")}>
         <Phone className="size-4" /> Log call
       </Button>
-      <Button variant="outline" size="sm" disabled={!hasPhone} onClick={() => setMode("whatsapp")} title={hasPhone ? undefined : "Link the contract to a project to resolve the client's phone"}>
+      <Button variant="outline" size="sm" disabled={!phone} onClick={() => setMode("whatsapp")} title={phone ? undefined : "Link the contract to a project to resolve the client's phone"}>
         <MessageCircle className="size-4" /> WhatsApp
       </Button>
-      <Button variant="outline" size="sm" disabled={!hasEmail} onClick={() => setMode("email")} title={hasEmail ? undefined : "No client email (link the contract to a project)"}>
+      <Button variant="outline" size="sm" disabled={!email} onClick={() => setMode("email")} title={email ? undefined : "No client email (link the contract to a project)"}>
         <Mail className="size-4" /> Email
       </Button>
       {noContact && <span className="self-center text-xs text-muted">Link a project to enable client send.</span>}
@@ -80,6 +93,8 @@ export function CommPanel({ contractId, hasEmail, hasPhone }: { contractId: stri
               placeholder={mode === "call" ? "What was discussed…" : "Type your message…"}
             />
           </Field>
+          {mode === "whatsapp" && phone && <p className="text-xs text-muted">Opens WhatsApp to {phone} with this message pre-filled.</p>}
+          {mode === "email" && email && <p className="text-xs text-muted">Opens your email app addressed to {email}.</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={close}>
               Cancel

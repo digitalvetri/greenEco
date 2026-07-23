@@ -313,7 +313,7 @@ export function ProposalEditor({
       {isAdmin && !locked && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
           {(view.status === "SENT" || view.status === "UNDER_NEGOTIATION") && (
-            <SendProposalButtons proposalId={view.id} />
+            <SendProposalButtons proposalId={view.id} proposalNumber={view.number} />
           )}
           {view.status === "SENT" && (
             <Button

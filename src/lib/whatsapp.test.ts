@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderMessage, waShareLink, sendWhatsApp } from "./whatsapp";
+import { renderMessage, sendWhatsApp } from "./whatsapp";
 
 describe("whatsapp message rendering (deterministic)", () => {
   it("renders a payment reminder with client, amount, order, date", () => {
@@ -44,11 +44,5 @@ describe("whatsapp transport selection", () => {
     });
     expect(r.sent).toBe(false);
     expect(r.transport).toBe("none");
-  });
-});
-
-describe("waShareLink", () => {
-  it("strips non-digits and prefixes country code", () => {
-    expect(waShareLink("98765 43210", "hi")).toBe("https://wa.me/919876543210?text=hi");
   });
 });

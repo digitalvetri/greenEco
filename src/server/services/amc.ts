@@ -125,7 +125,7 @@ export async function getContract(ctx: Ctx, id: string) {
     include: {
       visits: { orderBy: { seq: "asc" } },
       tickets: { orderBy: { createdAt: "desc" } },
-      order: { select: { id: true, orderNo: true, proposal: { select: { lead: { select: { email: true } } } } } },
+      order: { select: { id: true, orderNo: true, clientPhone: true, proposal: { select: { lead: { select: { email: true } } } } } },
     },
   });
   if (!c) return null;

@@ -348,7 +348,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                     <CardTitle>Client communication</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CommPanel orderId={order.id} hasEmail={Boolean(clientEmail)} />
+                    <CommPanel orderId={order.id} phone={order.clientPhone} email={clientEmail ?? null} />
                   </CardContent>
                 </Card>
                 <ProjectTimeline events={activity ?? []} />

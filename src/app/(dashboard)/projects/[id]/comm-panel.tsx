@@ -7,17 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
+import { waShareLink, mailtoLink } from "@/lib/share-links";
 import { logProjectCallAction, sendProjectWhatsAppAction, sendProjectEmailAction } from "../actions";
 
 type Mode = "call" | "whatsapp" | "email" | null;
 
 /**
  * Log or send a client communication against a project. "Log call" records a
- * touch; the WhatsApp/email actions attempt a send via the wired provider and
- * record the result (LOGGED when no provider is configured). All show up in the
- * Activity timeline. Contact resolves order → proposal → lead.
+ * touch. WhatsApp/email attempt a send via the wired provider (and always log the
+ * touch); when no provider is configured (or the send fails), it falls back to
+ * redirecting the user to their own WhatsApp/mail app with the client's number/
+ * address and message pre-filled. Contact resolves order → proposal → lead.
  */
-export function CommPanel({ orderId, hasEmail }: { orderId: string; hasEmail: boolean }) {
+export function CommPanel({ orderId, phone, email }: { orderId: string; phone: string | null; email: string | null }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(null);
   const [body, setBody] = useState("");
@@ -38,10 +40,20 @@ export function CommPanel({ orderId, hasEmail }: { orderId: string; hasEmail: bo
           toast("Call logged");
         } else if (mode === "whatsapp") {
           const r = await sendProjectWhatsAppAction(orderId, body);
-          toast(r.sent ? "WhatsApp sent" : "Logged (WhatsApp not configured)");
+          if (r.sent) {
+            toast("WhatsApp sent");
+          } else if (phone) {
+            window.open(waShareLink(phone, body), "_blank", "noopener,noreferrer");
+            toast("Logged — opening WhatsApp to send");
+          }
         } else if (mode === "email") {
           const r = await sendProjectEmailAction(orderId, subject, body);
-          toast(r.sent ? "Email sent" : "Logged (email not configured)");
+          if (r.sent) {
+            toast("Email sent");
+          } else if (email) {
+            window.location.href = mailtoLink(email, subject, body);
+            toast("Logged — opening your email app");
+          }
         }
         close();
         router.refresh();
@@ -58,10 +70,10 @@ export function CommPanel({ orderId, hasEmail }: { orderId: string; hasEmail: bo
       <Button variant="outline" size="sm" onClick={() => setMode("call")}>
         <Phone className="size-4" /> Log call
       </Button>
-      <Button variant="outline" size="sm" onClick={() => setMode("whatsapp")}>
+      <Button variant="outline" size="sm" disabled={!phone} onClick={() => setMode("whatsapp")} title={phone ? undefined : "No client phone on this project"}>
         <MessageCircle className="size-4" /> WhatsApp
       </Button>
-      <Button variant="outline" size="sm" disabled={!hasEmail} onClick={() => setMode("email")} title={hasEmail ? undefined : "No email on this client"}>
+      <Button variant="outline" size="sm" disabled={!email} onClick={() => setMode("email")} title={email ? undefined : "No email on this client"}>
         <Mail className="size-4" /> Email
       </Button>
 
@@ -79,6 +91,8 @@ export function CommPanel({ orderId, hasEmail }: { orderId: string; hasEmail: bo
               placeholder={mode === "call" ? "What was discussed…" : "Type your message…"}
             />
           </Field>
+          {mode === "whatsapp" && phone && <p className="text-xs text-muted">Opens WhatsApp to {phone} with this message pre-filled.</p>}
+          {mode === "email" && email && <p className="text-xs text-muted">Opens your email app addressed to {email}.</p>}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={close}>
               Cancel

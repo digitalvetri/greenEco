@@ -110,7 +110,7 @@ export async function sendProposalToClient(
     },
   });
   await logAudit(ctx, { action: "CREATE", entity: "Communication", entityId: comm.id, after: { proposalId, channel } });
-  return { sent: res.sent, status: comm.sentStatus };
+  return { sent: res.sent, status: comm.sentStatus, to, body };
 }
 
 function currentVersionOf<T extends { versionNo: number }>(p: {
