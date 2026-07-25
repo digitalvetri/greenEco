@@ -244,6 +244,34 @@ export async function createItem(
   return item;
 }
 
+/** Edit an existing item's master details (price/category/spec/reorder level) — e.g.
+ *  correcting a purchase price after the fact. Stock on-hand is NOT editable here by
+ *  design (spec §9 immutable ledger) — use stockAudit for quantity corrections. */
+export async function updateItem(
+  ctx: Ctx,
+  itemId: string,
+  data: { name?: string; category?: string; unit?: string; specification?: string; reorderLevel?: number; purchasePrice?: number | null },
+) {
+  requireAdmin(ctx);
+  const item = await prisma.item.findFirst({ where: { id: itemId, companyId: ctx.companyId } });
+  if (!item) throw new Error("Item not found");
+  const updated = await prisma.item.update({
+    where: { id: itemId },
+    data: {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.category !== undefined ? { category: data.category } : {}),
+      ...(data.unit !== undefined ? { unit: data.unit } : {}),
+      ...(data.specification !== undefined ? { specification: data.specification } : {}),
+      ...(data.reorderLevel !== undefined ? { reorderLevel: new Decimal(data.reorderLevel).toFixed(3) } : {}),
+      ...(data.purchasePrice !== undefined
+        ? { purchasePrice: data.purchasePrice != null ? new Decimal(data.purchasePrice).toFixed(2) : null }
+        : {}),
+    },
+  });
+  await logAudit(ctx, { action: "UPDATE", entity: "Item", entityId: itemId, before: { name: item.name }, after: { name: updated.name } });
+  return updated;
+}
+
 export interface MaterialsAnalytics {
   totalItems: number;
   lowStockCount: number;

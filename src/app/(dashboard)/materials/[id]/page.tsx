@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/money";
+import { EditItemCard } from "./edit-item-card";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,30 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
           <Mini label="Purchase price" value={"purchasePrice" in item && item.purchasePrice ? formatINR(String(item.purchasePrice)) : "—"} />
         )}
       </div>
+
+      {isAdmin && (
+        <div className="mb-4 space-y-2">
+          <EditItemCard
+            itemId={item.id}
+            isAdmin={isAdmin}
+            item={{
+              category: item.category,
+              unit: item.unit,
+              specification: item.specification,
+              reorderLevel: item.reorderLevel,
+              purchasePrice: "purchasePrice" in item ? item.purchasePrice : null,
+            }}
+          />
+          <p className="text-xs text-muted">
+            Editing here changes the item&apos;s master details (category/unit/spec/reorder level/purchase
+            price). To record actual on-hand quantity, use{" "}
+            <Link href="/materials/operations" className="text-primary underline underline-offset-2">
+              Materials → Operations → Stock Audit
+            </Link>{" "}
+            instead — it logs the count as a proper stock movement rather than overwriting a number silently.
+          </p>
+        </div>
+      )}
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <Card>

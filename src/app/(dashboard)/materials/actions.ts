@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import {
   createItem,
+  updateItem,
   createVendor,
   updateVendor,
   deleteVendor,
@@ -23,6 +24,13 @@ export async function createItemAction(data: unknown) {
   const s = await getSession();
   await createItem(s, data as Parameters<typeof createItem>[1]);
   revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
+  return { ok: true };
+}
+
+export async function updateItemAction(itemId: string, data: unknown) {
+  const s = await getSession();
+  await updateItem(s, itemId, data as Parameters<typeof updateItem>[2]);
+  revalidatePath("/materials", "layout");
   return { ok: true };
 }
 
