@@ -81,11 +81,16 @@ test("comms: log a call and send a (gated) WhatsApp, both land in the timeline",
   await page.getByRole("dialog").getByRole("button", { name: "Log call" }).click();
   await expect(page.getByText("Discussed a 50 KLD STP")).toBeVisible();
 
-  // Send a WhatsApp — no provider configured, so it's recorded as logged-not-sent.
-  await page.getByRole("button", { name: "WhatsApp" }).click();
-  await page.getByRole("dialog").getByLabel("Message").fill("Sharing our proposal shortly");
-  await page.getByRole("dialog").getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText("Sharing our proposal shortly")).toBeVisible();
+  // WhatsApp is a one-click quick action — no compose dialog, just an immediate
+  // redirect (opened in a new tab) with a ready-made message, logged in the
+  // background. No provider is configured here, so it lands as logged-not-sent.
+  const [popup] = await Promise.all([page.waitForEvent("popup"), page.getByRole("button", { name: "WhatsApp" }).click()]);
+  // wa.me redirects straight to api.whatsapp.com/send by the time the popup settles.
+  expect(popup.url()).toContain("api.whatsapp.com/send");
+  expect(popup.url()).toContain(`phone=91${phone}`);
+  expect(popup.url()).toContain("following+up+on+your+enquiry");
+  await popup.close();
+  await expect(page.getByText(/following up on your enquiry/)).toBeVisible();
   await expect(page.getByText("Logged (not sent)").first()).toBeVisible();
 });
 

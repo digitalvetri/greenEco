@@ -12,6 +12,28 @@ import { allocateNumber } from "./numbering";
 import { getCompanySettings } from "./company-settings";
 import { deriveBalances, deriveItemBalances, belowReorder, type MovementLike } from "@/lib/domain/stock";
 
+/**
+ * SITE locations are stored with `name = orderNo` (schema comment) — unique and
+ * stable, but unreadable in a picker or a stock-split line. Fronts the client
+ * name instead wherever a location is displayed; WAREHOUSE/orphaned-SITE fall
+ * back to the raw name. One Order query for however many SITE rows are passed.
+ */
+async function locationDisplayNames(
+  locations: { id: string; name: string; orderId: string | null }[],
+): Promise<Map<string, string>> {
+  const orderIds = locations.filter((l) => l.orderId).map((l) => l.orderId as string);
+  const orders = orderIds.length
+    ? await prisma.order.findMany({ where: { id: { in: orderIds } }, select: { id: true, clientName: true } })
+    : [];
+  const clientNameByOrderId = new Map(orders.map((o) => [o.id, o.clientName]));
+  return new Map(
+    locations.map((l) => [
+      l.id,
+      l.orderId && clientNameByOrderId.has(l.orderId) ? `${clientNameByOrderId.get(l.orderId)} (${l.name})` : l.name,
+    ]),
+  );
+}
+
 // ---------- Items ----------
 
 export interface MaterialFilters {
@@ -61,10 +83,10 @@ export async function listItems(ctx: Ctx, filters: MaterialFilters = {}) {
           select: { itemId: true, qty: true, type: true, fromLocationId: true, toLocationId: true },
         })
       : Promise.resolve([]),
-    prisma.location.findMany({ where: { companyId: ctx.companyId }, select: { id: true, name: true } }),
+    prisma.location.findMany({ where: { companyId: ctx.companyId }, select: { id: true, name: true, orderId: true } }),
   ]);
   const balances = deriveBalances(movements as MovementLike[]);
-  const locName = new Map(locations.map((l) => [l.id, l.name]));
+  const locName = await locationDisplayNames(locations);
 
   const enriched = page.map((i) => {
     const b = balances.get(i.id);
@@ -108,10 +130,10 @@ export async function itemLedger(ctx: Ctx, itemId: string) {
     // OUT+IN rows share one transaction createdAt, and the OUT is created first so
     // its cuid sorts earlier → OUT-before-IN (no phantom intermediate balance).
     prisma.stockMovement.findMany({ where: { companyId: ctx.companyId, itemId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
-    prisma.location.findMany({ where: { companyId: ctx.companyId }, select: { id: true, name: true } }),
+    prisma.location.findMany({ where: { companyId: ctx.companyId }, select: { id: true, name: true, orderId: true } }),
     prisma.vendor.findMany({ where: { companyId: ctx.companyId }, select: { id: true, name: true } }),
   ]);
-  const locName = new Map(locations.map((l) => [l.id, l.name]));
+  const locName = await locationDisplayNames(locations);
   const vendorName = new Map(vendors.map((v) => [v.id, v.name]));
 
   // Running total across all locations (a movement credits toLocation, debits fromLocation).
@@ -413,8 +435,11 @@ export async function deleteVendor(ctx: Ctx, vendorId: string) {
 
 // ---------- Locations ----------
 
+/** Locations for transfer/issue/PO-destination pickers, with a `displayName` per `locationDisplayNames`. */
 export async function listLocations(ctx: Ctx) {
-  return prisma.location.findMany({ where: { companyId: ctx.companyId }, orderBy: { type: "asc" } });
+  const locations = await prisma.location.findMany({ where: { companyId: ctx.companyId }, orderBy: { type: "asc" } });
+  const displayNames = await locationDisplayNames(locations);
+  return locations.map((l) => ({ ...l, displayName: displayNames.get(l.id) ?? l.name }));
 }
 
 // ---------- Purchase Orders (admin) ----------

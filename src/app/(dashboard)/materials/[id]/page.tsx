@@ -65,8 +65,8 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
             }}
           />
           <p className="text-xs text-muted">
-            Editing here changes the item&apos;s master details (category/unit/spec/reorder level/purchase
-            price). To record actual on-hand quantity, use{" "}
+            Editing here changes the item&apos;s master details (category/unit/spec/reorder level/price). To
+            record actual on-hand quantity, use{" "}
             <Link href="/materials/operations" className="text-primary underline underline-offset-2">
               Materials → Operations → Stock Audit
             </Link>{" "}

@@ -18,7 +18,7 @@ export default async function OperationsPage() {
     pendingRequestCount(session),
   ]);
 
-  const locationOpts = locations.map((l) => ({ id: l.id, name: l.name, type: l.type as string }));
+  const locationOpts = locations.map((l) => ({ id: l.id, name: l.displayName, type: l.type as string }));
 
   return (
     <div>

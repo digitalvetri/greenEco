@@ -30,7 +30,7 @@ export default async function PurchasingPage() {
         <PurchasingPanel
           items={opts.map((i) => ({ id: i.id, name: i.name }))}
           vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
-          locations={locations.map((l) => ({ id: l.id, name: l.name }))}
+          locations={locations.map((l) => ({ id: l.id, name: l.displayName }))}
           pos={pos.map((p) => ({
             id: p.id,
             poNo: p.poNo,
