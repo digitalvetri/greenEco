@@ -49,6 +49,9 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 # imports src/lib/password.ts directly and is meant to be run inside this image
 # (npm run db:seed) to create the first admin login after migrate deploy.
 COPY --from=builder /app/src ./src
+# scripts/one-time-material-import.js is run by docker-entrypoint.sh when
+# RUN_ONE_TIME_IMPORT=1 is set — see that file. Remove both once confirmed run.
+COPY --from=builder /app/scripts ./scripts
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 # Headless Chromium for the /print/* → PDF pipeline (src/lib/pdf.ts).
