@@ -24,6 +24,7 @@ export default async function AmcAnalyticsPage() {
     <div>
       <PageHeader
         title="Service / AMC Analytics"
+        backHref="/service"
         action={
           <Link href="/service" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
             <ArrowLeft className="size-4" /> Back to service

@@ -30,7 +30,7 @@ export default async function LeadCustomerPage({ params }: { params: Promise<{ i
 
   return (
     <div>
-      <PageHeader title={customer.customerName} subtitle={`${customer.projects.length} project${customer.projects.length === 1 ? "" : "s"}`} />
+      <PageHeader title={customer.customerName} subtitle={`${customer.projects.length} project${customer.projects.length === 1 ? "" : "s"}`} backHref="/leads" />
 
       <Card className="mb-4 p-4">
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">

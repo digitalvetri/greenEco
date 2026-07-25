@@ -8,6 +8,7 @@ import {
   addDrawing,
   setDrawingApproval,
   addReceipt,
+  addMilestone,
   setMilestoneSchedule,
   setOrderGst,
   setOrderSchedule,
@@ -79,6 +80,22 @@ export async function setDrawingApprovalAction(orderId: string, drawingId: strin
 export async function addReceiptAction(orderId: string, milestoneId: string, data: unknown) {
   const s = await getSession();
   await addReceipt(s, milestoneId, data as Parameters<typeof addReceipt>[2]);
+  revalidatePath(`/projects/${orderId}`);
+  return { ok: true };
+}
+
+export async function addMilestoneAction(
+  orderId: string,
+  data: { description: string; amount: number; dueBasis: "DATE" | "STAGE_COMPLETION"; dueDate?: string | null; linkedStageId?: string | null },
+) {
+  const s = await getSession();
+  await addMilestone(s, orderId, {
+    description: data.description,
+    amount: data.amount,
+    dueBasis: data.dueBasis,
+    dueDate: data.dueDate ? new Date(data.dueDate) : null,
+    linkedStageId: data.linkedStageId,
+  });
   revalidatePath(`/projects/${orderId}`);
   return { ok: true };
 }

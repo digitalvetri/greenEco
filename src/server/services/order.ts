@@ -697,6 +697,47 @@ export async function removeTeam(ctx: Ctx, orderId: string, userId: string) {
  * These fields drive the receivables cron (DATE trigger) and the STAGE_COMPLETION
  * trigger; both were inert while unset. Recomputes status afterwards.
  */
+/**
+ * Add a payment milestone directly to an order (admin-only, audited). Milestones
+ * normally come from the proposal's payment terms at Won→Order conversion — this
+ * covers orders created without any (a manual/legacy order, or a change-order
+ * needing an extra milestone later). Amount is a plain ₹ figure, not a % of
+ * projectValue, since there's no proposal grandTotal to derive a % from here.
+ */
+export async function addMilestone(
+  ctx: Ctx,
+  orderId: string,
+  data: { description: string; amount: number; dueBasis: "DATE" | "STAGE_COMPLETION"; dueDate?: Date | null; linkedStageId?: string | null },
+) {
+  requireAdmin(ctx);
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId: ctx.companyId } });
+  if (!order) throw new Error("Order not found");
+  if (!data.description.trim()) throw new Error("Description is required");
+  if (!(data.amount > 0)) throw new Error("Amount must be greater than zero");
+  if (data.linkedStageId) {
+    const stage = await prisma.stage.findFirst({ where: { id: data.linkedStageId, orderId } });
+    if (!stage) throw new Error("Linked stage must belong to this project");
+  }
+  return prisma.$transaction(async (tx) => {
+    const last = await tx.paymentMilestone.findFirst({ where: { orderId }, orderBy: { seq: "desc" } });
+    const milestone = await tx.paymentMilestone.create({
+      data: {
+        orderId,
+        seq: (last?.seq ?? 0) + 1,
+        description: data.description.trim(),
+        amount: new Decimal(data.amount).toFixed(2),
+        dueBasis: data.dueBasis,
+        dueDate: data.dueBasis === "DATE" ? (data.dueDate ?? null) : null,
+        linkedStageId: data.dueBasis === "STAGE_COMPLETION" ? (data.linkedStageId ?? null) : null,
+        status: "UPCOMING",
+      },
+    });
+    await recomputeMilestones(tx, orderId);
+    await logAudit(ctx, { action: "CREATE", entity: "PaymentMilestone", entityId: milestone.id, after: { description: milestone.description, amount: data.amount } }, tx);
+    return milestone;
+  });
+}
+
 export async function setMilestoneSchedule(
   ctx: Ctx,
   milestoneId: string,

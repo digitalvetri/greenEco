@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getClient360, listClientProjectTabs } from "@/server/services/client";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +11,13 @@ import { formatINR } from "@/lib/money";
 import { ClientDetailsEditor } from "./client-details-editor";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const session = await getSession();
+  const lead = await prisma.lead.findFirst({ where: { id, companyId: session.companyId }, select: { customerName: true } });
+  return { title: lead ? `${lead.customerName} — Green Ecocare CRM` : "Client — Green Ecocare CRM" };
+}
 
 const KIND_LABEL: Record<string, string> = {
   lead: "🟢",
@@ -35,6 +44,7 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
       <PageHeader
         title={lead.customerName}
         subtitle={hasMultipleProjects ? `Client 360 · ${tabs.length} projects` : "Client 360"}
+        backHref="/clients"
       />
 
       {hasMultipleProjects && (

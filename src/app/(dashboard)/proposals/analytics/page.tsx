@@ -25,6 +25,7 @@ export default async function ProposalAnalyticsPage() {
     <div>
       <PageHeader
         title="Proposal Analytics"
+        backHref="/proposals"
         action={
           <Link href="/proposals" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
             <ArrowLeft className="size-4" /> Back to proposals

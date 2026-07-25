@@ -18,7 +18,7 @@ export default async function ActivityLogPage() {
 
   return (
     <div>
-      <PageHeader title="Activity log" subtitle="Every mutation and sign-in across the workspace, newest first" />
+      <PageHeader title="Activity log" subtitle="Every mutation and sign-in across the workspace, newest first" backHref="/settings" />
       <ActivityLogList initialItems={initial.items} initialCursor={initial.nextCursor} />
     </div>
   );

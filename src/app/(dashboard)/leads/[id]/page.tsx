@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { MessageCircle, Pencil, User, Activity, Flame } from "lucide-react";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getLead, listCompanyUsers, leadActivity } from "@/server/services/lead";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +19,13 @@ import { DocumentsCard } from "./documents-card";
 import { ContactsCard } from "./contacts-card";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const session = await getSession();
+  const lead = await prisma.lead.findFirst({ where: { id, companyId: session.companyId }, select: { customerName: true } });
+  return { title: lead ? `${lead.customerName} — Green Ecocare CRM` : "Lead — Green Ecocare CRM" };
+}
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,6 +46,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       <PageHeader
         title={lead.customerName}
         subtitle={`${lead.source} · ${lead.address}`}
+        backHref="/leads"
         action={
           <Link
             href={`/leads/${lead.id}/edit`}

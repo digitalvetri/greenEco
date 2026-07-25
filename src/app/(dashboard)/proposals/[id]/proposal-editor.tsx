@@ -284,6 +284,7 @@ export function ProposalEditor({
       <PageHeader
         title={view.projectName || "Proposal"}
         subtitle={view.number}
+        backHref="/proposals"
         action={
           <div className="flex items-center gap-2">
             <a

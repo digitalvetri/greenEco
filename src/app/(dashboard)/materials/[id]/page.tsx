@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { itemLedger } from "@/server/services/materials";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +13,13 @@ import { formatINR } from "@/lib/money";
 import { EditItemCard } from "./edit-item-card";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const session = await getSession();
+  const item = await prisma.item.findFirst({ where: { id, companyId: session.companyId }, select: { name: true } });
+  return { title: item ? `${item.name} — Green Ecocare CRM` : "Item — Green Ecocare CRM" };
+}
 
 const TYPE_TONE: Record<string, "ok" | "danger" | "warn" | "primary" | "default"> = {
   GRN: "ok",

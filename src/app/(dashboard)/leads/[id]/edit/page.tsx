@@ -14,7 +14,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
 
   return (
     <div>
-      <PageHeader title="Edit Lead" subtitle={lead.customerName} />
+      <PageHeader title="Edit Lead" subtitle={lead.customerName} backHref={`/leads/${lead.id}`} />
       <LeadForm
         mode="edit"
         leadId={lead.id}

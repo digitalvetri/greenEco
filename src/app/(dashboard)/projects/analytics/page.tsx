@@ -24,6 +24,7 @@ export default async function ProjectAnalyticsPage() {
     <div>
       <PageHeader
         title="Project Analytics"
+        backHref="/projects"
         action={
           <Link href="/projects" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
             <ArrowLeft className="size-4" /> Back to projects

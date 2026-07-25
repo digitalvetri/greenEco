@@ -26,6 +26,7 @@ export default async function MaterialsAnalyticsPage() {
     <div>
       <PageHeader
         title="Materials Analytics"
+        backHref="/materials"
         action={
           <Link href="/materials" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
             <ArrowLeft className="size-4" /> Back to materials

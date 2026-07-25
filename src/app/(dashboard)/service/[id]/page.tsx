@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { CheckCircle2, Clock, AlertCircle, MapPin } from "lucide-react";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getContract, amcActivity } from "@/server/services/amc";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +16,13 @@ import { AmcTimeline } from "./amc-timeline";
 import { CommPanel } from "./comm-panel";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const session = await getSession();
+  const contract = await prisma.serviceContract.findFirst({ where: { id, companyId: session.companyId }, select: { clientName: true } });
+  return { title: contract ? `${contract.clientName} — Green Ecocare CRM` : "Service contract — Green Ecocare CRM" };
+}
 
 const VISIT_ICON = { DONE: CheckCircle2, DUE: AlertCircle, MISSED: AlertCircle, UPCOMING: Clock };
 const VISIT_VARIANT = { DONE: "ok", DUE: "warn", MISSED: "danger", UPCOMING: "default" } as const;
@@ -33,6 +42,7 @@ export default async function ContractDetail({ params }: { params: Promise<{ id:
       <PageHeader
         title={c.clientName}
         subtitle={`${c.contractNo} · ${c.siteAddress}`}
+        backHref="/service"
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={c.liveStatus === "ACTIVE" ? "ok" : c.liveStatus === "EXPIRED" ? "danger" : "default"}>{c.liveStatus}</Badge>

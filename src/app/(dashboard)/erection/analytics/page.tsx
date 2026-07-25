@@ -26,6 +26,7 @@ export default async function ErectionAnalyticsPage() {
     <div>
       <PageHeader
         title="Erection Analytics"
+        backHref="/erection"
         action={
           <Link href="/erection" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
             <ArrowLeft className="size-4" /> Back to erection

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
+import { ArrowLeft, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TONES = {
@@ -62,16 +62,26 @@ export function PageHeader({
   title,
   subtitle,
   action,
+  backHref,
+  backLabel = "Back",
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  /** Renders a "← Back" link above the title — for detail pages reached from a list. */
+  backHref?: string;
+  backLabel?: string;
 }) {
   return (
     // Stack on mobile (action full-width below the title, left-aligned) → side-by-side on ≥sm.
     // Previously a single flex row pushed multi-button actions past the right edge on 390px (clipped CTA).
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
       <div className="min-w-0">
+        {backHref && (
+          <Link href={backHref} className="mb-1.5 inline-flex items-center gap-1 text-xs text-muted hover:text-primary">
+            <ArrowLeft className="size-3.5" /> {backLabel}
+          </Link>
+        )}
         <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
       </div>

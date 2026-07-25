@@ -27,6 +27,7 @@ export default async function LeadAnalyticsPage() {
       <PageHeader
         title="Lead Analytics"
         subtitle={session.role === "ADMIN" ? "All leads" : "Your leads"}
+        backHref="/leads"
         action={
           <Link
             href="/leads"

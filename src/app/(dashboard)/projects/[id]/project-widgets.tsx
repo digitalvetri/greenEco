@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, FileText, Receipt as ReceiptIcon, CalendarClock } from "lucide-react";
+import { Check, FileText, Receipt as ReceiptIcon, CalendarClock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import {
   addStagePhotoAction,
   addDrawingAction,
   addReceiptAction,
+  addMilestoneAction,
   createInvoiceAction,
   setMilestoneScheduleAction,
 } from "../actions";
@@ -305,6 +306,97 @@ export function MilestoneRow({
         onClose={() => setPanelInvoiceId(null)}
         onChanged={() => router.refresh()}
       />
+    </div>
+  );
+}
+
+/**
+ * Add a payment milestone to this order — the only path is normally the proposal's
+ * payment terms at Won→Order conversion, so an order created without any (or one
+ * needing an extra milestone later, e.g. a change order) had no way to get one.
+ * Once created, the milestone's own "Receipt" button (above) is how a payment
+ * actually gets collected against it.
+ */
+export function AddMilestoneForm({ orderId, stages }: { orderId: string; stages: { id: string; name: string }[] }) {
+  const { run, pending, err } = useRun();
+  const [open, setOpen] = useState(false);
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [dueBasis, setDueBasis] = useState<"DATE" | "STAGE_COMPLETION">("DATE");
+  const [dueDate, setDueDate] = useState("");
+  const [linkedStageId, setLinkedStageId] = useState("");
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        <Plus className="size-3.5" /> Add milestone
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-primary/30 bg-surface p-3">
+      {err && <div className="text-xs text-danger">{err}</div>}
+      <div className="grid gap-2 md:grid-cols-2">
+        <Field label="Description">
+          <Input placeholder="e.g. 30% on equipment delivery" value={description} onChange={(e) => setDescription(e.target.value)} />
+        </Field>
+        <Field label="Amount ₹">
+          <Input type="number" min="0" step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </Field>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <Field label="Due basis">
+          <Select value={dueBasis} onChange={(e) => setDueBasis(e.target.value as "DATE" | "STAGE_COMPLETION")}>
+            <option value="DATE">By date</option>
+            <option value="STAGE_COMPLETION">On stage completion</option>
+          </Select>
+        </Field>
+        {dueBasis === "STAGE_COMPLETION" ? (
+          <Field label="Linked stage">
+            <Select value={linkedStageId} onChange={(e) => setLinkedStageId(e.target.value)}>
+              <option value="">— none —</option>
+              {stages.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </Select>
+          </Field>
+        ) : (
+          <Field label="Due date">
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </Field>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={pending || !description.trim() || !amount}
+          onClick={() =>
+            run(
+              () =>
+                addMilestoneAction(orderId, {
+                  description,
+                  amount: Number(amount),
+                  dueBasis,
+                  dueDate: dueBasis === "DATE" ? dueDate || null : null,
+                  linkedStageId: dueBasis === "STAGE_COMPLETION" ? linkedStageId || null : null,
+                }),
+              () => {
+                setOpen(false);
+                setDescription("");
+                setAmount("");
+                setDueDate("");
+                setLinkedStageId("");
+              },
+            )
+          }
+        >
+          Save milestone
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }

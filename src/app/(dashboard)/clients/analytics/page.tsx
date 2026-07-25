@@ -23,6 +23,7 @@ export default async function ClientAnalyticsPage() {
     <div>
       <PageHeader
         title="Client Analytics"
+        backHref="/clients"
         action={
           <Link href="/clients" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
             <ArrowLeft className="size-4" /> Back to clients

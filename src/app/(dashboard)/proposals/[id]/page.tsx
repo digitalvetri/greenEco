@@ -1,10 +1,19 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getProposal, proposalActivity } from "@/server/services/proposal";
 import { getSettingsFor } from "@/server/services/company-settings";
 import { ProposalEditor, type ProposalView } from "./proposal-editor";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const session = await getSession();
+  const proposal = await prisma.proposal.findFirst({ where: { id, companyId: session.companyId }, select: { projectName: true, number: true } });
+  return { title: proposal ? `${proposal.projectName} — Green Ecocare CRM` : "Proposal — Green Ecocare CRM" };
+}
 
 export default async function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

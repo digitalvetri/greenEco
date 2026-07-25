@@ -1,15 +1,18 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { getOrder, orderActivity } from "@/server/services/order";
 import { budgetVsActual } from "@/server/services/erection";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/money";
 import { Decimal } from "decimal.js";
-import { StageRow, DrawingUpload, MilestoneRow } from "./project-widgets";
+import { StageRow, DrawingUpload, MilestoneRow, AddMilestoneForm } from "./project-widgets";
 import { TeamAssign, TeamRemove } from "./team-assign";
 import { OrderStatusControl } from "./status-control";
 import { TabPanels } from "./tab-panels";
@@ -21,6 +24,15 @@ import { GstControl } from "./gst-control";
 import { ScheduleControl, ValueControl, BudgetControl, InlineDateEdit } from "./schedule-value-controls";
 
 export const dynamic = "force-dynamic";
+
+// Browser tab shows the project/client name, not just "Green Ecocare CRM" — the
+// PageHeader title is only visible once scrolled into view; the tab always is.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const session = await getSession();
+  const order = await prisma.order.findFirst({ where: { id, companyId: session.companyId }, select: { clientName: true } });
+  return { title: order ? `${order.clientName} — Green Ecocare CRM` : "Project — Green Ecocare CRM" };
+}
 
 export default async function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -47,6 +59,7 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
       <PageHeader
         title={order.clientName}
         subtitle={`${order.orderNo} · ${order.siteAddress}`}
+        backHref="/projects"
         action={
           <div className="flex items-center gap-2">
             <Badge
@@ -277,7 +290,18 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                 <CardHeader>
                   <CardTitle>Payment Milestones</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
+                  {order.milestones.length === 0 && (
+                    <EmptyState
+                      icon={Receipt}
+                      title="No payment milestones yet"
+                      description={
+                        isAdmin
+                          ? "This order has none set up — add one below to start collecting payments against it."
+                          : "No payment milestones have been set up for this project yet."
+                      }
+                    />
+                  )}
                   {order.milestones.map((m) => {
                     const received =
                       "receipts" in m ? m.receipts.reduce((a, r) => a.plus(r.amount), new Decimal(0)).toFixed(2) : "0";
@@ -302,6 +326,11 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                       />
                     );
                   })}
+                  {isAdmin && (
+                    <div className="pt-1">
+                      <AddMilestoneForm orderId={order.id} stages={order.stages.map((s) => ({ id: s.id, name: s.name }))} />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ),
