@@ -64,7 +64,7 @@ export function PurchasingPanel({
     });
   };
 
-  const [po, setPo] = useState({ vendorId: "", destinationId: "", itemId: "", qty: "1", rate: "0" });
+  const [po, setPo] = useState({ vendorId: "", destinationId: "", itemId: "", qty: "1", rate: "0", freight: "", loadingCharges: "" });
 
   return (
     <div className="space-y-4">
@@ -111,6 +111,14 @@ export function PurchasingPanel({
                   <Input type="number" min="0" step="0.01" inputMode="decimal" value={po.rate} onChange={(e) => setPo({ ...po, rate: e.target.value })} />
                 </Field>
               </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Freight ₹ (optional)">
+                  <Input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={po.freight} onChange={(e) => setPo({ ...po, freight: e.target.value })} />
+                </Field>
+                <Field label="Loading/unloading ₹ (optional)">
+                  <Input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={po.loadingCharges} onChange={(e) => setPo({ ...po, loadingCharges: e.target.value })} />
+                </Field>
+              </div>
               <Button
                 size="sm"
                 loading={busy === "po"}
@@ -124,8 +132,10 @@ export function PurchasingPanel({
                         destinationId: po.destinationId,
                         expectedDate: new Date(Date.now() + 7 * 86400000),
                         items: [{ itemId: po.itemId, qty: Number(po.qty), rate: Number(po.rate) }],
+                        freight: po.freight ? Number(po.freight) : undefined,
+                        loadingCharges: po.loadingCharges ? Number(po.loadingCharges) : undefined,
                       });
-                      setPo({ vendorId: "", destinationId: "", itemId: "", qty: "1", rate: "0" });
+                      setPo({ vendorId: "", destinationId: "", itemId: "", qty: "1", rate: "0", freight: "", loadingCharges: "" });
                     },
                     "PO raised",
                   )

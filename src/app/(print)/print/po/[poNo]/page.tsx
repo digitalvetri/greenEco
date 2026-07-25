@@ -36,7 +36,12 @@ export default async function PurchaseOrderPrint({
     supplierStateCode: vendorStateCode,
     placeOfSupplyStateCode: company.stateCode,
   });
-  const exactTotal = new Decimal(gst.total);
+  const freight = new Decimal(po.freight ?? 0);
+  const loadingCharges = new Decimal(po.loadingCharges ?? 0);
+  // Freight/loading are added after GST, not taxed themselves — matches the vendor's
+  // own PO convention (TOTAL WITH GST + FREIGHT + LOADING = grand total), and keeps
+  // totalValue (budget/stock costing basis) untouched, same treatment as GST above.
+  const exactTotal = new Decimal(gst.total).plus(freight).plus(loadingCharges);
   const roundedTotal = exactTotal.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
   const roundOff = roundedTotal.minus(exactTotal);
 
@@ -99,6 +104,8 @@ export default async function PurchaseOrderPrint({
         ) : (
           <Line label={`IGST @ ${gst.rate}%`} value={formatINR(gst.igst)} />
         )}
+        {!freight.isZero() && <Line label="Freight" value={formatINR(freight.toFixed(2))} />}
+        {!loadingCharges.isZero() && <Line label="Loading/unloading" value={formatINR(loadingCharges.toFixed(2))} />}
         {!roundOff.isZero() && <Line label="Round off" value={formatINR(roundOff.toFixed(2))} />}
         <Line label="Total" value={formatINR(roundedTotal.toFixed(2))} bold />
       </div>

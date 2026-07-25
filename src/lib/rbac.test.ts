@@ -56,15 +56,19 @@ describe("stripPricing — EMPLOYEE never sees cost/margin/budget", () => {
     expect(item.purchasePrice.toString()).toBe("412");
   });
 
-  it("strips PO line rates + totalValue for EMPLOYEE via stripPurchaseOrderPricing", () => {
+  it("strips PO line rates + totalValue + freight/loadingCharges for EMPLOYEE via stripPurchaseOrderPricing", () => {
     const po = {
       poNo: "GEC-PO-2026-001",
       totalValue: new Decimal(50000),
+      freight: new Decimal(3000),
+      loadingCharges: new Decimal(500),
       items: [{ itemId: "i1", qty: 10, rate: new Decimal(400) }],
     };
     const stripped = stripPurchaseOrderPricing(po, "EMPLOYEE");
     const json = JSON.stringify(stripped);
     expect(json).not.toContain("totalValue");
+    expect(json).not.toContain("freight");
+    expect(json).not.toContain("loadingCharges");
     expect(json).not.toContain("rate");
     expect(json).not.toContain("400");
     expect(json).toContain("qty");

@@ -393,7 +393,14 @@ export async function listLocations(ctx: Ctx) {
 
 export async function createPO(
   ctx: Ctx,
-  data: { vendorId: string; destinationId: string; expectedDate: Date; items: { itemId: string; qty: number; rate: number }[] },
+  data: {
+    vendorId: string;
+    destinationId: string;
+    expectedDate: Date;
+    items: { itemId: string; qty: number; rate: number }[];
+    freight?: number;
+    loadingCharges?: number;
+  },
 ) {
   requireAdmin(ctx);
   const total = data.items.reduce<Decimal>((a, i) => a.plus(new Decimal(i.qty).times(i.rate)), new Decimal(0));
@@ -410,6 +417,8 @@ export async function createPO(
         status: "DRAFT",
         items: data.items as Prisma.InputJsonValue,
         totalValue: total.toFixed(2),
+        freight: data.freight ? new Decimal(data.freight).toFixed(2) : null,
+        loadingCharges: data.loadingCharges ? new Decimal(data.loadingCharges).toFixed(2) : null,
         pdfUrl: null,
         createdById: ctx.userId,
       },
@@ -497,6 +506,8 @@ export async function getPO(ctx: Ctx, poNo: string) {
     expectedDate: po.expectedDate,
     createdAt: po.createdAt,
     totalValue: po.totalValue.toString(),
+    freight: po.freight?.toString() ?? null,
+    loadingCharges: po.loadingCharges?.toString() ?? null,
     pdfUrl: po.pdfUrl,
     createdByName: createdBy?.name ?? null,
     createdByPhone: createdBy?.phone ?? null,

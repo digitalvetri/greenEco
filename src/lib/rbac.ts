@@ -28,6 +28,8 @@ export const ADMIN_ONLY_KEYS: ReadonlySet<string> = new Set([
   "estimatedCost",
   "valueAtCost",
   "totalValue",
+  "freight",
+  "loadingCharges",
   "baseAmount",
   "adjustments", // Budget.adjustments
   "annualValue", // ServiceContract (AMC) value
@@ -104,13 +106,15 @@ function walk(value: unknown): unknown {
  * PurchaseOrder is admin-only; if one must ever be surfaced to an employee-facing
  * view (e.g. a delivery challan preview), strip the per-line rate + totals here.
  */
-export function stripPurchaseOrderPricing<T extends { items?: unknown; totalValue?: unknown }>(
+export function stripPurchaseOrderPricing<T extends { items?: unknown; totalValue?: unknown; freight?: unknown; loadingCharges?: unknown }>(
   po: T,
   role: Role,
 ): T {
   if (role === "ADMIN") return po;
   const clone: Record<string, unknown> = { ...po };
   delete clone.totalValue;
+  delete clone.freight;
+  delete clone.loadingCharges;
   if (Array.isArray(clone.items)) {
     clone.items = (clone.items as Array<Record<string, unknown>>).map((line) => {
       const l = { ...line };

@@ -587,19 +587,21 @@ model Location {
 }
 
 model PurchaseOrder {
-  id            String   @id @default(cuid())
-  companyId     String
-  poNo          String   @unique // GEC-PO-2026-###
-  vendorId      String
-  destinationId String // Location (warehouse OR site)
-  expectedDate  DateTime
-  status        POStatus @default(DRAFT)
-  items         Json // [{itemId, qty, rate}]  rate ADMIN-ONLY
-  totalValue    Decimal  @db.Decimal(14, 2) // ADMIN-ONLY
-  pdfUrl        String?
-  grns          GRN[]
-  createdById   String
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  companyId      String
+  poNo           String   @unique // GEC-PO-2026-###
+  vendorId       String
+  destinationId  String // Location (warehouse OR site)
+  expectedDate   DateTime
+  status         POStatus @default(DRAFT)
+  items          Json // [{itemId, qty, rate}]  rate ADMIN-ONLY
+  totalValue     Decimal  @db.Decimal(14, 2) // ADMIN-ONLY — Σ items only (qty × rate), freight/loading excluded (see freight/loadingCharges)
+  freight        Decimal? @db.Decimal(12, 2) // ADMIN-ONLY — vendor freight charge, shown on the PO print total, not folded into totalValue
+  loadingCharges Decimal? @db.Decimal(12, 2) // ADMIN-ONLY — vendor loading/unloading charge, same treatment as freight
+  pdfUrl         String?
+  grns           GRN[]
+  createdById    String
+  createdAt      DateTime @default(now())
 
   vendor Vendor @relation(fields: [vendorId], references: [id])
 

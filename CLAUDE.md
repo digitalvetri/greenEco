@@ -41,6 +41,32 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v38 — Client vendor price-list import (129 items) + PO freight/loading charges
+
+Client sent `MATERIAL LIST.xlsx` — a 9-brand vendor equipment price catalog (Air Blowers, Sewage/
+Openwell/Mono Block Pumps, 3-Phase Motors, Filter Vessels), no quantity column. **Gate: tsc 0 · lint 0
+(24 pre-existing warnings) · 76 unit (updated rbac.test.ts case) · verify-materials-p0 green (the one
+pre-existing "off the team" failure reproduced identically on unmodified `main` — stale live-DB test
+data, not a regression) · browser-verified (item list/detail, PO raise → print PDF with real Chromium).**
+
+- **`scripts/import-vendor-material-list.ts`** (one-time, idempotent by `(companyId, name)`) — parsed
+  all 129 catalog rows into the Item master at **zero opening stock** (per client's choice — real
+  counts to follow via in-app Stock Audit, not fabricated from a sheet with no qty column). Brand
+  folded into name+specification rather than creating Vendor masters (sheet had no phone/GSTIN to
+  satisfy the Vendor model). `purchasePrice` = base PRICE column only (excl. GST/freight — those are
+  transaction-time, not catalog, attributes). PRICE=0 rows (vendor's own "TBD") → `purchasePrice: null`,
+  not a fabricated ₹0. Also created the "Main Warehouse"/"Warehouse 2" `Location` rows the seed expects
+  but which didn't exist in this DB yet (upsert — won't collide with a future `db:seed`).
+- **PO freight + loading charges (schema change)** — client asked whether the sheet's FREIGHT/LOADING/
+  GST columns were captured; they weren't (no field existed on `PurchaseOrder` at all). Added
+  `freight`/`loadingCharges` (nullable `Decimal`, migration `po_freight_loading`), admin-only (added to
+  `ADMIN_ONLY_KEYS` + `stripPurchaseOrderPricing`). **Deliberately NOT folded into `totalValue`** — same
+  precedent as v30/v31's GST treatment: `totalValue` stays Σ(qty×rate) only, so budget-vs-actual/
+  committed-PO/stock-costing invariants (which are all keyed off it) are untouched. Freight/loading are
+  entered on the "Raise a purchase order" form (optional, default none) and shown as extra lines on the
+  PO print PDF, added **after** GST — matching the vendor's own sheet convention (GST applies to the
+  item subtotal only, freight/loading are added post-tax) and the client's original document format.
+
 ### v37 — WhatsApp/email send: redirect fallback to the user's own app
 
 Every "Send WhatsApp"/"Send email" button (leads, projects, service contracts, proposals) always
