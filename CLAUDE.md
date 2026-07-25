@@ -41,6 +41,33 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v39 — Editable item master + friendlier site names + one-click Leads WhatsApp/email
+
+Client feedback after using the newly-imported catalog live: item prices weren't editable, site
+pickers showed cryptic order numbers, and Leads' WhatsApp/Email required composing a message in a
+dialog before redirecting. **Gate: tsc 0 · lint 0 (24 pre-existing warnings) · 76 unit · 78 e2e (1
+pre-existing unrelated failure, reproduced identically on unmodified `main` — stale AI-draft test
+data) · browser-verified · deployed to production.**
+
+- **Editable item master** — `updateItem` (materials.ts, admin-only, audited, mirrors
+  `updateVendor`) + an "Edit item" card on the item detail page (category/unit/specification/
+  reorder level/purchase price). Stock on-hand is deliberately **not** editable here — that would
+  bypass the immutable `StockMovement` ledger — the page instead points to the existing
+  Materials → Operations → Stock Audit flow for quantity corrections.
+- **Friendlier location pickers** — `Location.name` is literally `= orderNo` for SITE locations
+  (schema comment), so every "Deliver to"/"Transfer"/"Issue to site"/"Stock Audit" dropdown showed
+  raw `GEC-ORD-2026-003` codes. New `locationDisplayNames()` fronts the client name instead
+  (`"Verify Flow Apartments (GEC-ORD-2026-003)"`), used by `listLocations`/`listItems`/`itemLedger`
+  (also fixes the "Split by location" line on the Stock list + item detail ledger).
+- **Leads WhatsApp/Email → one click** — previously opened a compose dialog (type message → Send)
+  before redirecting, even though no transport is configured in this deployment (so it always fell
+  through to the redirect anyway). Now a single click immediately opens WhatsApp/the email app with
+  a ready-made message (same instant behavior as the existing phone quick-dial icon), and logs the
+  communication in the background (fire-and-forget — never blocks or delays the redirect, and a
+  logging failure stays silent since the user has already moved on to WhatsApp/their mail app).
+  "Log call" is unchanged (still needs typed notes, keeps its dialog). Scoped to Leads only —
+  Projects/Service have their own separate comm-panels, not touched.
+
 ### v38 — Client vendor price-list import (129 items) + PO freight/loading charges
 
 Client sent `MATERIAL LIST.xlsx` — a 9-brand vendor equipment price catalog (Air Blowers, Sewage/
