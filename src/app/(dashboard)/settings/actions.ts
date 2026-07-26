@@ -3,7 +3,7 @@
 import { ZodError } from "zod";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
-import { updateProfile, changePassword, updateAvatar } from "@/server/services/profile";
+import { updateProfile, updateEmail, changePassword, updateAvatar } from "@/server/services/profile";
 import { adminResetPassword, createUser, setUserJobTitle, type CreateUserInput } from "@/server/services/user-admin";
 import type { JobTitle } from "@prisma/client";
 import {
@@ -34,6 +34,20 @@ export async function updateProfileAction(_prev: ActionState, formData: FormData
     });
     revalidatePath("/settings");
     return { ok: true, message: "Profile updated" };
+  } catch (e) {
+    return { ok: false, error: toMessage(e) };
+  }
+}
+
+export async function updateEmailAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const session = await getSession();
+  try {
+    const { email } = await updateEmail(session, {
+      email: String(formData.get("email") ?? ""),
+      currentPassword: String(formData.get("currentPassword") ?? ""),
+    });
+    revalidatePath("/settings");
+    return { ok: true, message: `Login email changed to ${email}` };
   } catch (e) {
     return { ok: false, error: toMessage(e) };
   }

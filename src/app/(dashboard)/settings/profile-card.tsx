@@ -9,7 +9,7 @@ import { Field, Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Uploader } from "@/components/mobile/uploader";
 import { toast } from "@/components/ui/toast";
-import { updateProfileAction, changePasswordAction, updateAvatarAction, type ActionState } from "./actions";
+import { updateProfileAction, updateEmailAction, changePasswordAction, updateAvatarAction, type ActionState } from "./actions";
 import type { MyProfile } from "@/server/services/profile";
 
 const EMPTY: ActionState = {};
@@ -72,13 +72,22 @@ function AvatarEditor({ name, role, avatarUrl }: { name: string; role: string; a
 
 export function ProfileCard({ profile }: { profile: MyProfile }) {
   const [pState, pAction, pPending] = useActionState(updateProfileAction, EMPTY);
+  const [eState, eAction, ePending] = useActionState(updateEmailAction, EMPTY);
   const [wState, wAction, wPending] = useActionState(changePasswordAction, EMPTY);
   const pwFormRef = useRef<HTMLFormElement>(null);
+  const emailFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (pState.ok) toast(pState.message ?? "Saved");
     else if (pState.error) toast(pState.error, "error");
   }, [pState]);
+
+  useEffect(() => {
+    if (eState.ok) {
+      toast(eState.message ?? "Email changed");
+      emailFormRef.current?.reset();
+    } else if (eState.error) toast(eState.error, "error");
+  }, [eState]);
 
   useEffect(() => {
     if (wState.ok) {
@@ -100,7 +109,6 @@ export function ProfileCard({ profile }: { profile: MyProfile }) {
           </div>
 
           <dl className="mb-4 space-y-1.5 text-sm">
-            <ReadRow icon={Mail} label="Email" value={profile.email ?? "Not set"} />
             <ReadRow icon={Building2} label="Company" value={profile.companyName} />
           </dl>
 
@@ -115,6 +123,37 @@ export function ProfileCard({ profile }: { profile: MyProfile }) {
               <User className="size-4" /> Save changes
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Login email — the address you actually type in at sign-in, separate from
+          name/phone above. Requires the current password to confirm, same as a
+          password change, since this is also a core login credential. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Login Email</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <dl className="mb-4 space-y-1.5 text-sm">
+            <ReadRow icon={Mail} label="Current" value={profile.email ?? "Not set"} />
+          </dl>
+          {profile.hasPassword ? (
+            <form ref={emailFormRef} action={eAction} className="space-y-3">
+              <Field label="New email">
+                <Input name="email" type="email" autoComplete="email" placeholder="you@company.com" required />
+              </Field>
+              <Field label="Current password" hint="Confirms it's really you.">
+                <Input name="currentPassword" type="password" autoComplete="current-password" required />
+              </Field>
+              <Button type="submit" size="sm" loading={ePending}>
+                <Mail className="size-4" /> Change email
+              </Button>
+            </form>
+          ) : (
+            <p className="text-sm text-muted">
+              No password is set for this account yet. Please contact your administrator to set one up.
+            </p>
+          )}
         </CardContent>
       </Card>
 

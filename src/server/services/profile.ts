@@ -79,6 +79,43 @@ export async function updateProfile(session: Session, input: unknown): Promise<{
   return user;
 }
 
+const emailSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+  currentPassword: z.string().min(1, "Enter your current password to confirm"),
+});
+
+/** Change the caller's own login email — requires the current password, same as a
+ *  password change, since this is also a core login credential (and the one you
+ *  actually type in to sign in). */
+export async function updateEmail(session: Session, input: unknown): Promise<{ email: string }> {
+  const data = emailSchema.parse(input);
+  const user = await prisma.user.findUnique({ where: { id: session.userId } });
+  if (!user) throw new Error("Account not found.");
+  if (!user.passwordHash) {
+    throw new Error("No password is set for this account yet — contact your administrator.");
+  }
+  if (!verifyPassword(data.currentPassword, user.passwordHash)) {
+    throw new Error("Your current password is incorrect.");
+  }
+  const existing = await prisma.user.findUnique({ where: { email: data.email } });
+  if (existing && existing.id !== session.userId) {
+    throw new Error("That email is already in use by another account.");
+  }
+  const updated = await prisma.user.update({
+    where: { id: session.userId },
+    data: { email: data.email },
+    select: { email: true },
+  });
+  await logAudit(session, {
+    action: "UPDATE",
+    entity: "User",
+    entityId: session.userId,
+    before: { email: user.email },
+    after: { email: data.email },
+  });
+  return { email: updated.email! };
+}
+
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, "Enter your current password"),
