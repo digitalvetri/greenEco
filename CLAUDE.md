@@ -41,6 +41,74 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v40 — PDF/upload 404 root-caused + fixed, real Gemini image error surfaced, UX sweep
+
+A large client punch-list after live use: proposal page not full-width, PDF download still 404ing,
+AI image generation still failing despite a configured key, invoice/PO/order codes hard to navigate
+by, hardcoded warehouse names, Settings clutter, no per-project expense report, and a plainer
+Execution Stages tab. **Gate: tsc 0 · lint 0 · 76 unit · `next build` clean · browser-verified via
+Playwright against the live deployment (login, real PDF download 200/`%PDF-`, diag round-trip).**
+
+- **The big one — PDF/upload 404, finally root-caused and fixed.** Two prior sessions had ruled out
+  ephemeral storage (Coolify volumes genuinely mounted at `/app/public/uploads` and `/app/public/pdfs`)
+  without finding the real cause. A live diagnostic route proved it directly: `putObject()` writes the
+  file and an immediate `fs.readFile` in the same process reads it back fine — but the identical path
+  over HTTP, moments later, 404s with Next's own not-found page. Root cause: **`next start` maps the
+  `public/` directory to routes at *build* time** (a well-documented Next.js production limitation) —
+  any file written at *runtime* (uploads, generated PDFs, the new AI hero image) is invisible to that
+  manifest and 404s forever, no matter that it exists on disk. This affected every runtime-written
+  public file under the `local` storage driver, not just PDFs. Fix: a new `api/files/[...path]` route
+  reads bytes straight off disk with the right `Content-Type`, and `next.config.ts` `rewrites()` sends
+  `/uploads/*` and `/pdfs/*` there via **`beforeFiles`** (must run before the failing build-time
+  manifest check — `afterFiles`, the default, only fires once that check has already missed-and-cached
+  the 404). No DB migration — every already-stored URL keeps working unchanged, now actually resolves.
+  Verified locally (`next build && next start`, drop a file into `public/pdfs/` post-boot, request it →
+  200) and against the live deployment (a real "Download PDF" click → 200, `application/pdf`, `%PDF-`).
+- **AI image generation — two real bugs, both fixed, one remaining issue is Google's, not ours.**
+  (1) Gemini's image models reject `responseModalities: ["IMAGE"]` alone with a 400 — TEXT must be
+  requested alongside IMAGE even though the text part is discarded. (2) The failure path silently
+  swallowed the real HTTP status/body into a generic "check the Gemini key/model" message — added
+  `console.error` logging of the actual response, which is what let this get diagnosed at all.
+  `geminiGenerateImage` now returns a discriminated result (`{ok:true,...} | {ok:false, reason}`)
+  instead of a bare null, and the reason is specific: 429 → quota/billing message + a link, 401/403 →
+  bad key, 400 → bad model/request. **Live prod logs now show the actual remaining blocker is a 429
+  "quota exceeded, limit: 0" from Google** on this account's current plan/billing for the image model —
+  a Google-account-side issue, not a code bug; the improved toast tells the user this directly instead
+  of pointing back at Settings.
+- **Project name alongside codes everywhere** — Invoices and PO lists were code-only (`GEC-INV-…`,
+  `GEC-PO-…`), the exact "hard to navigate by" complaint. `listInvoices`/`listPOs` now join through to
+  the order/destination and surface `clientName`/`destinationName`; both lists show the name prominently
+  with the code as a secondary mono label, and search now matches project/client name too. (Orders and
+  proposals already did this — only invoices/POs had the gap.)
+- **User-manageable warehouses** — Materials → Operations → Transfer had two hardcoded seed warehouses
+  with no way to add a third. New `createWarehouseLocation`/`renameWarehouseLocation`/
+  `deleteWarehouseLocation` (admin, audited); delete is blocked if the warehouse has any stock movement
+  or PO history, to protect the append-only ledger. Inline manager UI on the Transfer tab.
+- **Materials pricing detail** — item detail gained an admin-only price breakdown (base / GST 18% /
+  total-with-GST, computed from the stored purchase price) and real **purchase-order history** (rate,
+  freight, loading per PO) instead of a fabricated static freight figure — freight/loading genuinely
+  vary per PO (vendor, quantity, site), so they're sourced from real POs rather than invented. Item
+  specification (make/model, folded in at import time) now shown on the main stock list; list gained a
+  GST-inclusive reference column.
+- **Reports: per-project expense tracking** — new "Project Expenses — budget vs actual" card reusing
+  the existing `erectionAnalytics().budgetBurn` aggregation (no duplicate query), the per-project
+  expense visibility the client asked for.
+- **Settings decluttered** — removed the System Readiness card (dev-diagnostic, not client-facing) and
+  the read-only Milestone/Stage Template card per explicit client callouts; replaced the bottom link
+  list with cleaner quick-link cards (Integrations / Automations / Activity log).
+- **Proposal editor full-width** — dropped the `mx-auto max-w-5xl` cap.
+- **Execution Stages tab redesigned** — was a flat list with no sense of overall progress. Now a
+  connected vertical timeline (same icon-rail pattern as the existing activity timelines) with a
+  colored status marker per stage, an overdue flag, and a progress bar + "N of M complete" summary.
+- **AI proposal writing made more persuasive** — prompts/system messages (Claude structured path +
+  Groq/Gemini text path, all sharing `draftPrompt`) now explicitly push for specific, credibility-
+  building writing (concrete design parameters, client-outcome framing) instead of generic filler —
+  same JSON shape, no schema risk.
+- **Deferred, not attempted this round**: a dedicated redirect/wizard page for AI-driven proposal
+  creation (the client's ask was to declutter the existing single-page editor's AI section, not
+  necessarily a net-new flow — scoped down to editor polish this round; flagging the bigger wizard-page
+  version as a follow-up if still wanted after seeing this).
+
 ### v39 — Editable item master + friendlier site names + one-click Leads WhatsApp/email
 
 Client feedback after using the newly-imported catalog live: item prices weren't editable, site
