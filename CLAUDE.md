@@ -41,6 +41,20 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v41 — Removed the global 1400px content cap (wide/desktop monitors were badly under-used)
+
+Client screenshot from viewing the app on another laptop/desktop: large empty gutter beside every
+page's content. Root cause: `(dashboard)/layout.tsx`'s `<main>` wrapper had a blanket `mx-auto
+max-w-[1400px]` around **every** page — on anything wider than roughly sidebar+1400px+padding
+(~1700px, i.e. any normal 1920px/2560px/ultrawide monitor), that's a large dead margin no matter what
+an individual page does. This is also why v40's per-page width fixes (proposal editor, materials list)
+only partially worked — they were still capped by this outer wrapper above ~1400px. Removed the cap;
+content now genuinely fills the available width. Verified via Playwright screenshots at 1920px/2560px
+across dashboard, materials, proposal editor, and settings — no dead gutter, no layout breakage (pages
+that intentionally self-limit width via their own inner wrapper, e.g. Settings' 2-column cards, still
+render correctly since that centering lives on the page, not the removed outer cap).
+**Gate: tsc 0 · lint 0 · 76 unit · `next build` clean · browser-verified 1920px + 2560px.**
+
 ### v40 — PDF/upload 404 root-caused + fixed, real Gemini image error surfaced, UX sweep
 
 A large client punch-list after live use: proposal page not full-width, PDF download still 404ing,
