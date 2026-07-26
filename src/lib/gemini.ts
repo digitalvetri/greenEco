@@ -90,10 +90,17 @@ export async function geminiGenerateImage(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseModalities: ["IMAGE"] },
+        // Gemini's image models reject `responseModalities: ["IMAGE"]` alone (400
+        // INVALID_ARGUMENT) — TEXT must be requested alongside IMAGE even though we
+        // discard the text part below. Confirmed against the official REST sample.
+        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`[gemini] image generation ${res.status} for model "${model}": ${body.slice(0, 500)}`);
+      return null;
+    }
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: Array<Record<string, unknown>> } }[];
     };
@@ -104,8 +111,10 @@ export async function geminiGenerateImage(
       const mimeType = inline?.mimeType ?? inline?.mime_type;
       if (b64 && mimeType) return { base64: b64, mimeType };
     }
+    console.error(`[gemini] image generation for model "${model}" returned no inline image part: ${JSON.stringify(data).slice(0, 500)}`);
     return null;
-  } catch {
+  } catch (e) {
+    console.error(`[gemini] image generation threw for model "${model}":`, e);
     return null;
   }
 }
