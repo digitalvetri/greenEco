@@ -18,6 +18,8 @@ export const GET = api(async (session, req) => {
       date: inv.date.toISOString(),
       isCreditNote: inv.isCreditNote,
       status: inv.status,
+      orderNo: inv.milestone?.order?.orderNo ?? null,
+      clientName: inv.milestone?.order?.clientName ?? null,
     })),
     nextCursor,
   };

@@ -164,6 +164,43 @@ export async function itemLedger(ctx: Ctx, itemId: string) {
     await prisma.vendorPrice.findMany({ where: { itemId }, orderBy: { date: "desc" }, take: 12 })
   ).map((vp) => ({ vendor: vendorName.get(vp.vendorId) ?? vp.vendorId, rate: vp.rate.toString(), date: vp.date }));
 
+  // Freight/loading are real per-purchase-order numbers (they vary with vendor, quantity,
+  // and delivery site) — never fabricate a static per-item figure. Instead surface the
+  // item's actual PO history so freight/loading/total-incl-freight are real, not guessed.
+  const allPOs = await prisma.purchaseOrder.findMany({
+    where: { companyId: ctx.companyId },
+    select: { poNo: true, createdAt: true, items: true, freight: true, loadingCharges: true, vendor: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 300,
+  });
+  const poHistory = allPOs
+    .map((po) => {
+      const lines = (po.items as { itemId: string; qty: number; rate: number }[] | null) ?? [];
+      const line = lines.find((l) => l.itemId === itemId);
+      if (!line) return null;
+      return {
+        poNo: po.poNo,
+        vendor: po.vendor.name,
+        date: po.createdAt,
+        qty: line.qty,
+        rate: line.rate,
+        freight: po.freight ? po.freight.toString() : null,
+        loadingCharges: po.loadingCharges ? po.loadingCharges.toString() : null,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+    .slice(0, 10);
+
+  const price = item.purchasePrice ? new Decimal(item.purchasePrice) : null;
+  const priceBreakdown = price
+    ? {
+        base: price.toFixed(2),
+        gstRate: 18,
+        gst: price.times(0.18).toFixed(2),
+        totalWithGst: price.times(1.18).toFixed(2),
+      }
+    : null;
+
   const view = {
     item: {
       id: item.id,
@@ -179,6 +216,8 @@ export async function itemLedger(ctx: Ctx, itemId: string) {
     byLocation,
     ledger,
     vendorPrices, // ADMIN_ONLY key → dropped for EMPLOYEE
+    priceBreakdown, // ADMIN_ONLY (derived from purchasePrice)
+    poHistory, // ADMIN_ONLY (PO rate/freight/loading)
   };
   return stripPricing(view, ctx.role);
 }
@@ -442,6 +481,43 @@ export async function listLocations(ctx: Ctx) {
   return locations.map((l) => ({ ...l, displayName: displayNames.get(l.id) ?? l.name }));
 }
 
+/**
+ * Warehouses were seed-only ("Main Warehouse", "Warehouse 2") with no way for a user
+ * to add their own. SITE locations stay system-managed (name = orderNo, created when
+ * an order is Won) — only WAREHOUSE is user-manageable here.
+ */
+export async function createWarehouseLocation(ctx: Ctx, name: string) {
+  requireAdmin(ctx);
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Name is required");
+  const loc = await prisma.location.create({ data: { companyId: ctx.companyId, type: "WAREHOUSE", name: trimmed } });
+  await logAudit(ctx, { action: "CREATE", entity: "Location", entityId: loc.id, after: { name: trimmed } });
+  return loc;
+}
+
+export async function renameWarehouseLocation(ctx: Ctx, id: string, name: string) {
+  requireAdmin(ctx);
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Name is required");
+  const loc = await prisma.location.findFirst({ where: { id, companyId: ctx.companyId, type: "WAREHOUSE" } });
+  if (!loc) throw new Error("Warehouse not found");
+  await prisma.location.update({ where: { id }, data: { name: trimmed } });
+  await logAudit(ctx, { action: "UPDATE", entity: "Location", entityId: id, before: { name: loc.name }, after: { name: trimmed } });
+}
+
+export async function deleteWarehouseLocation(ctx: Ctx, id: string) {
+  requireAdmin(ctx);
+  const loc = await prisma.location.findFirst({ where: { id, companyId: ctx.companyId, type: "WAREHOUSE" } });
+  if (!loc) throw new Error("Warehouse not found");
+  const [movement, po] = await Promise.all([
+    prisma.stockMovement.findFirst({ where: { companyId: ctx.companyId, OR: [{ fromLocationId: id }, { toLocationId: id }] } }),
+    prisma.purchaseOrder.findFirst({ where: { companyId: ctx.companyId, destinationId: id } }),
+  ]);
+  if (movement || po) throw new Error("This warehouse has stock history and can't be deleted — it would break the ledger.");
+  await prisma.location.delete({ where: { id } });
+  await logAudit(ctx, { action: "DELETE", entity: "Location", entityId: id, before: { name: loc.name } });
+}
+
 // ---------- Purchase Orders (admin) ----------
 
 export async function createPO(
@@ -524,12 +600,18 @@ export async function sendPOWhatsApp(ctx: Ctx, poId: string, body: string) {
 
 export async function listPOs(ctx: Ctx, take = 100) {
   requireAdmin(ctx); // POs carry rates → admin-only
-  return prisma.purchaseOrder.findMany({
+  const pos = await prisma.purchaseOrder.findMany({
     where: { companyId: ctx.companyId },
     include: { vendor: { select: { name: true } }, grns: true },
     orderBy: { createdAt: "desc" },
     take: Math.min(take, 200),
   });
+  const destinationIds = [...new Set(pos.map((p) => p.destinationId))];
+  const destinations = destinationIds.length
+    ? await prisma.location.findMany({ where: { id: { in: destinationIds } }, select: { id: true, name: true, orderId: true } })
+    : [];
+  const destinationName = await locationDisplayNames(destinations);
+  return pos.map((po) => ({ ...po, destinationName: destinationName.get(po.destinationId) ?? "—" }));
 }
 
 /** Single PO with resolved item names + vendor + destination — for the PO PDF and WhatsApp send. Admin-only (rates). */

@@ -24,6 +24,7 @@ interface POView {
   id: string;
   poNo: string;
   vendor: string;
+  destinationName: string;
   status: string;
   totalValue: string;
   items: { itemId: string; qty: number; rate: number }[];
@@ -153,7 +154,7 @@ export function PurchasingPanel({
           <CardTitle>Purchase orders {pos.length > 0 && <span className="text-muted">({pos.length})</span>}</CardTitle>
           {pos.length > 0 && (
             <ExportButton
-              rows={pos.map((p) => ({ "PO No": p.poNo, Vendor: p.vendor, Status: p.status, "Total ₹": p.totalValue }))}
+              rows={pos.map((p) => ({ "PO No": p.poNo, Project: p.destinationName, Vendor: p.vendor, Status: p.status, "Total ₹": p.totalValue }))}
               filename="purchase-orders"
               label="Export POs"
             />
@@ -167,7 +168,8 @@ export function PurchasingPanel({
               {pos.map((p) => (
                 <div key={p.id} className="flex items-center justify-between gap-3 border-t border-border py-2 text-sm first:border-t-0">
                   <div className="min-w-0">
-                    <span className="font-mono text-xs">{p.poNo}</span> · <span className="truncate">{p.vendor}</span>
+                    <div className="truncate font-semibold">{p.destinationName}</div>
+                    <span className="font-mono text-xs text-muted">{p.poNo}</span> · <span className="truncate text-muted">{p.vendor}</span>
                     <div className="text-xs text-muted">{formatINR(p.totalValue)}</div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

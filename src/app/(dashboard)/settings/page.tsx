@@ -3,13 +3,11 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMyProfile } from "@/server/services/profile";
 import { getSettingsFor } from "@/server/services/company-settings";
-import { getSystemStatus, type SystemStatusItem } from "@/server/services/system";
 import { env } from "@/lib/env";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, MinusCircle } from "lucide-react";
-import { DEFAULT_STAGES } from "@/lib/constants";
+import { KeyRound, Zap, ScrollText } from "lucide-react";
 import { PushToggle } from "@/components/pwa/push-toggle";
 import { ProfileCard } from "./profile-card";
 import { CompanyDetailsCard, ThresholdsCard } from "./company-settings-cards";
@@ -29,7 +27,6 @@ export default async function SettingsPage() {
       : Promise.resolve([]),
     isAdmin ? getSettingsFor(session) : Promise.resolve(null),
   ]);
-  const status = isAdmin ? await getSystemStatus(session) : null;
 
   return (
     <div>
@@ -45,30 +42,6 @@ export default async function SettingsPage() {
       {!isAdmin ? null : (
       <>
       <h2 className="mb-3 mt-6 text-sm font-semibold text-muted">Workspace (admin)</h2>
-
-      {status && (
-        <Card className="mb-4">
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>System readiness</CardTitle>
-            <div className="flex items-center gap-3">
-              <Link href="/settings/integrations" className="text-xs font-medium text-primary hover:underline">
-                Manage keys →
-              </Link>
-              <Badge variant={status.liveCount === status.total ? "ok" : "warn"}>
-                {status.liveCount}/{status.total} live
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-            {[...status.auth, ...status.integrations, ...status.observability].map((s) => (
-              <StatusRow key={s.key} item={s} />
-            ))}
-            <p className="mt-2 text-[11px] text-muted sm:col-span-2">
-              Derived from environment config (no secrets shown). Unset integrations fail safe — messages are logged, not sent.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -119,68 +92,40 @@ export default async function SettingsPage() {
         </div>
       )}
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Milestone / Stage Template</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-1.5">
-            {DEFAULT_STAGES.map((s, i) => (
-              <Badge key={s} variant="default">
-                {i + 1}. {s}
-              </Badge>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-muted">
-            Default payment terms: 50% advance / 30% delivery / 20% commissioning — confirm with client;
-            overridable per proposal.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>System</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2 text-sm">
-          <Link
-            href="/settings/integrations"
-            className="rounded-lg border border-border bg-surface px-3 py-2 font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
-          >
-            Integrations & API keys →
-          </Link>
-          <Link
-            href="/settings/automations"
-            className="rounded-lg border border-border bg-surface px-3 py-2 font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
-          >
-            Automations →
-          </Link>
-          <Link
-            href="/settings/activity"
-            className="rounded-lg border border-border bg-surface px-3 py-2 font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
-          >
-            Activity log →
-          </Link>
-        </CardContent>
-      </Card>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <QuickLink href="/settings/integrations" icon={KeyRound} title="Integrations & API keys" subtitle="WhatsApp, email, AI providers" />
+        <QuickLink href="/settings/automations" icon={Zap} title="Automations" subtitle="Reminders, alerts, digests" />
+        <QuickLink href="/settings/activity" icon={ScrollText} title="Activity log" subtitle="Every change, audited" />
+      </div>
       </>
       )}
     </div>
   );
 }
 
-function StatusRow({ item }: { item: SystemStatusItem }) {
+function QuickLink({
+  href,
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  href: string;
+  icon: typeof KeyRound;
+  title: string;
+  subtitle: string;
+}) {
   return (
-    <div className="flex items-start gap-2 py-1">
-      {item.ok ? (
-        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" />
-      ) : (
-        <MinusCircle className="mt-0.5 size-4 shrink-0 text-muted/60" />
-      )}
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3.5 transition-colors hover:border-primary/40 hover:bg-primary/5"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-4.5" />
+      </span>
       <div className="min-w-0">
-        <div className="font-medium">{item.label}</div>
-        <div className="text-[11px] text-muted">{item.detail}</div>
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="truncate text-xs text-muted">{subtitle}</div>
       </div>
-    </div>
+    </Link>
   );
 }

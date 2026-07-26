@@ -43,6 +43,7 @@ export default async function MaterialsPage({
     id: i.id,
     name: i.name,
     category: i.category,
+    specification: "specification" in i ? ((i as { specification: string | null }).specification ?? null) : null,
     unit: i.unit,
     total: i.total,
     byLocation: i.byLocation,
@@ -52,10 +53,11 @@ export default async function MaterialsPage({
 
   const exportRows = rows.map((i) => ({
     Item: i.name,
+    Spec: i.specification ?? "",
     Category: i.category,
     Unit: i.unit,
     Total: i.total,
-    ...(isAdmin && i.purchasePrice ? { "Purchase ₹": i.purchasePrice } : {}),
+    ...(isAdmin && i.purchasePrice ? { "Purchase ₹": i.purchasePrice, "GST 18% ₹": (Number(i.purchasePrice) * 0.18).toFixed(2), "Total incl. GST ₹": (Number(i.purchasePrice) * 1.18).toFixed(2) } : {}),
   }));
 
   const persist: Record<string, string> = {};

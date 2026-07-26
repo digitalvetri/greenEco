@@ -2,14 +2,21 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Send, ClipboardCheck } from "lucide-react";
+import { ArrowLeftRight, Send, ClipboardCheck, Plus, Pencil, Trash2, Warehouse, Check, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Field } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
-import { transferAction, consumeAction, stockAuditAction } from "./actions";
+import {
+  transferAction,
+  consumeAction,
+  stockAuditAction,
+  createWarehouseLocationAction,
+  renameWarehouseLocationAction,
+  deleteWarehouseLocationAction,
+} from "./actions";
 
 interface Opt {
   id: string;
@@ -27,10 +34,12 @@ export function OperationsPanel({
   items,
   locations,
   siteLocations,
+  warehouses,
 }: {
   items: Opt[];
   locations: Opt[];
   siteLocations: Opt[];
+  warehouses: Opt[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -63,6 +72,11 @@ export function OperationsPanel({
   const [consume, setConsume] = useState({ itemId: "", qty: "1", fromLocationId: "", note: "" });
   const consumeValid = !!consume.itemId && Number(consume.qty) > 0 && !!consume.fromLocationId;
 
+  const [showWarehouseManager, setShowWarehouseManager] = useState(false);
+  const [newWarehouseName, setNewWarehouseName] = useState("");
+  const [editingWarehouseId, setEditingWarehouseId] = useState<string | null>(null);
+  const [editingWarehouseName, setEditingWarehouseName] = useState("");
+
   const [auditLocationId, setAuditLocationId] = useState("");
   const [counts, setCounts] = useState<Record<string, string>>({});
   const auditPayload = Object.entries(counts)
@@ -90,6 +104,106 @@ export function OperationsPanel({
               <span className="font-medium">Warehouse → Warehouse</span>
               <span className="text-muted">· Move stock between storage locations</span>
             </div>
+
+            <div className="rounded-lg border border-border">
+              <button
+                type="button"
+                onClick={() => setShowWarehouseManager((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-sm font-medium"
+              >
+                <span className="flex items-center gap-2">
+                  <Warehouse className="size-4 text-primary" /> Manage warehouses ({warehouses.length})
+                </span>
+                <span className="text-xs text-primary">{showWarehouseManager ? "Hide" : "Add / rename / remove"}</span>
+              </button>
+              {showWarehouseManager && (
+                <div className="space-y-2 border-t border-border p-3">
+                  {warehouses.map((w) => (
+                    <div key={w.id} className="flex items-center gap-2">
+                      {editingWarehouseId === w.id ? (
+                        <>
+                          <Input
+                            className="h-8"
+                            value={editingWarehouseName}
+                            onChange={(e) => setEditingWarehouseName(e.target.value)}
+                            autoFocus
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={pending || !editingWarehouseName.trim()}
+                            onClick={() =>
+                              run(
+                                "wh-rename",
+                                async () => {
+                                  await renameWarehouseLocationAction(w.id, editingWarehouseName.trim());
+                                  setEditingWarehouseId(null);
+                                },
+                                "Warehouse renamed.",
+                              )
+                            }
+                          >
+                            <Check className="size-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditingWarehouseId(null)}>
+                            <X className="size-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-sm">{w.name}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingWarehouseId(w.id);
+                              setEditingWarehouseName(w.name);
+                            }}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            loading={busy === `wh-delete-${w.id}`}
+                            disabled={pending}
+                            onClick={() => run(`wh-delete-${w.id}`, () => deleteWarehouseLocationAction(w.id), "Warehouse removed.")}
+                          >
+                            <Trash2 className="size-3.5 text-danger" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      className="h-8"
+                      placeholder="New warehouse name, e.g. Warehouse 3"
+                      value={newWarehouseName}
+                      onChange={(e) => setNewWarehouseName(e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      loading={busy === "wh-create"}
+                      disabled={pending || !newWarehouseName.trim()}
+                      onClick={() =>
+                        run(
+                          "wh-create",
+                          async () => {
+                            await createWarehouseLocationAction(newWarehouseName.trim());
+                            setNewWarehouseName("");
+                          },
+                          "Warehouse added.",
+                        )
+                      }
+                    >
+                      <Plus className="size-4" /> Add
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Item" required>
                 <Select value={transfer.itemId} onChange={(e) => setTransfer({ ...transfer, itemId: e.target.value })}>

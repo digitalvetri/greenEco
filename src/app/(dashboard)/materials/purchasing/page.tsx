@@ -35,6 +35,7 @@ export default async function PurchasingPage() {
             id: p.id,
             poNo: p.poNo,
             vendor: p.vendor.name,
+            destinationName: p.destinationName,
             status: p.status,
             totalValue: p.totalValue.toString(),
             items: (p.items as { itemId: string; qty: number; rate: number }[]) ?? [],

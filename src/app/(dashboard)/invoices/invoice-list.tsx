@@ -17,6 +17,8 @@ export interface InvoiceRow {
   date: string;
   isCreditNote: boolean;
   status: string;
+  orderNo: string | null;
+  clientName: string | null;
 }
 
 /** Invoice list with cursor "Load more" — before this the service was cap-200, cursorless. */
@@ -72,14 +74,19 @@ export function InvoiceList({
           tabIndex={0}
           onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setPanelId(inv.id)}
         >
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs">{inv.status === "DRAFT" ? "Draft (auto)" : inv.invoiceNo}</span>
+              {inv.clientName && <span className="truncate text-sm font-semibold">{inv.clientName}</span>}
+              <span className="font-mono text-xs text-muted">{inv.status === "DRAFT" ? "Draft (auto)" : inv.invoiceNo}</span>
               {inv.status === "DRAFT" && <Badge variant="warn">Draft</Badge>}
               {inv.isCreditNote && <Badge variant="danger">Credit</Badge>}
               <Badge variant="default">{inv.taxType}</Badge>
             </div>
-            <div className="text-xs text-muted">{new Date(inv.date).toLocaleDateString("en-IN")}</div>
+            <div className="text-xs text-muted">
+              {inv.orderNo && <span className="font-mono">{inv.orderNo}</span>}
+              {inv.orderNo && " · "}
+              {new Date(inv.date).toLocaleDateString("en-IN")}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className={"font-semibold tabular-nums " + (inv.isCreditNote ? "text-danger" : "")}>{formatINR(inv.total)}</span>

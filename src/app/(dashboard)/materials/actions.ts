@@ -18,6 +18,9 @@ import {
   createMaterialRequest,
   setRequestStatus,
   stockAudit,
+  createWarehouseLocation,
+  renameWarehouseLocation,
+  deleteWarehouseLocation,
 } from "@/server/services/materials";
 
 export async function createItemAction(data: unknown) {
@@ -30,6 +33,27 @@ export async function createItemAction(data: unknown) {
 export async function updateItemAction(itemId: string, data: unknown) {
   const s = await getSession();
   await updateItem(s, itemId, data as Parameters<typeof updateItem>[2]);
+  revalidatePath("/materials", "layout");
+  return { ok: true };
+}
+
+export async function createWarehouseLocationAction(name: string) {
+  const s = await getSession();
+  await createWarehouseLocation(s, name);
+  revalidatePath("/materials", "layout");
+  return { ok: true };
+}
+
+export async function renameWarehouseLocationAction(id: string, name: string) {
+  const s = await getSession();
+  await renameWarehouseLocation(s, id, name);
+  revalidatePath("/materials", "layout");
+  return { ok: true };
+}
+
+export async function deleteWarehouseLocationAction(id: string) {
+  const s = await getSession();
+  await deleteWarehouseLocation(s, id);
   revalidatePath("/materials", "layout");
   return { ok: true };
 }

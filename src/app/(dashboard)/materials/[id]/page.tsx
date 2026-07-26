@@ -38,6 +38,16 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
   const isAdmin = session.role === "ADMIN";
   const { item, total, lowStock, byLocation, ledger } = data;
   const vendorPrices = "vendorPrices" in data ? (data as { vendorPrices: { vendor: string; rate: string; date: Date }[] }).vendorPrices : [];
+  const priceBreakdown =
+    "priceBreakdown" in data
+      ? (data as { priceBreakdown: { base: string; gstRate: number; gst: string; totalWithGst: string } | null }).priceBreakdown
+      : null;
+  const poHistory =
+    "poHistory" in data
+      ? (data as {
+          poHistory: { poNo: string; vendor: string; date: Date; qty: number; rate: number; freight: string | null; loadingCharges: string | null }[];
+        }).poHistory
+      : [];
 
   return (
     <div>
@@ -103,6 +113,32 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
           </CardContent>
         </Card>
 
+        {isAdmin && priceBreakdown && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Price breakdown (reference)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted">Base price</span>
+                <span className="font-medium tabular-nums">{formatINR(priceBreakdown.base)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted">GST @ {priceBreakdown.gstRate}%</span>
+                <span className="font-medium tabular-nums">{formatINR(priceBreakdown.gst)}</span>
+              </div>
+              <div className="flex justify-between border-t border-border pt-1">
+                <span className="font-medium">Total with GST</span>
+                <span className="font-semibold tabular-nums">{formatINR(priceBreakdown.totalWithGst)}</span>
+              </div>
+              <p className="pt-1 text-[11px] text-muted">
+                Freight and loading/unloading vary per purchase order — see the PO history below rather than a
+                fixed figure here.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {isAdmin && (
           <Card>
             <CardHeader>
@@ -123,6 +159,43 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
           </Card>
         )}
       </div>
+
+      {isAdmin && poHistory.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Purchase order history — rate, freight & loading</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <THead>
+                <TR className="border-t-0">
+                  <TH>PO</TH>
+                  <TH>Vendor</TH>
+                  <TH className="text-right">Qty</TH>
+                  <TH className="text-right">Rate</TH>
+                  <TH className="text-right">Freight</TH>
+                  <TH className="text-right">Loading</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {poHistory.map((p) => (
+                  <TR key={p.poNo}>
+                    <TD>
+                      <div className="font-mono text-xs">{p.poNo}</div>
+                      <div className="text-[11px] text-muted">{new Date(p.date).toLocaleDateString("en-IN")}</div>
+                    </TD>
+                    <TD className="text-sm">{p.vendor}</TD>
+                    <TD className="text-right tabular-nums">{p.qty}</TD>
+                    <TD className="text-right tabular-nums">{formatINR(p.rate)}</TD>
+                    <TD className="text-right tabular-nums">{p.freight ? formatINR(p.freight) : "—"}</TD>
+                    <TD className="text-right tabular-nums">{p.loadingCharges ? formatINR(p.loadingCharges) : "—"}</TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

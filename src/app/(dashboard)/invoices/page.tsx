@@ -44,6 +44,8 @@ export default async function InvoicesPage({
     date: inv.date.toISOString(),
     isCreditNote: inv.isCreditNote,
     status: inv.status,
+    orderNo: inv.milestone?.order?.orderNo ?? null,
+    clientName: inv.milestone?.order?.clientName ?? null,
   }));
 
   const query = new URLSearchParams(search ? { search } : {}).toString();

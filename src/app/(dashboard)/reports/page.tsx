@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { getReceivables, getReferenceAnalytics, getGstSummary, getCollectionSummary } from "@/server/services/reports";
+import { erectionAnalytics } from "@/server/services/erection";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -22,11 +24,12 @@ export default async function ReportsPage() {
     );
   }
 
-  const [receivables, refs, gst, collection] = await Promise.all([
+  const [receivables, refs, gst, collection, erection] = await Promise.all([
     getReceivables(session),
     getReferenceAnalytics(session),
     getGstSummary(session),
     getCollectionSummary(session),
+    erectionAnalytics(session),
   ]);
 
   return (
@@ -147,6 +150,54 @@ export default async function ReportsPage() {
                   </TD>
                   <TD className="text-right">
                     {r.daysOverdue > 0 ? <Badge variant="danger">{r.daysOverdue}d</Badge> : "-"}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-5">
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>Project Expenses — budget vs actual</CardTitle>
+          <div className="flex items-center gap-2">
+            <Link href="/erection/analytics" className="text-xs font-medium text-primary hover:underline">
+              Full erection analytics →
+            </Link>
+            {erection.budgetBurn.length > 0 && (
+              <ExportButton
+                rows={erection.budgetBurn as unknown as Record<string, unknown>[]}
+                filename="project-expenses"
+                label="Export"
+              />
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <THead>
+              <TR className="border-t-0">
+                <TH>Project</TH>
+                <TH className="text-right">Spent</TH>
+                <TH className="text-right">Budget</TH>
+                <TH className="text-right">Used</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {erection.budgetBurn.length === 0 && (
+                <TR><TD colSpan={4} className="py-4 text-center text-muted">No active budgeted projects yet.</TD></TR>
+              )}
+              {erection.budgetBurn.map((p) => (
+                <TR key={p.orderNo}>
+                  <TD>
+                    <div className="font-medium">{p.clientName}</div>
+                    <div className="font-mono text-xs text-muted">{p.orderNo}</div>
+                  </TD>
+                  <TD className="text-right tabular-nums">{formatINR(p.spent)}</TD>
+                  <TD className="text-right tabular-nums">{formatINR(p.budget)}</TD>
+                  <TD className="text-right">
+                    <Badge variant={p.overrun ? "danger" : p.pctConsumed >= 70 ? "warn" : "ok"}>{p.pctConsumed}%</Badge>
                   </TD>
                 </TR>
               ))}

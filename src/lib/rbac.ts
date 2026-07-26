@@ -42,6 +42,8 @@ export const ADMIN_ONLY_KEYS: ReadonlySet<string> = new Set([
   "budget",
   "purchaseRate",
   "vendorPrices",
+  "priceBreakdown", // derived from purchasePrice
+  "poHistory", // PO rate/freight/loading — whole-object drop, same reasoning as PurchaseOrder itself
 ]);
 
 /** Capability flags derived from role. */

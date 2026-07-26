@@ -29,6 +29,7 @@ export default async function OperationsPage() {
         items={opts.map((i) => ({ id: i.id, name: i.name }))}
         locations={locationOpts.map((l) => ({ id: l.id, name: l.name }))}
         siteLocations={locationOpts.filter((l) => l.type === "SITE").map((l) => ({ id: l.id, name: l.name }))}
+        warehouses={locations.filter((l) => l.type === "WAREHOUSE").map((l) => ({ id: l.id, name: l.name }))}
       />
     </div>
   );

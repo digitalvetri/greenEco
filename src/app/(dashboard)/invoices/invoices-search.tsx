@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
 
-/** Debounced search box for the invoice list (by invoice number). */
+/** Debounced search box for the invoice list (by invoice number, project code, or client name). */
 export function InvoicesSearch() {
   const router = useRouter();
   const params = useSearchParams();
@@ -33,7 +33,7 @@ export function InvoicesSearch() {
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search invoice no…"
+        placeholder="Search invoice no, project or client…"
         aria-label="Search invoices"
         className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-8 text-sm outline-none focus:border-primary/50"
       />

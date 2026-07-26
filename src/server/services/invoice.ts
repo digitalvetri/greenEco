@@ -217,13 +217,20 @@ export async function listInvoices(ctx: Ctx, filters: InvoiceFilters = {}) {
   const where: Prisma.InvoiceWhereInput = {
     companyId: ctx.companyId,
     ...(filters.search
-      ? { OR: [{ invoiceNo: { contains: filters.search, mode: "insensitive" } }] }
+      ? {
+          OR: [
+            { invoiceNo: { contains: filters.search, mode: "insensitive" } },
+            { milestone: { order: { orderNo: { contains: filters.search, mode: "insensitive" } } } },
+            { milestone: { order: { clientName: { contains: filters.search, mode: "insensitive" } } } },
+          ],
+        }
       : {}),
   };
   const rows = await prisma.invoice.findMany({
     where,
     orderBy: [{ date: "desc" }, { id: "desc" }],
     take: take + 1,
+    include: { milestone: { include: { order: { select: { orderNo: true, clientName: true } } } } },
     ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
   });
   const hasMore = rows.length > take;

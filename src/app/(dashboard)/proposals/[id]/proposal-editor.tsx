@@ -284,7 +284,7 @@ export function ProposalEditor({
     view.status === "WON" ? "ok" : view.status === "LOST" ? "danger" : "primary";
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div>
       <PageHeader
         title={view.projectName || "Proposal"}
         subtitle={view.number}

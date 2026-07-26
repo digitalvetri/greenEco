@@ -12,6 +12,7 @@ export interface StockRow {
   id: string;
   name: string;
   category: string;
+  specification: string | null;
   unit: string;
   total: string;
   byLocation: { location: string; qty: string }[];
@@ -70,6 +71,7 @@ export function StockList({
             <TH className="text-right">Total</TH>
             <TH>Split by location</TH>
             {isAdmin && <TH className="text-right">Purch. ₹</TH>}
+            {isAdmin && <TH className="text-right">Incl. GST</TH>}
           </TR>
         </THead>
         <TBody>
@@ -82,6 +84,7 @@ export function StockList({
                   </Link>
                   {i.lowStock && <Badge variant="danger">low</Badge>}
                 </div>
+                {i.specification && <div className="truncate text-xs text-muted">{i.specification}</div>}
               </TD>
               <TD className="text-xs text-muted">{i.category}</TD>
               <TD className="whitespace-nowrap text-right font-medium tabular-nums">
@@ -93,6 +96,11 @@ export function StockList({
               {isAdmin && (
                 <TD className="text-right tabular-nums">
                   {i.purchasePrice ? formatINR(i.purchasePrice) : "—"}
+                </TD>
+              )}
+              {isAdmin && (
+                <TD className="text-right tabular-nums text-muted">
+                  {i.purchasePrice ? formatINR((Number(i.purchasePrice) * 1.18).toFixed(2)) : "—"}
                 </TD>
               )}
             </TR>
