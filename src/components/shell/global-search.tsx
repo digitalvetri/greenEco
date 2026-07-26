@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search, Loader2, Users, FileText, HardHat, Boxes, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,10 +27,15 @@ export function GlobalSearch() {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -61,9 +67,22 @@ export function GlobalSearch() {
     return () => clearTimeout(t);
   }, [q]);
 
+  // header has `backdrop-blur-md`, which creates its own CSS stacking context (same
+  // root cause the mobile-nav drawer already worked around) — any z-index inside it
+  // is trapped there and can never paint above <main>'s content, no matter how high.
+  // Portaling to document.body escapes that, same fix as mobile-nav.tsx.
+  useEffect(() => {
+    if (!open) return;
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (rect) setPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+  }, [open]);
+
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (boxRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     };
     window.addEventListener("mousedown", onClick);
     return () => window.removeEventListener("mousedown", onClick);
@@ -74,6 +93,8 @@ export function GlobalSearch() {
     setQ("");
     router.push(hit.href);
   }
+
+  const showPanel = open && q.trim().length >= 2;
 
   return (
     <div ref={boxRef} className="relative w-full max-w-md">
@@ -103,40 +124,48 @@ export function GlobalSearch() {
         )}
       </div>
 
-      {open && q.trim().length >= 2 && (
-        <div className="absolute z-50 mt-1.5 w-[min(90vw,26rem)] overflow-hidden rounded-xl border border-border bg-card shadow-lg">
-          {hits.length === 0 ? (
-            <div className="px-3 py-6 text-center text-sm text-muted">{loading ? "Searching…" : "No results"}</div>
-          ) : (
-            <ul className="max-h-80 overflow-y-auto py-1">
-              {hits.map((h, i) => {
-                const Icon = ICON[h.type] ?? Search;
-                return (
-                  <li key={`${h.type}-${h.id}`}>
-                    <button
-                      onMouseEnter={() => setActive(i)}
-                      onClick={() => go(h)}
-                      className={cn(
-                        "flex w-full items-center gap-2.5 px-3 py-2 text-left",
-                        i === active ? "bg-primary-50" : "hover:bg-surface",
-                      )}
-                    >
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface text-muted">
-                        <Icon className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{h.title}</span>
-                        <span className="block truncate text-xs text-muted">{h.subtitle}</span>
-                      </span>
-                      <span className="shrink-0 text-[10px] uppercase text-muted">{h.type}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      )}
+      {showPanel &&
+        mounted &&
+        pos &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 320) }}
+            className="fixed z-[70] overflow-hidden rounded-xl border border-border bg-card shadow-lg"
+          >
+            {hits.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted">{loading ? "Searching…" : "No results"}</div>
+            ) : (
+              <ul className="max-h-80 overflow-y-auto py-1">
+                {hits.map((h, i) => {
+                  const Icon = ICON[h.type] ?? Search;
+                  return (
+                    <li key={`${h.type}-${h.id}`}>
+                      <button
+                        onMouseEnter={() => setActive(i)}
+                        onClick={() => go(h)}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 px-3 py-2 text-left",
+                          i === active ? "bg-primary-50" : "hover:bg-surface",
+                        )}
+                      >
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface text-muted">
+                          <Icon className="size-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{h.title}</span>
+                          <span className="block truncate text-xs text-muted">{h.subtitle}</span>
+                        </span>
+                        <span className="shrink-0 text-[10px] uppercase text-muted">{h.type}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
