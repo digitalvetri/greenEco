@@ -129,7 +129,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-5 md:px-7 md:py-6">{children}</div>
+          {/* No max-width cap — on a wide/ultra-wide monitor a fixed cap here leaves a large
+              empty gutter no matter what any individual page does, since every page renders
+              inside this wrapper. Full-bleed, matching the list pages' own behavior. */}
+          <div className="w-full px-4 py-5 sm:px-5 md:px-7 md:py-6">{children}</div>
         </main>
 
         {/* Bottom nav — mobile only (<768px), sits below scrolling content */}
