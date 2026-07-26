@@ -78,12 +78,12 @@ export async function geminiVision(
  * Response field names are read defensively (camelCase and snake_case) since exact REST
  * JSON casing for this response shape wasn't verified against a live key.
  */
-export async function geminiGenerateImage(
-  apiKey: string,
-  model: string,
-  prompt: string,
-): Promise<{ base64: string; mimeType: string } | null> {
-  if (!apiKey) return null;
+export type GeminiImageResult =
+  | { ok: true; base64: string; mimeType: string }
+  | { ok: false; reason: string };
+
+export async function geminiGenerateImage(apiKey: string, model: string, prompt: string): Promise<GeminiImageResult> {
+  if (!apiKey) return { ok: false, reason: "No Gemini API key configured." };
   try {
     const res = await fetch(`${BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: "POST",
@@ -99,7 +99,16 @@ export async function geminiGenerateImage(
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       console.error(`[gemini] image generation ${res.status} for model "${model}": ${body.slice(0, 500)}`);
-      return null;
+      if (res.status === 429) {
+        return { ok: false, reason: "Your Google Gemini account has no quota for image generation right now (429 — rate limit / billing). Check your plan at https://ai.google.dev/gemini-api/docs/rate-limits." };
+      }
+      if (res.status === 401 || res.status === 403) {
+        return { ok: false, reason: "Gemini rejected the API key (unauthorized) — check the key in Settings → Integrations." };
+      }
+      if (res.status === 400) {
+        return { ok: false, reason: `Gemini rejected the request (bad model name or request shape) for model "${model}".` };
+      }
+      return { ok: false, reason: `Gemini image generation failed (HTTP ${res.status}).` };
     }
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: Array<Record<string, unknown>> } }[];
@@ -109,13 +118,13 @@ export async function geminiGenerateImage(
       const inline = (part.inlineData ?? part.inline_data) as { data?: string; mimeType?: string; mime_type?: string } | undefined;
       const b64 = inline?.data;
       const mimeType = inline?.mimeType ?? inline?.mime_type;
-      if (b64 && mimeType) return { base64: b64, mimeType };
+      if (b64 && mimeType) return { ok: true, base64: b64, mimeType };
     }
     console.error(`[gemini] image generation for model "${model}" returned no inline image part: ${JSON.stringify(data).slice(0, 500)}`);
-    return null;
+    return { ok: false, reason: "Gemini returned no image in its response." };
   } catch (e) {
     console.error(`[gemini] image generation threw for model "${model}":`, e);
-    return null;
+    return { ok: false, reason: e instanceof Error ? e.message : "Image generation failed unexpectedly." };
   }
 }
 

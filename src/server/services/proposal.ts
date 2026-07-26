@@ -514,7 +514,7 @@ export async function generateProposalImage(ctx: Ctx, proposalId: string): Promi
     `clean white background, no text noise, suitable for a client-facing proposal document.`;
 
   const img = await geminiGenerateImage(config.GEMINI_API_KEY, config.GEMINI_IMAGE_MODEL, prompt);
-  if (!img) throw new Error("Image generation failed or returned no image — check the Gemini key/model in Settings");
+  if (!img.ok) throw new Error(img.reason);
 
   const ext = img.mimeType.includes("png") ? "png" : img.mimeType.includes("webp") ? "webp" : "jpg";
   const key = `uploads/proposal-images/${proposalId}-${randomUUID()}.${ext}`;
