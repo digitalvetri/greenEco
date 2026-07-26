@@ -184,10 +184,10 @@ Disposal of non-biodegradable items and waste oil/food into the drainage system 
 export function draftPrompt(input: AiProposalInput): string {
   return `Generate a treatment plant proposal draft as JSON with this exact shape:
 {
-  "coverLetter": "a short, warm 2-3 paragraph cover letter/greeting to the client introducing this proposal — no pricing, no client name (we don't have it here)",
-  "technicalText": "process description, design basis, treatment stages, TNPCB-norm outcome language",
-  "pointsToNote": "2-5 short caveats/operational notes specific to this plant type and technology, one per line, no bullet characters",
-  "technologyExplainer": "2-4 sentences explaining how this specific technology works, for a non-technical reader",
+  "coverLetter": "a confident, warm 2-3 paragraph cover letter introducing this proposal — no pricing, no client name (we don't have it here). Lead with the client's outcome (compliant discharge, reliable uptime, low running cost), not with our company. Avoid generic filler like 'we are pleased to submit' — get to substance fast.",
+  "technicalText": "process description, design basis, treatment stages, TNPCB-norm outcome language. Reference concrete design parameters where relevant (HRT, MLSS, F/M ratio, aeration rate, retention time) so the write-up reads as engineered, not templated.",
+  "pointsToNote": "2-5 short caveats/operational notes specific to this plant type and technology, one per line, no bullet characters. These should read as things a genuinely experienced engineer would flag (space/civil dependencies, power backup needs, O&M expectations) — not generic disclaimers.",
+  "technologyExplainer": "3-5 sentences explaining how this specific technology works and WHY it's the right fit for this capacity/segment, for a non-technical reader (e.g. a factory owner or facilities manager). Make the case, don't just describe the process.",
   "boqItems": [{"category":"Civil|Piping|PumpsBlowers|Media|Electrical|Others","item":"...","specification":"...","unit":"...","qty":number,"rate":number,"amount":number}],
   "scopeOfWork": {"civil":"...","mechanical":"...","electrical":"...","commissioning":"...","exclusions":"..."},
   "technicalSpecs": [{"section":"e.g. Pumps|Blowers|Panel|Tanks","item":"component name","spec":"make/model/dimensions/MOC as applicable","qty":"e.g. '2 Nos'"}],
@@ -201,7 +201,9 @@ Technology: ${input.technology || "MBBR"}
 Capacity: ${input.capacityKLD || "unspecified"} KLD${input.budgetHint ? `\nBudget hint: ₹${input.budgetHint}` : ""}
 ${input.pastWon ? `\nFor reference, here are this company's past WON proposals in a similar capacity band — align pricing and scope with these:\n${input.pastWon}` : ""}
 
-Ensure amount = qty * rate for each BOQ line. Payment percents must sum to 100. technicalSpecs and electricalLoad should list the actual major components implied by the BOQ (pumps, blowers, panel, media, tanks) — electricalLoad only for components that draw power.`;
+Ensure amount = qty * rate for each BOQ line. Payment percents must sum to 100. technicalSpecs and electricalLoad should list the actual major components implied by the BOQ (pumps, blowers, panel, media, tanks) — electricalLoad only for components that draw power.
+
+Write like a senior proposal engineer pitching a plant manager who has read other vendors' quotes: specific, confident, and free of boilerplate. Every sentence should say something a competitor's generic template wouldn't. Never invent client names, dates, or commitments not given above.`;
 }
 
 /** Map a parsed JSON object (from any provider) into a validated AiProposalDraft. */
@@ -256,7 +258,7 @@ async function claudeDraft(input: AiProposalInput, apiKey: string, model: string
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({ apiKey });
 
-  const system = `You are a wastewater treatment proposal engineer for Green Ecocare (Coimbatore, Tamil Nadu, India). You produce technical write-ups and KLD-scaled Bills of Quantity (BOQ) for STP/ETP/WTP plants that meet TNPCB discharge norms. Respond with STRICT JSON only — no markdown, no prose outside the JSON object. Rates are in INR. Keep BOQ realistic for the Indian market.`;
+  const system = `You are a senior wastewater treatment proposal engineer at Green Ecocare (Coimbatore, Tamil Nadu, India), writing a client-facing commercial proposal that will be compared against competitors' quotes. You produce persuasive, technically credible write-ups and KLD-scaled Bills of Quantity (BOQ) for STP/ETP/WTP plants that meet TNPCB discharge norms. Write with specificity (real design parameters, real component names) rather than generic filler — this document needs to win the deal, not just describe a plant. Respond with STRICT JSON only — no markdown, no prose outside the JSON object. Rates are in INR. Keep BOQ realistic for the Indian market.`;
 
   const res = await client.messages.create({
     model,

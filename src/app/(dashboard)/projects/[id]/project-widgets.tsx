@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, FileText, Receipt as ReceiptIcon, CalendarClock, Plus } from "lucide-react";
+import { Check, FileText, Receipt as ReceiptIcon, CalendarClock, Plus, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -40,12 +40,35 @@ function useRun() {
   return { run, pending, err };
 }
 
+/** Overall stage progress — a thin bar + "N of M complete" summary above the timeline. */
+export function StageProgressSummary({ stages }: { stages: { status: string }[] }) {
+  const done = stages.filter((s) => s.status === "DONE").length;
+  const pct = stages.length > 0 ? Math.round((done / stages.length) * 100) : 0;
+  return (
+    <div className="mb-4">
+      <div className="mb-1.5 flex items-center justify-between text-sm">
+        <span className="font-medium">
+          {done} of {stages.length} stages complete
+        </span>
+        <span className="font-semibold text-primary">{pct}%</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-surface">
+        <div className="h-full rounded-full bg-[image:var(--gradient-primary)] transition-all" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** A stage in the execution timeline — vertical rail (matches ProjectTimeline's icon-rail
+ * pattern) with a colored status marker, expandable to update status/notes/photos/delay. */
 export function StageRow({
   orderId,
   stage,
+  isLast,
 }: {
   orderId: string;
   stage: { id: string; seq: number; name: string; status: string; plannedDate: string | null; actualDate: string | null; notes: string | null; delayReason: string | null; photos: { id: string; url: string }[] };
+  isLast: boolean;
 }) {
   const { run, pending, err } = useRun();
   const [open, setOpen] = useState(false);
@@ -55,60 +78,97 @@ export function StageRow({
   const [planned, setPlanned] = useState(stage.plannedDate?.slice(0, 10) ?? "");
 
   const variant = stage.status === "DONE" ? "ok" : stage.status === "IN_PROGRESS" ? "primary" : "default";
+  const overdue = stage.plannedDate && stage.status !== "DONE" && new Date(stage.plannedDate) < new Date();
 
   return (
-    <div className="border-t border-border py-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">{stage.seq}.</span>
-          <span className="text-sm font-medium">{stage.name}</span>
-          <Badge variant={variant}>{stage.status.replace(/_/g, " ")}</Badge>
-        </div>
-        <button className="text-xs text-primary" onClick={() => setOpen(!open)}>
-          {open ? "Close" : "Update"}
-        </button>
-      </div>
-      <div className="ml-6 mt-1 flex gap-1">
-        {stage.photos.map((p) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img key={p.id} src={p.url} alt="" className="size-10 rounded border border-border object-cover" />
-        ))}
-      </div>
-      {open && (
-        <div className="ml-6 mt-2 space-y-2">
-          {err && <div className="text-xs text-danger">{err}</div>}
-          <div className="grid grid-cols-2 gap-2">
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Stage status">
-              <option value="PENDING">Pending</option>
-              <option value="IN_PROGRESS">In progress</option>
-              <option value="DONE">Done</option>
-            </Select>
-            <Uploader
-              label="Photo"
-              capture
-              onUploaded={(files) => {
-                for (const f of files) {
-                  navigator.geolocation?.getCurrentPosition(
-                    (pos) => run(() => addStagePhotoAction(orderId, stage.id, { url: f.url, lat: pos.coords.latitude, lng: pos.coords.longitude })),
-                    () => run(() => addStagePhotoAction(orderId, stage.id, { url: f.url })),
-                  );
-                }
-              }}
-            />
-          </div>
-          <Field label="Planned date" hint="Enables the delay-reason gate once past.">
-            <Input type="date" value={planned} onChange={(e) => setPlanned(e.target.value)} />
-          </Field>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" aria-label="Stage notes" className="min-h-14" />
-          {stage.plannedDate && stage.status !== "DONE" && new Date(stage.plannedDate) < new Date() && (
-            <Input value={delay} onChange={(e) => setDelay(e.target.value)} placeholder="Delay reason (required — past planned date)" aria-label="Delay reason" />
+    <li className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <span
+          className={
+            "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold " +
+            (stage.status === "DONE"
+              ? "border-ok bg-ok text-white"
+              : stage.status === "IN_PROGRESS"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-surface text-muted")
+          }
+        >
+          {stage.status === "DONE" ? (
+            <CheckCircle2 className="size-4" />
+          ) : stage.status === "IN_PROGRESS" ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            stage.seq
           )}
-          <Button size="sm" disabled={pending} onClick={() => run(() => updateStageAction(orderId, stage.id, { status, notes, delayReason: delay || undefined, plannedDate: planned ? new Date(planned) : null }), () => setOpen(false))}>
-            <Check className="size-4" /> Save
-          </Button>
+        </span>
+        {!isLast && <span className="my-0.5 w-px flex-1 bg-border" />}
+      </div>
+      <div className="min-w-0 flex-1 pb-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">{stage.name}</span>
+            <Badge variant={variant}>{stage.status.replace(/_/g, " ")}</Badge>
+            {overdue && (
+              <Badge variant="danger">
+                <AlertTriangle className="size-3" /> overdue
+              </Badge>
+            )}
+          </div>
+          <button className="shrink-0 text-xs font-medium text-primary" onClick={() => setOpen(!open)}>
+            {open ? "Close" : "Update"}
+          </button>
         </div>
-      )}
-    </div>
+        {(stage.plannedDate || stage.actualDate) && (
+          <div className="mt-0.5 text-xs text-muted">
+            {stage.plannedDate && <>Planned {new Date(stage.plannedDate).toLocaleDateString("en-IN")}</>}
+            {stage.plannedDate && stage.actualDate && " · "}
+            {stage.actualDate && <>Done {new Date(stage.actualDate).toLocaleDateString("en-IN")}</>}
+          </div>
+        )}
+        {stage.photos.length > 0 && (
+          <div className="mt-1.5 flex gap-1">
+            {stage.photos.map((p) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={p.id} src={p.url} alt="" className="size-10 rounded border border-border object-cover" />
+            ))}
+          </div>
+        )}
+        {open && (
+          <div className="mt-2 space-y-2 rounded-lg border border-border bg-surface p-3">
+            {err && <div className="text-xs text-danger">{err}</div>}
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Stage status">
+                <option value="PENDING">Pending</option>
+                <option value="IN_PROGRESS">In progress</option>
+                <option value="DONE">Done</option>
+              </Select>
+              <Uploader
+                label="Photo"
+                capture
+                onUploaded={(files) => {
+                  for (const f of files) {
+                    navigator.geolocation?.getCurrentPosition(
+                      (pos) => run(() => addStagePhotoAction(orderId, stage.id, { url: f.url, lat: pos.coords.latitude, lng: pos.coords.longitude })),
+                      () => run(() => addStagePhotoAction(orderId, stage.id, { url: f.url })),
+                    );
+                  }
+                }}
+              />
+            </div>
+            <Field label="Planned date" hint="Enables the delay-reason gate once past.">
+              <Input type="date" value={planned} onChange={(e) => setPlanned(e.target.value)} />
+            </Field>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" aria-label="Stage notes" className="min-h-14" />
+            {overdue && (
+              <Input value={delay} onChange={(e) => setDelay(e.target.value)} placeholder="Delay reason (required — past planned date)" aria-label="Delay reason" />
+            )}
+            <Button size="sm" disabled={pending} onClick={() => run(() => updateStageAction(orderId, stage.id, { status, notes, delayReason: delay || undefined, plannedDate: planned ? new Date(planned) : null }), () => setOpen(false))}>
+              <Check className="size-4" /> Save
+            </Button>
+          </div>
+        )}
+      </div>
+    </li>
   );
 }
 

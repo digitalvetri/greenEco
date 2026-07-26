@@ -12,7 +12,7 @@ import { Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/money";
 import { Decimal } from "decimal.js";
-import { StageRow, DrawingUpload, MilestoneRow, AddMilestoneForm } from "./project-widgets";
+import { StageRow, StageProgressSummary, DrawingUpload, MilestoneRow, AddMilestoneForm } from "./project-widgets";
 import { TeamAssign, TeamRemove } from "./team-assign";
 import { OrderStatusControl } from "./status-control";
 import { TabPanels } from "./tab-panels";
@@ -260,23 +260,27 @@ export default async function ProjectDetail({ params }: { params: Promise<{ id: 
                   <CardTitle>Execution Stages</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {order.stages.map((s) => (
-                    <StageRow
-                      key={s.id}
-                      orderId={order.id}
-                      stage={{
-                        id: s.id,
-                        seq: s.seq,
-                        name: s.name,
-                        status: s.status,
-                        plannedDate: s.plannedDate?.toISOString() ?? null,
-                        actualDate: s.actualDate?.toISOString() ?? null,
-                        notes: s.notes,
-                        delayReason: s.delayReason,
-                        photos: s.photos.map((p) => ({ id: p.id, url: p.url })),
-                      }}
-                    />
-                  ))}
+                  <StageProgressSummary stages={order.stages.map((s) => ({ status: s.status }))} />
+                  <ol>
+                    {order.stages.map((s, i) => (
+                      <StageRow
+                        key={s.id}
+                        orderId={order.id}
+                        isLast={i === order.stages.length - 1}
+                        stage={{
+                          id: s.id,
+                          seq: s.seq,
+                          name: s.name,
+                          status: s.status,
+                          plannedDate: s.plannedDate?.toISOString() ?? null,
+                          actualDate: s.actualDate?.toISOString() ?? null,
+                          notes: s.notes,
+                          delayReason: s.delayReason,
+                          photos: s.photos.map((p) => ({ id: p.id, url: p.url })),
+                        }}
+                      />
+                    ))}
+                  </ol>
                 </CardContent>
               </Card>
             ),
