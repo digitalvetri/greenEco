@@ -53,6 +53,7 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
             (current.technicalSpecs as Array<{ section: string; item: string; spec: string; qty: string }> | null) ?? [],
           electricalLoad:
             (current.electricalLoad as Array<{ description: string; hp: number }> | null) ?? [],
+          heroImageUrl: current.heroImageUrl ?? null,
           aiGenerated: current.aiGenerated,
           approved: !!current.approvedById,
           subtotal: current.subtotal.toString(),

@@ -7,6 +7,7 @@ import {
   saveVersion,
   generateForProposal,
   generateTermsDraft,
+  generateProposalImage,
   approveAndSend,
   markWon,
   markLost,
@@ -33,6 +34,13 @@ export async function saveVersionAction(id: string, input: unknown) {
 export async function generateTermsAction(id: string) {
   const s = await getSession();
   return generateTermsDraft(s, id);
+}
+
+export async function generateProposalImageAction(id: string) {
+  const s = await getSession();
+  const res = await generateProposalImage(s, id);
+  revalidatePath(`/proposals/${id}`);
+  return res;
 }
 
 export async function generateAction(id: string, input: unknown) {

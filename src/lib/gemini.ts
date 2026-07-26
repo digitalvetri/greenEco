@@ -68,6 +68,48 @@ export async function geminiVision(
   }
 }
 
+/**
+ * Image generation (Gemini's native image-output models, e.g. "gemini-2.5-flash-image" —
+ * a DIFFERENT model from the text one in GEMINI_MODEL; configurable separately as
+ * GEMINI_IMAGE_MODEL since image-model names/availability change faster than text ones
+ * and this must stay correctable from Settings without a code change). Returns the raw
+ * image bytes (base64) + mime type, or null on any failure/unconfigured/no-image-in-response
+ * — callers must degrade cleanly (e.g. a proposal PDF renders fine with no hero image).
+ * Response field names are read defensively (camelCase and snake_case) since exact REST
+ * JSON casing for this response shape wasn't verified against a live key.
+ */
+export async function geminiGenerateImage(
+  apiKey: string,
+  model: string,
+  prompt: string,
+): Promise<{ base64: string; mimeType: string } | null> {
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(`${BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseModalities: ["IMAGE"] },
+      }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      candidates?: { content?: { parts?: Array<Record<string, unknown>> } }[];
+    };
+    const parts = data.candidates?.[0]?.content?.parts ?? [];
+    for (const part of parts) {
+      const inline = (part.inlineData ?? part.inline_data) as { data?: string; mimeType?: string; mime_type?: string } | undefined;
+      const b64 = inline?.data;
+      const mimeType = inline?.mimeType ?? inline?.mime_type;
+      if (b64 && mimeType) return { base64: b64, mimeType };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function extractText(data: unknown): string | null {
   const d = data as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   const parts = d.candidates?.[0]?.content?.parts;

@@ -32,37 +32,48 @@ export default async function ProposalPrint({
   return (
     <PrintShell title="PROPOSAL" docNo={`${p.number} · v${v?.versionNo ?? 1}`} company={company}>
       <section style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>{p.projectName}</div>
-        <div style={{ fontSize: 13, color: "#555" }}>{p.siteAddress}</div>
-        <div style={{ fontSize: 13, color: "#555" }}>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>{p.projectName}</div>
+        <div style={{ fontSize: 14, color: "#555" }}>{p.siteAddress}</div>
+        <div style={{ fontSize: 14, color: "#555" }}>
           {p.plantType} · {p.technology} · {p.capacityKLD} KLD
         </div>
       </section>
 
+      {v?.heroImageUrl && (
+        <section style={{ marginBottom: 16 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- rendered by headless Chromium into a PDF, not the Next image pipeline */}
+          <img
+            src={v.heroImageUrl}
+            alt=""
+            style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 8, display: "block" }}
+          />
+        </section>
+      )}
+
       {v?.coverLetter && (
         <section style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{v.coverLetter}</p>
+          <p style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{v.coverLetter}</p>
         </section>
       )}
 
       {v?.technicalText && (
         <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Technical Write-up</h3>
-          <p style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{v.technicalText}</p>
+          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Technical Write-up</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{v.technicalText}</p>
         </section>
       )}
 
       {v?.technologyExplainer && (
         <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>About {p.technology}</h3>
-          <p style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{v.technologyExplainer}</p>
+          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>About {p.technology}</h3>
+          <p style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{v.technologyExplainer}</p>
         </section>
       )}
 
       {Object.keys(scope).length > 0 && (
         <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Scope of Work</h3>
-          <ul style={{ fontSize: 13, lineHeight: 1.5 }}>
+          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Scope of Work</h3>
+          <ul style={{ fontSize: 14, lineHeight: 1.5 }}>
             {Object.entries(scope).map(([k, val]) => (
               <li key={k}>
                 <strong style={{ textTransform: "capitalize" }}>{k}:</strong> {val}
@@ -74,7 +85,7 @@ export default async function ProposalPrint({
 
       {technicalSpecs.length > 0 && (
         <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Technical Specifications</h3>
+          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Technical Specifications</h3>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
@@ -100,7 +111,7 @@ export default async function ProposalPrint({
 
       {electricalLoad.length > 0 && (
         <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Electrical Load Summary</h3>
+          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Electrical Load Summary</h3>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
@@ -127,7 +138,7 @@ export default async function ProposalPrint({
       )}
 
       <section style={{ marginBottom: 16 }}>
-        <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Bill of Quantities</h3>
+        <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Bill of Quantities</h3>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -151,7 +162,7 @@ export default async function ProposalPrint({
           </tbody>
         </table>
         {v && (
-          <div style={{ marginTop: 10, marginLeft: "auto", width: 260, fontSize: 13 }}>
+          <div style={{ marginTop: 10, marginLeft: "auto", width: 260, fontSize: 14 }}>
             <Line label="Subtotal" value={formatINR(v.subtotal.toString())} />
             <Line label="GST @ 18%" value={formatINR(v.gstAmount.toString())} />
             <Line label="Grand Total" value={formatINR(v.grandTotal.toString())} bold />
@@ -161,8 +172,8 @@ export default async function ProposalPrint({
 
       {terms.length > 0 && (
         <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Payment Terms</h3>
-          <ol style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Payment Terms</h3>
+          <ol style={{ fontSize: 14, lineHeight: 1.6 }}>
             {terms.map((t, i) => (
               <li key={i}>
                 {t.percent}% — {t.description}
@@ -174,8 +185,8 @@ export default async function ProposalPrint({
 
       {v?.pointsToNote && (
         <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Points to Note</h3>
-          <ul style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Points to Note</h3>
+          <ul style={{ fontSize: 14, lineHeight: 1.6 }}>
             {v.pointsToNote.split("\n").filter(Boolean).map((line, i) => (
               <li key={i}>{line.replace(/^[-•]\s*/, "")}</li>
             ))}
@@ -185,8 +196,8 @@ export default async function ProposalPrint({
 
       {tcs && (
         <section style={{ marginBottom: 16, pageBreakBefore: "always" }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 14 }}>Terms &amp; Conditions</h3>
-          <p style={{ fontSize: 12.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{tcs}</p>
+          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Terms &amp; Conditions</h3>
+          <p style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{tcs}</p>
         </section>
       )}
     </PrintShell>

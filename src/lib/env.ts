@@ -65,6 +65,9 @@ const schema = z
     /** Google Gemini (generativelanguage API) — third text/vision provider. */
     GEMINI_API_KEY: z.string().default(""),
     GEMINI_MODEL: z.string().default("gemini-2.0-flash"),
+    /** Image-gen model (proposal hero images) — separate from GEMINI_MODEL (text). Free-text/
+     *  editable in Settings so a renamed/deprecated model can be corrected without a code change. */
+    GEMINI_IMAGE_MODEL: z.string().default("gemini-2.5-flash-image"),
     /** Sarvam AI — Indian-language specialist, best for Tamil. */
     SARVAM_API_KEY: z.string().default(""),
     SARVAM_MODEL: z.string().default("sarvam-m"),
@@ -194,6 +197,7 @@ export const env = {
   groqModel: e.GROQ_MODEL,
   geminiApiKey: e.GEMINI_API_KEY,
   geminiModel: e.GEMINI_MODEL,
+  geminiImageModel: e.GEMINI_IMAGE_MODEL,
   sarvamApiKey: e.SARVAM_API_KEY,
   sarvamModel: e.SARVAM_MODEL,
   aiTextProvider: e.AI_TEXT_PROVIDER,

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X, Printer } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X, Printer, Image as ImageIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
   updateBasicsAction,
   saveVersionAction,
   generateTermsAction,
+  generateProposalImageAction,
   approveSendAction,
   wonAction,
   lostAction,
@@ -75,6 +76,7 @@ export interface ProposalView {
     terms: string;
     technicalSpecs: TechSpecRow[];
     electricalLoad: ElectricalLoadRow[];
+    heroImageUrl: string | null;
     aiGenerated: boolean;
     approved: boolean;
     subtotal: string;
@@ -148,6 +150,8 @@ export function ProposalEditor({
   const [marginWarn, setMarginWarn] = useState<null | { requiredFloor: string }>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [tailoringTerms, setTailoringTerms] = useState(false);
+  const [heroImageUrl, setHeroImageUrl] = useState(view.version?.heroImageUrl ?? null);
+  const [generatingImage, setGeneratingImage] = useState(false);
   const termsPct = terms.reduce((a, t) => a + (Number(t.percent) || 0), 0);
 
   const subtotal = boq.reduce((a, r) => a + (Number(r.amount) || 0), 0);
@@ -457,6 +461,44 @@ export function ProposalEditor({
         </Card>
       )}
 
+      {/* AI plant illustration */}
+      {(heroImageUrl || editable) && (
+        <Card className="mb-4">
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Plant Illustration</CardTitle>
+            {editable && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={generatingImage}
+                onClick={() => {
+                  setGeneratingImage(true);
+                  generateProposalImageAction(view.id)
+                    .then((r) => {
+                      setHeroImageUrl(r.url);
+                      toast("Image generated.");
+                    })
+                    .catch((e) => toast(e instanceof Error ? e.message : "Image generation failed", "error"))
+                    .finally(() => setGeneratingImage(false));
+                }}
+              >
+                <ImageIcon className="size-3.5" /> {generatingImage ? "Generating…" : heroImageUrl ? "Regenerate" : "Generate AI image"}
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {heroImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- external/storage-adapter URL, not a static import next/image can optimize
+              <img src={heroImageUrl} alt="AI-generated plant illustration" className="w-full rounded-lg border border-border object-cover" style={{ maxHeight: 320 }} />
+            ) : (
+              <p className="text-sm text-muted">
+                No image yet. AI images need a Gemini API key configured in Settings → Integrations.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Cover letter */}
       {(coverLetter || editable) && (
         <Card className="mb-4">
@@ -466,13 +508,13 @@ export function ProposalEditor({
           <CardContent>
             {editable ? (
               <Textarea
-                className="min-h-32"
+                className="min-h-32 text-base"
                 value={coverLetter}
                 onChange={(e) => setCoverLetter(e.target.value)}
                 placeholder="Greeting / intro letter to the client…"
               />
             ) : (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{coverLetter}</p>
+              <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground/90">{coverLetter}</p>
             )}
           </CardContent>
         </Card>
@@ -515,14 +557,14 @@ export function ProposalEditor({
                 ))}
               </div>
             ) : isGenerating ? (
-              <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+              <div className="whitespace-pre-wrap text-base leading-relaxed text-foreground">
                 {techText}
                 <span className="animate-pulse text-primary">▍</span>
               </div>
             ) : editingTech ? (
               <div className="space-y-3">
                 <Textarea
-                  className="min-h-48 font-mono text-xs"
+                  className="min-h-48 font-mono text-sm"
                   value={techText}
                   onChange={(e) => setTechText(e.target.value)}
                   placeholder="Technical description of the proposed plant…"
@@ -576,25 +618,25 @@ export function ProposalEditor({
             <Field label={`About ${basics.technology}`}>
               {editable ? (
                 <Textarea
-                  className="min-h-24"
+                  className="min-h-24 text-base"
                   value={technologyExplainer}
                   onChange={(e) => setTechnologyExplainer(e.target.value)}
                   placeholder="How this technology works…"
                 />
               ) : (
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{technologyExplainer}</p>
+                <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground/90">{technologyExplainer}</p>
               )}
             </Field>
             <Field label="Points to note">
               {editable ? (
                 <Textarea
-                  className="min-h-24"
+                  className="min-h-24 text-base"
                   value={pointsToNote}
                   onChange={(e) => setPointsToNote(e.target.value)}
                   placeholder="One caveat/callout per line, e.g. GST extra, civil work by client…"
                 />
               ) : (
-                <ul className="space-y-1 text-sm text-foreground/90">
+                <ul className="space-y-1 text-base text-foreground/90">
                   {pointsToNote.split("\n").filter(Boolean).map((line, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary/50" />
@@ -1040,13 +1082,13 @@ export function ProposalEditor({
             </div>
             {editable ? (
               <Textarea
-                className="min-h-48 font-mono text-xs"
+                className="min-h-48 font-mono text-sm"
                 value={tcs}
                 onChange={(e) => setTcs(e.target.value)}
                 placeholder="Standard terms & conditions…"
               />
             ) : (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{tcs}</p>
+              <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground/90">{tcs}</p>
             )}
           </div>
 
@@ -1186,13 +1228,13 @@ function MarkLostButton({
  * Parses "Label: content" lines and multi-paragraph blocks into visual sections.
  */
 function TechnicalWriteUp({ text }: { text: string }) {
-  if (!text.trim()) return <p className="text-sm text-muted italic">No technical write-up yet.</p>;
+  if (!text.trim()) return <p className="text-base text-muted italic">No technical write-up yet.</p>;
 
   // Split into paragraphs on blank lines
   const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
 
   return (
-    <div className="space-y-4 text-sm">
+    <div className="space-y-4 text-base">
       {paragraphs.map((para, i) => {
         // Check if paragraph starts with a "Label:" pattern
         const labelMatch = para.match(/^([A-Za-z ]+):\s*([\s\S]+)$/);

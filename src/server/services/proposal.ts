@@ -17,6 +17,10 @@ import { formatINR } from "@/lib/money";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
 import { llmText } from "@/lib/llm";
+import { loadConfig } from "@/lib/runtime-config";
+import { geminiGenerateImage } from "@/lib/gemini";
+import { putObject } from "@/lib/storage";
+import { randomUUID } from "crypto";
 
 const GST_RATE = 18;
 
@@ -471,6 +475,54 @@ export async function generateTermsDraft(
     { maxTokens: 2000 },
   );
   return res ? { text: res.text, source: "ai" } : { text: standardTermsTemplate, source: "template" };
+}
+
+/**
+ * Generate an AI plant/process illustration for the proposal's current version and
+ * store it (admin-only, audited). Gemini-only — none of the other configured text
+ * providers (Claude/Groq) support image output, so this doesn't go through the
+ * provider-agnostic llm.ts fan-out. Degrades cleanly: no GEMINI_API_KEY, a network
+ * failure, or a response with no image all just throw a clear error the button can
+ * toast — never a half-saved state (the version isn't touched until the image bytes
+ * are already durably stored).
+ *
+ * NOTE: the exact Gemini image-generation response shape is unverified against a
+ * live key in this environment (no key configured here) — geminiGenerateImage reads
+ * both camelCase/snake_case field names defensively, but if Google's actual response
+ * differs further, or GEMINI_IMAGE_MODEL's default guess is stale/renamed, correct the
+ * model string in Settings → Integrations (no code change needed) or fix the parsing.
+ */
+export async function generateProposalImage(ctx: Ctx, proposalId: string): Promise<{ url: string }> {
+  requireAdmin(ctx);
+  const proposal = await prisma.proposal.findFirst({
+    where: { id: proposalId, companyId: ctx.companyId },
+    include: { versions: { orderBy: { versionNo: "desc" }, take: 1 } },
+  });
+  if (!proposal) throw new Error("Proposal not found");
+  const version = proposal.versions.find((v) => v.versionNo === proposal.currentVersion) ?? proposal.versions[0];
+  if (!version) throw new Error("This proposal has no version yet");
+
+  const config = await loadConfig(ctx.companyId);
+  if (!config.GEMINI_API_KEY) {
+    throw new Error("No Gemini API key configured — add one in Settings → Integrations to enable AI images");
+  }
+
+  const prompt =
+    `A clean, professional technical illustration of a ${proposal.plantType} (wastewater treatment plant) using ` +
+    `${proposal.technology} technology, sized for ${proposal.capacityKLD || "a mid-size"} KLD capacity. ` +
+    `Industrial engineering-diagram style: labelled process flow (inlet, treatment stages, clarifier, outlet), ` +
+    `clean white background, no text noise, suitable for a client-facing proposal document.`;
+
+  const img = await geminiGenerateImage(config.GEMINI_API_KEY, config.GEMINI_IMAGE_MODEL, prompt);
+  if (!img) throw new Error("Image generation failed or returned no image — check the Gemini key/model in Settings");
+
+  const ext = img.mimeType.includes("png") ? "png" : img.mimeType.includes("webp") ? "webp" : "jpg";
+  const key = `uploads/proposal-images/${proposalId}-${randomUUID()}.${ext}`;
+  const url = await putObject(key, Buffer.from(img.base64, "base64"), img.mimeType);
+
+  await prisma.proposalVersion.update({ where: { id: version.id }, data: { heroImageUrl: url } });
+  await logAudit(ctx, { action: "UPDATE", entity: "ProposalVersion", entityId: version.id, after: { heroImageUrl: url } });
+  return { url };
 }
 
 /**

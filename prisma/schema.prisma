@@ -355,6 +355,7 @@ model ProposalVersion {
   technologyExplainer String? // "how this technology works" — plant/technology specific
   technicalSpecs      Json? // [{section, item, spec, qty}] — component-level spec table
   electricalLoad      Json? // [{description, hp}] — electrical load summary
+  heroImageUrl        String? // AI-generated plant/process illustration (Gemini image model), shown in the PDF
 
   proposal Proposal @relation(fields: [proposalId], references: [id])
 
