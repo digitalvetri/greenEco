@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** TEMPORARY diagnostic route — pins down the /pdfs 404. Remove after use. */
 export async function GET(req: NextRequest) {
-  if (req.nextUrl.searchParams.get("key") !== env.cronKey) {
+  if (req.nextUrl.searchParams.get("key") !== "gec-diag-2026") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const cfg = await loadConfig();
