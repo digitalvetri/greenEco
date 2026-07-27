@@ -32,8 +32,11 @@ export default async function SettingsPage() {
     <div>
       <PageHeader title="Settings" subtitle={isAdmin ? "Your profile, team & workspace" : "Your profile & account"} />
 
-      {/* Available to every role — your own account. */}
-      <ProfileCard profile={profile} />
+      {/* Available to every role — your own account. Capped width — a profile summary
+          doesn't need to stretch full-bleed on a wide monitor. */}
+      <div className="max-w-xl">
+        <ProfileCard profile={profile} />
+      </div>
 
       <div className="mt-4">
         <PushToggle />
