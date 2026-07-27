@@ -3,7 +3,7 @@ import { Leaf } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 text-center">
       <span className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
         <Leaf className="size-6" />
       </span>
