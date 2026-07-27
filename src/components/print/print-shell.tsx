@@ -19,6 +19,7 @@ export function PrintShell({
   docNo,
   gstin,
   company,
+  watermark,
   children,
 }: {
   title: string;
@@ -26,12 +27,34 @@ export function PrintShell({
   /** @deprecated pass `company` instead — kept so older call sites still compile. */
   gstin?: string;
   company?: PrintLetterhead;
+  /** Faint full-page background logo (currently used on the invoice PDF only). */
+  watermark?: boolean;
   children: React.ReactNode;
 }) {
   const co: PrintLetterhead = company ?? { name: "Green Ecocare Pvt Ltd", gstin };
   return (
-    <div data-print-shell>
+    <div data-print-shell style={{ position: "relative" }}>
       <style>{`@media print { .no-print { display: none !important; } @page { margin: 14mm; } }`}</style>
+      {watermark && (
+        // eslint-disable-next-line @next/next/no-img-element -- static PDF background, rendered by headless Chromium outside Next's image pipeline
+        <img
+          src="/brand/logo-watermark.png"
+          alt=""
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 420,
+            height: 420,
+            opacity: 0.06,
+            zIndex: 0,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      <div style={{ position: "relative", zIndex: 1 }}>
 
       <div className="no-print" style={{ marginBottom: 16, textAlign: "right" }}>
         <button
@@ -93,6 +116,7 @@ export function PrintShell({
         {co.branches && co.branches.length > 0 && <div>Branches: {co.branches.join(", ")}</div>}
         <div style={{ marginTop: 4 }}>This is a computer-generated document.</div>
       </footer>
+      </div>
     </div>
   );
 }

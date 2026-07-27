@@ -31,6 +31,7 @@ export default async function InvoicePrint({
       title={inv.isCreditNote ? "CREDIT NOTE" : "TAX INVOICE"}
       docNo={`${inv.invoiceNo} · ${new Date(inv.date).toLocaleDateString("en-IN")}`}
       company={company}
+      watermark
     >
       {order && (
         <section style={{ marginBottom: 16, fontSize: 13 }}>
