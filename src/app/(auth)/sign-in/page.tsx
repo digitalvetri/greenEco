@@ -76,17 +76,24 @@ export default function SignInPage() {
       </div>
 
       {/* ── Form panel ─────────────────────────────────────────────────── */}
-      <div className="relative flex items-center justify-center overflow-hidden bg-surface px-5 py-10">
-        <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-primary/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 -left-20 size-72 rounded-full bg-sky-500/10 blur-3xl" />
+      {/* Mobile (<lg) uses the same dark brand gradient as the desktop panel instead of
+          a plain light background — the rich brand look was only ever showing on desktop,
+          which read as "no design" on a phone (client feedback). */}
+      <div
+        className="relative flex items-center justify-center overflow-hidden bg-[image:linear-gradient(155deg,#052a1c_0%,#0b5e39_30%,#128a55_56%,#1560bd_100%)] px-5 py-10 lg:bg-[image:none] lg:bg-surface"
+      >
+        <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(130%_90%_at_15%_-10%,transparent_35%,rgba(3,22,15,0.45))] lg:hidden" />
+        <div className="pointer-events-none absolute -right-24 -top-24 hidden size-72 rounded-full bg-primary/10 blur-3xl lg:block" />
+        <div className="pointer-events-none absolute -bottom-28 -left-20 hidden size-72 rounded-full bg-sky-500/10 blur-3xl lg:block" />
 
         <div className="relative w-full max-w-sm">
-          {/* mobile brand mark */}
+          {/* mobile brand mark — floats on the dark gradient, white text */}
           <div className="mb-8 flex flex-col items-center text-center lg:hidden">
-            <Image src="/brand/logo-mark-light.png" alt="Green Ecocare" width={72} height={72} className="mb-3 size-16 object-contain" />
-            <div className="text-lg font-bold">Green Ecocare</div>
+            <Image src="/brand/logo-mark-light.png" alt="Green Ecocare" width={72} height={72} className="mb-3 size-16 object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)]" />
+            <div className="text-lg font-bold text-white">Green Ecocare</div>
           </div>
 
+          <div className="rounded-3xl bg-card p-6 shadow-2xl lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
           <div className="mb-6">
             <h1 className="text-[1.75rem] font-bold tracking-tight">Welcome back</h1>
             <p className="mt-1 text-sm text-muted">Sign in to your workspace</p>
@@ -149,6 +156,7 @@ export default function SignInPage() {
           <div className="mt-7 flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 py-2.5 text-xs text-muted">
             <ShieldCheck className="size-4 shrink-0 text-primary" />
             Your role — owner/admin or field staff — is set by your account.
+          </div>
           </div>
         </div>
       </div>
