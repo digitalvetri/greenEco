@@ -1,5 +1,5 @@
 // GreenEco CRM service worker — offline app shell (spec §PWA) + Web Push.
-const CACHE = "greeneco-v3";
+const CACHE = "greeneco-v4";
 const SHELL = ["/", "/dashboard", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
