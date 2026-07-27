@@ -85,7 +85,13 @@ export default function SignInPage() {
       <div
         className="relative flex items-center justify-center overflow-hidden bg-[image:linear-gradient(155deg,#052a1c_0%,#0b5e39_30%,#128a55_56%,#1560bd_100%)] px-5 py-10 lg:bg-[image:none] lg:bg-surface"
       >
-        <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(130%_90%_at_15%_-10%,transparent_35%,rgba(3,22,15,0.45))] lg:hidden" />
+        {/* Same living water-scene animation as the desktop panel, now on mobile too —
+            it has its own separate instance on the desktop panel above, so this one is
+            lg:hidden (was desktop-only before, per the client's explicit ask to extend it). */}
+        <div className="absolute inset-0 lg:hidden">
+          <WaterCanvas />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(130%_90%_at_15%_-10%,transparent_35%,rgba(3,22,15,0.45))] lg:hidden" />
         <div className="pointer-events-none absolute -right-24 -top-24 hidden size-72 rounded-full bg-primary/10 blur-3xl lg:block" />
         <div className="pointer-events-none absolute -bottom-28 -left-20 hidden size-72 rounded-full bg-sky-500/10 blur-3xl lg:block" />
 
