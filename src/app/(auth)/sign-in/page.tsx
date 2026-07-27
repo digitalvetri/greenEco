@@ -22,7 +22,10 @@ export default function SignInPage() {
   const [showPw, setShowPw] = useState(false);
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.08fr_1fr]">
+    // min-h-[100dvh] not min-h-screen: 100vh doesn't track mobile Safari/Chrome's
+    // address bar collapsing or the keyboard opening, so the page visibly "jumped"/
+    // resized on scroll or on focusing a field (reported as the UI "dancing" on mobile).
+    <div className="grid min-h-[100dvh] lg:grid-cols-[1.08fr_1fr]">
       {/* ── Brand panel: living water scene ────────────────────────────── */}
       <div className="relative hidden overflow-hidden lg:block" style={{ background: BRAND_GRADIENT }}>
         <WaterCanvas />
@@ -93,7 +96,10 @@ export default function SignInPage() {
             <div className="text-lg font-bold text-white">Green Ecocare</div>
           </div>
 
-          <div className="rounded-3xl bg-card p-6 shadow-2xl lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
+          {/* Glassmorphism on mobile: translucent + blurred, floating over the dark
+              gradient — kept high-opacity (not the usual ultra-transparent look) so form
+              labels/hints (styled for a light background) stay fully legible. */}
+          <div className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-2xl backdrop-blur-xl lg:rounded-none lg:border-none lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
           <div className="mb-6">
             <h1 className="text-[1.75rem] font-bold tracking-tight">Welcome back</h1>
             <p className="mt-1 text-sm text-muted">Sign in to your workspace</p>
@@ -119,7 +125,7 @@ export default function SignInPage() {
                   placeholder="you@greeneco.in"
                   required
                   autoFocus
-                  className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-3 text-sm outline-none transition-all placeholder:text-muted/70 focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
+                  className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-3 text-[16px] sm:text-sm outline-none transition-all placeholder:text-muted/70 focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
                 />
               </div>
             </div>
@@ -135,7 +141,7 @@ export default function SignInPage() {
                   autoComplete="current-password"
                   placeholder="••••••••"
                   required
-                  className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-10 text-sm outline-none transition-all placeholder:text-muted/70 focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
+                  className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-10 text-[16px] sm:text-sm outline-none transition-all placeholder:text-muted/70 focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
                 />
                 <button
                   type="button"

@@ -353,3 +353,16 @@ body {
   opacity: 0.1;
   filter: blur(4px);
 }
+
+/* iOS Safari auto-zooms the whole page when a focused input/select/textarea has a
+   computed font-size under 16px — this design system's --text-sm/--text-xs are both
+   under that, so every form field in the app triggered it on a phone (reported as
+   "screen gets zoom up" on any form). !important is deliberate: this must win over
+   every component's own text-size utility class, whichever page it's on. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

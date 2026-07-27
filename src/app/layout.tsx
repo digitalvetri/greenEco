@@ -18,6 +18,18 @@ export const metadata: Metadata = {
   title: "Green Ecocare CRM",
   description: "CRM for Green Ecocare Private Limited — wastewater treatment plant projects",
   manifest: "/manifest.webmanifest",
+  // iOS Safari ignores the web manifest entirely for "Add to Home Screen" — it needs
+  // its own apple-* meta/link tags, which were completely missing (reported as not
+  // being able to add the app to the home screen / it not looking/behaving like an app).
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Green Ecocare",
+  },
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
 };
 
 export const viewport = {

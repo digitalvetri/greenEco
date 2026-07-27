@@ -1,8 +1,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+// text-[16px] below sm: iOS Safari auto-zooms the whole page on focus of any input/
+// select/textarea whose computed font-size is under 16px — this design system's --text-sm
+// is 13px, so every form field was triggering it. 16px only below `sm` (mobile/tablet);
+// desktop keeps the compact text-sm the design system uses everywhere else.
 const base =
-  "w-full rounded-lg border border-border-strong bg-card text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted/70 focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-70 aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger/20";
+  "w-full rounded-lg border border-border-strong bg-card text-[16px] sm:text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted/70 focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-70 aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger/20";
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
