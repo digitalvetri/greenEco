@@ -80,6 +80,62 @@ export async function createUser(ctx: Ctx, input: CreateUserInput): Promise<{ id
   return { id };
 }
 
+const updateUserSchema = z.object({
+  name: z.string().min(1, "Name is required").max(200),
+  phone: z.string().min(1, "Phone is required").max(20),
+  email: z.string().email("Enter a valid email").nullable(),
+  role: z.enum(["ADMIN", "EMPLOYEE"]),
+  active: z.boolean(),
+});
+
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+
+/**
+ * Admin edits another user's core details (name/phone/email/role/active) — the
+ * "admin can completely edit the employee data" ask. Deliberately excludes the
+ * caller's own row (self-edits go through profile.ts's current-password-checked
+ * flow instead — this is for editing OTHERS). Guards against locking the company
+ * out of its own admin seat: can't demote or deactivate the last active admin.
+ */
+export async function adminUpdateUser(ctx: Ctx, targetUserId: string, input: UpdateUserInput): Promise<{ ok: true }> {
+  requireAdmin(ctx);
+  if (targetUserId === ctx.userId) throw new Error("Edit your own details from your profile card instead.");
+  const parsed = updateUserSchema.safeParse(input);
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
+  const { name, phone, email, role, active } = parsed.data;
+
+  const target = await prisma.user.findFirst({ where: { id: targetUserId, companyId: ctx.companyId } });
+  if (!target) throw new Error("User not found");
+
+  const losingAdmin = target.role === "ADMIN" && target.active && (role !== "ADMIN" || !active);
+  if (losingAdmin) {
+    const otherActiveAdmins = await prisma.user.count({
+      where: { companyId: ctx.companyId, role: "ADMIN", active: true, id: { not: targetUserId } },
+    });
+    if (otherActiveAdmins === 0) throw new Error("Can't remove the only active admin — promote someone else first.");
+  }
+
+  try {
+    await prisma.user.update({
+      where: { id: targetUserId },
+      data: { name, phone, email: email ? email.toLowerCase() : null, role, active },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      throw new Error("A user with this email already exists.");
+    }
+    throw e;
+  }
+  await logAudit(ctx, {
+    action: "UPDATE",
+    entity: "User",
+    entityId: targetUserId,
+    before: { name: target.name, phone: target.phone, email: target.email, role: target.role, active: target.active },
+    after: { name, phone, email, role, active },
+  });
+  return { ok: true };
+}
+
 /** Retroactively assign/change a job title on an existing user — display-only, no permission effect. */
 export async function setUserJobTitle(ctx: Ctx, targetUserId: string, jobTitle: JobTitle | null): Promise<{ ok: true }> {
   requireAdmin(ctx);

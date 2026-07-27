@@ -12,6 +12,7 @@ import { PushToggle } from "@/components/pwa/push-toggle";
 import { ProfileCard } from "./profile-card";
 import { CompanyDetailsCard, ThresholdsCard } from "./company-settings-cards";
 import { ResetPasswordButton } from "./reset-password-button";
+import { EditUserButton } from "./edit-user-button";
 import { CreateUserButton } from "./create-user-button";
 import { JobTitleSelect } from "./job-title-select";
 
@@ -73,7 +74,13 @@ export default async function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
-                  <Badge variant={u.role === "ADMIN" ? "primary" : "default"}>{u.role}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    {!u.active && <Badge variant="danger">Deactivated</Badge>}
+                    <Badge variant={u.role === "ADMIN" ? "primary" : "default"}>{u.role}</Badge>
+                  </div>
+                  {u.id !== session.userId && (
+                    <EditUserButton userId={u.id} name={u.name} phone={u.phone} email={u.email} role={u.role} active={u.active} />
+                  )}
                   <ResetPasswordButton userId={u.id} name={u.name} />
                 </div>
               </div>
