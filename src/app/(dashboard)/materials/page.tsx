@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Package, AlertTriangle, ShoppingCart, IndianRupee, BarChart3 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { listItems, materialsStats, materialCategories } from "@/server/services/materials";
+import { listItems, materialsStats, materialCategories, listLocations } from "@/server/services/materials";
 import { PageHeader, StatTile } from "@/components/ui/stat";
 import { Card, CardContent } from "@/components/ui/card";
 import { ExportButton } from "@/components/ui/export-button";
@@ -33,10 +33,11 @@ export default async function MaterialsPage({
   const session = await getSession();
   const isAdmin = session.role === "ADMIN";
 
-  const [{ items, nextCursor }, stats, categories] = await Promise.all([
+  const [{ items, nextCursor }, stats, categories, locations] = await Promise.all([
     listItems(session, { category: category || undefined, search: search || undefined, take: 50 }),
     materialsStats(session),
     materialCategories(session),
+    isAdmin ? listLocations(session) : Promise.resolve([]),
   ]);
 
   const rows: StockRow[] = items.map((i) => ({
@@ -144,7 +145,14 @@ export default async function MaterialsPage({
             </div>
           )}
           <MaterialsSearch />
-          <StockList key={query} initialItems={rows} initialCursor={nextCursor} query={query} isAdmin={isAdmin} />
+          <StockList
+            key={query}
+            initialItems={rows}
+            initialCursor={nextCursor}
+            query={query}
+            isAdmin={isAdmin}
+            locations={locations.map((l) => ({ id: l.id, name: l.displayName }))}
+          />
         </CardContent>
       </Card>
     </div>

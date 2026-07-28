@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatINR } from "@/lib/money";
+import { QuickAuditButton } from "./quick-audit-button";
 
 export interface StockRow {
   id: string;
@@ -26,15 +27,25 @@ export function StockList({
   initialCursor,
   query,
   isAdmin,
+  locations,
 }: {
   initialItems: StockRow[];
   initialCursor: string | null;
   query: string;
   isAdmin: boolean;
+  locations: { id: string; name: string }[];
 }) {
   const [items, setItems] = useState<StockRow[]>(initialItems);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [loading, setLoading] = useState(false);
+
+  // Re-sync with the server after a mutation (e.g. QuickAuditButton's router.refresh()) —
+  // otherwise this client-cached list keeps showing pre-mutation counts indefinitely,
+  // since a plain useState(initialItems) only reads its initial value once.
+  useEffect(() => {
+    setItems(initialItems);
+    setCursor(initialCursor);
+  }, [initialItems, initialCursor]);
   const [error, setError] = useState<string | null>(null);
 
   async function loadMore() {
@@ -83,6 +94,15 @@ export function StockList({
                     {i.name}
                   </Link>
                   {i.lowStock && <Badge variant="danger">low</Badge>}
+                  {isAdmin && (
+                    <QuickAuditButton
+                      itemId={i.id}
+                      itemName={i.name}
+                      unit={i.unit}
+                      locations={locations}
+                      currentByLocation={i.byLocation}
+                    />
+                  )}
                 </div>
                 {i.specification && <div className="truncate text-xs text-muted">{i.specification}</div>}
               </TD>
