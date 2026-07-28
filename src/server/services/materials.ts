@@ -198,6 +198,10 @@ export async function itemLedger(ctx: Ctx, itemId: string) {
         gstRate: 18,
         gst: price.times(0.18).toFixed(2),
         totalWithGst: price.times(1.18).toFixed(2),
+        // Vendor catalog reference only (e.g. MATERIAL LIST.xlsx) — NOT what any real PO
+        // actually paid; see poHistory below for that. Null when never captured.
+        catalogFreight: item.catalogFreight ? item.catalogFreight.toFixed(2) : null,
+        catalogLoadingCharges: item.catalogLoadingCharges ? item.catalogLoadingCharges.toFixed(2) : null,
       }
     : null;
 
@@ -210,6 +214,8 @@ export async function itemLedger(ctx: Ctx, itemId: string) {
       specification: item.specification,
       reorderLevel: item.reorderLevel.toString(),
       purchasePrice: item.purchasePrice ? item.purchasePrice.toString() : null,
+      catalogFreight: item.catalogFreight ? item.catalogFreight.toString() : null,
+      catalogLoadingCharges: item.catalogLoadingCharges ? item.catalogLoadingCharges.toString() : null,
     },
     total: bal.total.toString(),
     lowStock: bal.total.lt(new Decimal(item.reorderLevel)),
@@ -287,7 +293,16 @@ export async function materialsStats(ctx: Ctx): Promise<MaterialsStats> {
 
 export async function createItem(
   ctx: Ctx,
-  data: { name: string; category: string; unit: string; specification?: string; reorderLevel?: number; purchasePrice?: number },
+  data: {
+    name: string;
+    category: string;
+    unit: string;
+    specification?: string;
+    reorderLevel?: number;
+    purchasePrice?: number;
+    catalogFreight?: number;
+    catalogLoadingCharges?: number;
+  },
 ) {
   requireAdmin(ctx); // masters are admin-managed
   const item = await prisma.item.create({
@@ -299,6 +314,8 @@ export async function createItem(
       specification: data.specification,
       reorderLevel: new Decimal(data.reorderLevel ?? 0).toFixed(3),
       purchasePrice: data.purchasePrice != null ? new Decimal(data.purchasePrice).toFixed(2) : null,
+      catalogFreight: data.catalogFreight != null ? new Decimal(data.catalogFreight).toFixed(2) : null,
+      catalogLoadingCharges: data.catalogLoadingCharges != null ? new Decimal(data.catalogLoadingCharges).toFixed(2) : null,
     },
   });
   await logAudit(ctx, { action: "CREATE", entity: "Item", entityId: item.id });
@@ -311,7 +328,16 @@ export async function createItem(
 export async function updateItem(
   ctx: Ctx,
   itemId: string,
-  data: { name?: string; category?: string; unit?: string; specification?: string; reorderLevel?: number; purchasePrice?: number | null },
+  data: {
+    name?: string;
+    category?: string;
+    unit?: string;
+    specification?: string;
+    reorderLevel?: number;
+    purchasePrice?: number | null;
+    catalogFreight?: number | null;
+    catalogLoadingCharges?: number | null;
+  },
 ) {
   requireAdmin(ctx);
   const item = await prisma.item.findFirst({ where: { id: itemId, companyId: ctx.companyId } });
@@ -326,6 +352,12 @@ export async function updateItem(
       ...(data.reorderLevel !== undefined ? { reorderLevel: new Decimal(data.reorderLevel).toFixed(3) } : {}),
       ...(data.purchasePrice !== undefined
         ? { purchasePrice: data.purchasePrice != null ? new Decimal(data.purchasePrice).toFixed(2) : null }
+        : {}),
+      ...(data.catalogFreight !== undefined
+        ? { catalogFreight: data.catalogFreight != null ? new Decimal(data.catalogFreight).toFixed(2) : null }
+        : {}),
+      ...(data.catalogLoadingCharges !== undefined
+        ? { catalogLoadingCharges: data.catalogLoadingCharges != null ? new Decimal(data.catalogLoadingCharges).toFixed(2) : null }
         : {}),
     },
   });

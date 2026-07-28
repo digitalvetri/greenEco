@@ -40,7 +40,18 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
   const vendorPrices = "vendorPrices" in data ? (data as { vendorPrices: { vendor: string; rate: string; date: Date }[] }).vendorPrices : [];
   const priceBreakdown =
     "priceBreakdown" in data
-      ? (data as { priceBreakdown: { base: string; gstRate: number; gst: string; totalWithGst: string } | null }).priceBreakdown
+      ? (
+          data as {
+            priceBreakdown: {
+              base: string;
+              gstRate: number;
+              gst: string;
+              totalWithGst: string;
+              catalogFreight: string | null;
+              catalogLoadingCharges: string | null;
+            } | null;
+          }
+        ).priceBreakdown
       : null;
   const poHistory =
     "poHistory" in data
@@ -81,6 +92,8 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
               specification: item.specification,
               reorderLevel: item.reorderLevel,
               purchasePrice: "purchasePrice" in item ? item.purchasePrice : null,
+              catalogFreight: "catalogFreight" in item ? item.catalogFreight : null,
+              catalogLoadingCharges: "catalogLoadingCharges" in item ? item.catalogLoadingCharges : null,
             }}
           />
           <p className="text-xs text-muted">
@@ -131,9 +144,26 @@ export default async function ItemDetail({ params }: { params: Promise<{ id: str
                 <span className="font-medium">Total with GST</span>
                 <span className="font-semibold tabular-nums">{formatINR(priceBreakdown.totalWithGst)}</span>
               </div>
+              {(priceBreakdown.catalogFreight || priceBreakdown.catalogLoadingCharges) && (
+                <div className="border-t border-border pt-1.5">
+                  <p className="text-[11px] text-muted">As per vendor price list (reference only):</p>
+                  {priceBreakdown.catalogFreight && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted">Freight</span>
+                      <span className="font-medium tabular-nums">{formatINR(priceBreakdown.catalogFreight)}</span>
+                    </div>
+                  )}
+                  {priceBreakdown.catalogLoadingCharges && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted">Loading / unloading</span>
+                      <span className="font-medium tabular-nums">{formatINR(priceBreakdown.catalogLoadingCharges)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <p className="pt-1 text-[11px] text-muted">
-                Freight and loading/unloading vary per purchase order — see the PO history below rather than a
-                fixed figure here.
+                Real freight/loading vary per purchase order — see the PO history below for what was actually
+                charged, not the catalog quote above.
               </p>
             </CardContent>
           </Card>

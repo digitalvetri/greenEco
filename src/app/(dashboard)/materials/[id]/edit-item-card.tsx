@@ -17,7 +17,15 @@ export function EditItemCard({
 }: {
   itemId: string;
   isAdmin: boolean;
-  item: { category: string; unit: string; specification: string | null; reorderLevel: string; purchasePrice: string | null };
+  item: {
+    category: string;
+    unit: string;
+    specification: string | null;
+    reorderLevel: string;
+    purchasePrice: string | null;
+    catalogFreight: string | null;
+    catalogLoadingCharges: string | null;
+  };
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -28,6 +36,8 @@ export function EditItemCard({
     specification: item.specification ?? "",
     reorderLevel: item.reorderLevel,
     purchasePrice: item.purchasePrice ?? "",
+    catalogFreight: item.catalogFreight ?? "",
+    catalogLoadingCharges: item.catalogLoadingCharges ?? "",
   });
 
   if (!isAdmin) return null;
@@ -41,6 +51,8 @@ export function EditItemCard({
           specification: f.specification || undefined,
           reorderLevel: Number(f.reorderLevel),
           purchasePrice: f.purchasePrice === "" ? null : Number(f.purchasePrice),
+          catalogFreight: f.catalogFreight === "" ? null : Number(f.catalogFreight),
+          catalogLoadingCharges: f.catalogLoadingCharges === "" ? null : Number(f.catalogLoadingCharges),
         });
         toast("Item updated");
         setEditing(false);
@@ -92,6 +104,14 @@ export function EditItemCard({
           </Field>
           <Field label="Purchase price ₹" hint="Admin-only — never shown to employees.">
             <Input type="number" min="0" step="0.01" inputMode="decimal" value={f.purchasePrice} onChange={(e) => setF({ ...f, purchasePrice: e.target.value })} placeholder="Optional" />
+          </Field>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Catalog freight ₹" hint="As per the vendor's price list — reference only, actual PO freight may differ.">
+            <Input type="number" min="0" step="0.01" inputMode="decimal" value={f.catalogFreight} onChange={(e) => setF({ ...f, catalogFreight: e.target.value })} placeholder="Optional" />
+          </Field>
+          <Field label="Catalog loading/unloading ₹" hint="As per the vendor's price list — reference only.">
+            <Input type="number" min="0" step="0.01" inputMode="decimal" value={f.catalogLoadingCharges} onChange={(e) => setF({ ...f, catalogLoadingCharges: e.target.value })} placeholder="Optional" />
           </Field>
         </div>
         <Button size="sm" loading={pending} onClick={save}>Save changes</Button>

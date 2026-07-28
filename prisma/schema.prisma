@@ -540,6 +540,13 @@ model Item {
   reorderLevel  Decimal  @default(0) @db.Decimal(12, 3)
   purchasePrice Decimal? @db.Decimal(12, 2) // *** ADMIN-ONLY — strip for EMPLOYEE ***
 
+  // Vendor catalog reference (from the vendor's own price list, e.g. MATERIAL LIST.xlsx) —
+  // NOT the real freight/loading charged on any actual PO, which varies by vendor/qty/site
+  // and lives on PurchaseOrder.freight/loadingCharges + itemLedger's poHistory instead.
+  // *** ADMIN-ONLY — strip for EMPLOYEE ***
+  catalogFreight        Decimal? @db.Decimal(12, 2)
+  catalogLoadingCharges Decimal? @db.Decimal(12, 2)
+
   vendorPrices VendorPrice[]
   movements    StockMovement[]
 

@@ -30,6 +30,8 @@ export const ADMIN_ONLY_KEYS: ReadonlySet<string> = new Set([
   "totalValue",
   "freight",
   "loadingCharges",
+  "catalogFreight",
+  "catalogLoadingCharges",
   "baseAmount",
   "adjustments", // Budget.adjustments
   "annualValue", // ServiceContract (AMC) value
