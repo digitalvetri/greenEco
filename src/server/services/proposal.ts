@@ -492,19 +492,30 @@ export async function generateTermsDraft(
  * differs further, or GEMINI_IMAGE_MODEL's default guess is stale/renamed, correct the
  * model string in Settings → Integrations (no code change needed) or fix the parsing.
  */
-export async function generateProposalImage(ctx: Ctx, proposalId: string): Promise<{ url: string }> {
+export type GenerateProposalImageResult = { ok: true; url: string } | { ok: false; error: string };
+
+/**
+ * Returns a result object instead of throwing for every *expected* failure (no key,
+ * quota/billing, no image in response) — Next.js redacts thrown Server Action error
+ * messages in production builds (replaced with a generic "Server Components render"
+ * message + digest, by design, to avoid leaking internals), so a thrown Error here
+ * NEVER reaches the browser as the specific, actionable text a user needs — it only
+ * ever worked in local dev, where Next doesn't redact. requireAdmin still throws: an
+ * auth boundary, not a message this button is meant to explain.
+ */
+export async function generateProposalImage(ctx: Ctx, proposalId: string): Promise<GenerateProposalImageResult> {
   requireAdmin(ctx);
   const proposal = await prisma.proposal.findFirst({
     where: { id: proposalId, companyId: ctx.companyId },
     include: { versions: { orderBy: { versionNo: "desc" }, take: 1 } },
   });
-  if (!proposal) throw new Error("Proposal not found");
+  if (!proposal) return { ok: false, error: "Proposal not found" };
   const version = proposal.versions.find((v) => v.versionNo === proposal.currentVersion) ?? proposal.versions[0];
-  if (!version) throw new Error("This proposal has no version yet");
+  if (!version) return { ok: false, error: "This proposal has no version yet" };
 
   const config = await loadConfig(ctx.companyId);
   if (!config.GEMINI_API_KEY) {
-    throw new Error("No Gemini API key configured — add one in Settings → Integrations to enable AI images");
+    return { ok: false, error: "No Gemini API key configured — add one in Settings → Integrations to enable AI images" };
   }
 
   const prompt =
@@ -514,7 +525,7 @@ export async function generateProposalImage(ctx: Ctx, proposalId: string): Promi
     `clean white background, no text noise, suitable for a client-facing proposal document.`;
 
   const img = await geminiGenerateImage(config.GEMINI_API_KEY, config.GEMINI_IMAGE_MODEL, prompt);
-  if (!img.ok) throw new Error(img.reason);
+  if (!img.ok) return { ok: false, error: img.reason };
 
   const ext = img.mimeType.includes("png") ? "png" : img.mimeType.includes("webp") ? "webp" : "jpg";
   const key = `uploads/proposal-images/${proposalId}-${randomUUID()}.${ext}`;
@@ -522,7 +533,7 @@ export async function generateProposalImage(ctx: Ctx, proposalId: string): Promi
 
   await prisma.proposalVersion.update({ where: { id: version.id }, data: { heroImageUrl: url } });
   await logAudit(ctx, { action: "UPDATE", entity: "ProposalVersion", entityId: version.id, after: { heroImageUrl: url } });
-  return { url };
+  return { ok: true, url };
 }
 
 /**

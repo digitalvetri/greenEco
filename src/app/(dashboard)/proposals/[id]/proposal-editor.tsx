@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X, Printer, Image as ImageIcon } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X, Printer, Image as ImageIcon, FileDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -127,9 +127,12 @@ export function ProposalEditor({
     technology: view.technology,
     capacityKLD: view.capacityKLD,
   });
+  const [editingBasics, setEditingBasics] = useState(false);
   const [boq, setBoq] = useState<BoqRow[]>(view.version?.boqItems ?? []);
   const [techText, setTechText] = useState(view.version?.technicalText ?? "");
   const [editingTech, setEditingTech] = useState(false);
+  const [editingTcs, setEditingTcs] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [coverLetter, setCoverLetter] = useState(view.version?.coverLetter ?? "");
   const [pointsToNote, setPointsToNote] = useState(view.version?.pointsToNote ?? "");
   const [technologyExplainer, setTechnologyExplainer] = useState(view.version?.technologyExplainer ?? "");
@@ -183,10 +186,31 @@ export function ProposalEditor({
     );
   }
 
+  /** Generate the durable PDF and open it — same call DownloadPdfButton makes,
+   *  inlined here so "Save proposal" can trigger it immediately afterward. */
+  async function generateAndOpenPdf() {
+    setGeneratingPdf(true);
+    try {
+      const res = await fetch("/api/pdf", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ docType: "proposal", docId: view.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "PDF generation failed");
+      window.open(data.url, "_blank", "noopener");
+      toast("PDF ready.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Saved, but PDF generation failed", "error");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
+
   function saveBoq() {
-    run(
-      () =>
-        saveVersionAction(view.id, {
+    startTransition(async () => {
+      try {
+        await saveVersionAction(view.id, {
           boqItems: boq.map((r) => ({
             category: r.category,
             item: r.item,
@@ -206,9 +230,17 @@ export function ProposalEditor({
           technicalSpecs: technicalSpecs as never,
           electricalLoad: electricalLoad as never,
           terms: tcs,
-        }),
-      "Saved.",
-    );
+        });
+        setEditingTcs(false);
+        toast("Saved.");
+        router.refresh();
+        // Immediately regenerate the PDF so it always reflects the latest save —
+        // fire-and-forget from the user's perspective (own loading state, own toast).
+        void generateAndOpenPdf();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Save failed", "error");
+      }
+    });
   }
 
   /** SSE draft generation — parses `event: <name>\ndata: <json>\n\n` frames off the
@@ -360,74 +392,101 @@ export function ProposalEditor({
 
       {tab === "proposal" && (
         <>
-      {/* Basics */}
+      {/* Basics — read-only summary by default; Edit reveals the form (was always an
+          open editable form, felt cluttered — same pattern as Settings' profile/company
+          cards). */}
       <Card className="mb-4">
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Basics</CardTitle>
+          {isAdmin && !editingBasics && (
+            <button
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted hover:bg-surface"
+              onClick={() => setEditingBasics(true)}
+            >
+              <Pencil className="size-3" /> Edit
+            </button>
+          )}
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <Field label="Project name">
-                <Input
-                  value={basics.projectName}
-                  disabled={!isAdmin}
-                  onChange={(e) => setBasics({ ...basics, projectName: e.target.value })}
-                />
-              </Field>
-            </div>
-            <div className="col-span-2">
-              <Field label="Site address">
-                <Input
-                  value={basics.siteAddress}
-                  disabled={!isAdmin}
-                  onChange={(e) => setBasics({ ...basics, siteAddress: e.target.value })}
-                />
-              </Field>
-            </div>
-            <Field label="Plant type">
-              <Select
-                value={basics.plantType}
-                disabled={!isAdmin}
-                onChange={(e) => setBasics({ ...basics, plantType: e.target.value })}
-              >
-                {PLANT_TYPES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Technology">
-              <Select
-                value={basics.technology}
-                disabled={!isAdmin}
-                onChange={(e) => setBasics({ ...basics, technology: e.target.value })}
-              >
-                {TECHNOLOGIES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Capacity (KLD)">
-              <Input
-                type="number"
-                value={basics.capacityKLD}
-                disabled={!isAdmin}
-                onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
-              />
-            </Field>
-            {isAdmin && (
+          {!editingBasics ? (
+            <dl className="space-y-1.5 text-sm">
+              <BasicsRow label="Project name" value={basics.projectName} />
+              <BasicsRow label="Site address" value={basics.siteAddress} />
+              <BasicsRow label="Plant type" value={basics.plantType} />
+              <BasicsRow label="Technology" value={basics.technology} />
+              <BasicsRow label="Capacity" value={`${basics.capacityKLD} KLD`} />
+            </dl>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
+                <Field label="Project name">
+                  <Input
+                    value={basics.projectName}
+                    onChange={(e) => setBasics({ ...basics, projectName: e.target.value })}
+                  />
+                </Field>
+              </div>
+              <div className="col-span-2">
+                <Field label="Site address">
+                  <Input
+                    value={basics.siteAddress}
+                    onChange={(e) => setBasics({ ...basics, siteAddress: e.target.value })}
+                  />
+                </Field>
+              </div>
+              <Field label="Plant type">
+                <Select
+                  value={basics.plantType}
+                  onChange={(e) => setBasics({ ...basics, plantType: e.target.value })}
+                >
+                  {PLANT_TYPES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Technology">
+                <Select
+                  value={basics.technology}
+                  onChange={(e) => setBasics({ ...basics, technology: e.target.value })}
+                >
+                  {TECHNOLOGIES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Capacity (KLD)">
+                <Input
+                  type="number"
+                  value={basics.capacityKLD}
+                  onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
+                />
+              </Field>
+              <div className="col-span-2 flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={pending}
-                  onClick={() => run(() => updateBasicsAction(view.id, basics), "Basics saved.")}
+                  onClick={() =>
+                    startTransition(async () => {
+                      try {
+                        await updateBasicsAction(view.id, basics);
+                        toast("Basics saved.");
+                        setEditingBasics(false);
+                        router.refresh();
+                      } catch (e) {
+                        toast(e instanceof Error ? e.message : "Save failed", "error");
+                      }
+                    })
+                  }
                 >
                   Save basics
                 </Button>
+                <Button variant="ghost" size="sm" onClick={() => setEditingBasics(false)}>
+                  Cancel
+                </Button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -475,10 +534,14 @@ export function ProposalEditor({
                   setGeneratingImage(true);
                   generateProposalImageAction(view.id)
                     .then((r) => {
-                      setHeroImageUrl(r.url);
-                      toast("Image generated.");
+                      if (r.ok) {
+                        setHeroImageUrl(r.url);
+                        toast("Image generated.");
+                      } else {
+                        toast(r.error, "error");
+                      }
                     })
-                    .catch((e) => toast(e instanceof Error ? e.message : "Image generation failed", "error"))
+                    .catch(() => toast("Image generation failed", "error"))
                     .finally(() => setGeneratingImage(false));
                 }}
               >
@@ -1051,50 +1114,71 @@ export function ProposalEditor({
             </div>
           </div>
 
-          {/* Terms & Conditions — fixed template (Reset) or AI-tailored per deal. */}
+          {/* Terms & Conditions — collapsed by default (client feedback: don't show this
+              inline), Edit reveals it. Fixed template (Reset) or AI-tailored per deal. */}
           <div className="mt-4 border-t border-border pt-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-semibold">Terms &amp; Conditions</span>
-              {editable && (
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setTcs(standardTermsTemplate)}>
-                    Reset to standard template
-                  </Button>
-                  <Button
-                    variant="subtle"
-                    size="sm"
-                    disabled={tailoringTerms}
-                    onClick={() => {
-                      setTailoringTerms(true);
-                      generateTermsAction(view.id)
-                        .then((res) => {
-                          setTcs(res.text);
-                          toast(res.source === "ai" ? "T&Cs tailored by AI." : "No AI provider configured — kept the standard template.");
-                        })
-                        .catch((e) => toast(e instanceof Error ? e.message : "Failed to tailor T&Cs", "error"))
-                        .finally(() => setTailoringTerms(false));
-                    }}
-                  >
-                    <Sparkles className="size-4" /> {tailoringTerms ? "Tailoring…" : "AI-tailor for this deal"}
-                  </Button>
-                </div>
+              {!editingTcs && (
+                <button
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted hover:bg-surface"
+                  onClick={() => setEditingTcs(true)}
+                >
+                  {editable ? <Pencil className="size-3" /> : null} {editable ? "Edit" : "View"}
+                </button>
+              )}
+              {editingTcs && (
+                <Button variant="ghost" size="sm" onClick={() => setEditingTcs(false)}>
+                  Done
+                </Button>
               )}
             </div>
-            {editable ? (
-              <Textarea
-                className="min-h-48 font-mono text-sm"
-                value={tcs}
-                onChange={(e) => setTcs(e.target.value)}
-                placeholder="Standard terms & conditions…"
-              />
+            {editingTcs ? (
+              <>
+                {editable && (
+                  <div className="mb-2 flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setTcs(standardTermsTemplate)}>
+                      Reset to standard template
+                    </Button>
+                    <Button
+                      variant="subtle"
+                      size="sm"
+                      disabled={tailoringTerms}
+                      onClick={() => {
+                        setTailoringTerms(true);
+                        generateTermsAction(view.id)
+                          .then((res) => {
+                            setTcs(res.text);
+                            toast(res.source === "ai" ? "T&Cs tailored by AI." : "No AI provider configured — kept the standard template.");
+                          })
+                          .catch((e) => toast(e instanceof Error ? e.message : "Failed to tailor T&Cs", "error"))
+                          .finally(() => setTailoringTerms(false));
+                      }}
+                    >
+                      <Sparkles className="size-4" /> {tailoringTerms ? "Tailoring…" : "AI-tailor for this deal"}
+                    </Button>
+                  </div>
+                )}
+                {editable ? (
+                  <Textarea
+                    className="min-h-48 font-mono text-sm"
+                    value={tcs}
+                    onChange={(e) => setTcs(e.target.value)}
+                    placeholder="Standard terms & conditions…"
+                  />
+                ) : (
+                  <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground/90">{tcs}</p>
+                )}
+              </>
             ) : (
-              <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground/90">{tcs}</p>
+              <p className="text-xs italic text-muted">Click Edit to view or change the Terms &amp; Conditions.</p>
             )}
           </div>
 
           {isAdmin && (
-            <Button className="mt-3" disabled={pending} onClick={saveBoq}>
-              {pending ? "Saving…" : "Save proposal"}
+            <Button className="mt-3" disabled={pending || generatingPdf} onClick={saveBoq}>
+              {generatingPdf ? <FileDown className="size-4 animate-pulse" /> : null}
+              {pending ? "Saving…" : generatingPdf ? "Generating PDF…" : "Save proposal"}
             </Button>
           )}
         </CardContent>
@@ -1171,6 +1255,15 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
     <div className={"flex justify-between " + (bold ? "font-bold" : "text-muted")}>
       <span>{label}</span>
       <span className="tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function BasicsRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-muted">{label}</span>
+      <span className="truncate text-right font-medium">{value || "—"}</span>
     </div>
   );
 }

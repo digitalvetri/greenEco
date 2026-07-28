@@ -64,13 +64,13 @@ async function claudeStreamDraft(
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({ apiKey });
 
-  const proseSystem = `You are a senior wastewater treatment proposal engineer at Green Ecocare (Coimbatore, Tamil Nadu, India), writing a client-facing commercial proposal that will be compared against competitors' quotes. Write ONLY the technical write-up prose for a treatment plant proposal — process description, design basis, treatment stages, and TNPCB-norm outcome language. Reference concrete design parameters where relevant (HRT, MLSS, F/M ratio, aeration rate) so it reads as engineered, not templated. No markdown headers, no JSON, no preamble — just the write-up text.`;
+  const proseSystem = `You are a senior wastewater treatment proposal engineer at Green Ecocare (Coimbatore, Tamil Nadu, India), writing a client-facing commercial proposal that will be compared against competitors' quotes. Write ONLY the technical write-up prose for a treatment plant proposal — a THOROUGH multi-paragraph write-up (400-600 words): (1) a design-basis paragraph with concrete parameters (HRT, MLSS or 'N/A, biofilm' if attached-growth, F/M ratio, aeration rate, sludge age); (2) a NUMBERED step-by-step process-flow section covering every real stage (preliminary screening/oil-grease trap, equalization, biological treatment, secondary clarification, tertiary filtration, disinfection) with a sentence on WHY each stage exists, not just its name; (3) a closing paragraph on expected treated-water quality and its intended use. Read as engineered, not templated. No markdown headers, no JSON, no preamble — just the write-up text.`;
   const proseUser = `Requirement: ${input.description}\nPlant type: ${input.plantType || "STP"}\nTechnology: ${input.technology || "MBBR"}\nCapacity: ${input.capacityKLD || "unspecified"} KLD${input.budgetHint ? `\nBudget hint: ₹${input.budgetHint}` : ""}`;
 
   let technicalText = "";
   const stream = client.messages.stream({
     model,
-    max_tokens: 2000,
+    max_tokens: 3200,
     system: proseSystem,
     messages: [{ role: "user", content: proseUser }],
   });
@@ -84,7 +84,7 @@ async function claudeStreamDraft(
   const jsonSystem = `You are a senior wastewater treatment proposal engineer at Green Ecocare (Coimbatore, Tamil Nadu, India), writing a client-facing commercial proposal that will be compared against competitors' quotes. Produce a persuasive cover letter, points to note, technology explainer, a KLD-scaled Bill of Quantity (BOQ), scope of work, technical specifications, electrical load summary, and payment terms for STP/ETP/WTP plants that meet TNPCB discharge norms. Write with specificity, not generic filler. Respond with STRICT JSON only. Rates are in INR. Keep BOQ realistic for the Indian market.`;
   const res = await client.messages.create({
     model,
-    max_tokens: 6000,
+    max_tokens: 8000,
     system: jsonSystem,
     output_config: { format: { type: "json_schema", schema: DRAFT_SCHEMA_NO_TEXT } } as never,
     messages: [{ role: "user", content: draftPrompt(input) }],
