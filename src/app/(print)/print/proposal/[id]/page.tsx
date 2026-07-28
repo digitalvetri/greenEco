@@ -30,7 +30,7 @@ export default async function ProposalPrint({
   const tcs = typeof v?.terms === "string" ? v.terms : "";
 
   return (
-    <PrintShell title="PROPOSAL" docNo={`${p.number} · v${v?.versionNo ?? 1}`} company={company}>
+    <PrintShell title="PROPOSAL" docNo={`${p.number} · v${v?.versionNo ?? 1}`} company={company} watermark>
       <section style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>{p.projectName}</div>
         <div style={{ fontSize: 14, color: "#555" }}>{p.siteAddress}</div>

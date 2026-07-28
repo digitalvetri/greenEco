@@ -27,7 +27,7 @@ export function PrintShell({
   /** @deprecated pass `company` instead — kept so older call sites still compile. */
   gstin?: string;
   company?: PrintLetterhead;
-  /** Faint full-page background logo (currently used on the invoice PDF only). */
+  /** Faint full-page background logo (invoice, proposal, PO). */
   watermark?: boolean;
   children: React.ReactNode;
 }) {

@@ -52,7 +52,7 @@ export default async function PurchaseOrderPrint({
   const shipToPhone = po.destination?.clientPhone;
 
   return (
-    <PrintShell title="PURCHASE ORDER" docNo={`${po.poNo} · ${new Date(po.createdAt).toLocaleDateString("en-IN")}`} company={company}>
+    <PrintShell title="PURCHASE ORDER" docNo={`${po.poNo} · ${new Date(po.createdAt).toLocaleDateString("en-IN")}`} company={company} watermark>
       <section style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
         <div>M/S. {po.vendor.name}</div>
         {po.vendor.address && <div style={{ color: "#555" }}>{po.vendor.address}</div>}
