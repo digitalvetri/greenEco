@@ -35,6 +35,8 @@ export default async function PurchasingPage() {
             id: p.id,
             poNo: p.poNo,
             vendor: p.vendor.name,
+            vendorPhone: p.vendor.phone,
+            expectedDate: p.expectedDate.toISOString(),
             destinationName: p.destinationName,
             status: p.status,
             totalValue: p.totalValue.toString(),

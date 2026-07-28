@@ -24,6 +24,8 @@ interface POView {
   id: string;
   poNo: string;
   vendor: string;
+  vendorPhone: string;
+  expectedDate: string;
   destinationName: string;
   status: string;
   totalValue: string;
@@ -177,7 +179,14 @@ export function PurchasingPanel({
                       {p.status.replace(/_/g, " ")}
                     </Badge>
                     <DownloadPdfButton docType="po" docId={p.poNo} label="PDF" />
-                    <SendPOWhatsAppButton poId={p.id} poNo={p.poNo} />
+                    <SendPOWhatsAppButton
+                      poId={p.id}
+                      poNo={p.poNo}
+                      vendorName={p.vendor}
+                      vendorPhone={p.vendorPhone}
+                      totalValue={p.totalValue}
+                      expectedDate={p.expectedDate}
+                    />
                     {p.status === "DRAFT" && (
                       <Button size="sm" variant="outline" loading={busy === `send-${p.id}`} disabled={pending} onClick={() => run(`send-${p.id}`, () => setPOStatusAction(p.id, "SENT"), "PO sent")}>
                         <Send className="size-3.5" /> Send

@@ -7,7 +7,6 @@ import { requireAdmin, requireProjectAccess } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { sendWhatsAppText } from "@/lib/whatsapp";
-import { formatINR } from "@/lib/money";
 import { allocateNumber } from "./numbering";
 import { getCompanySettings } from "./company-settings";
 import { deriveBalances, deriveItemBalances, belowReorder, type MovementLike } from "@/lib/domain/stock";
@@ -598,24 +597,11 @@ export async function setPOStatus(ctx: Ctx, poId: string, status: "SENT" | "CLOS
   return { ok: true };
 }
 
-/** Vendor contact + a ready-to-edit default message — populates the "review before send" dialog. */
-export async function poShareDraft(ctx: Ctx, poId: string) {
-  requireAdmin(ctx);
-  const po = await prisma.purchaseOrder.findFirst({ where: { id: poId, companyId: ctx.companyId }, include: { vendor: true } });
-  if (!po) throw new Error("PO not found");
-  const body =
-    `Hi ${po.vendor.name}, please find our Purchase Order ${po.poNo} ` +
-    `for ${formatINR(po.totalValue.toString())}, expected delivery ${po.expectedDate.toLocaleDateString("en-IN")}. ` +
-    `Please confirm receipt.`;
-  return { vendorName: po.vendor.name, vendorPhone: po.vendor.phone, defaultMessage: body };
-}
-
 /**
- * Send a PO to its vendor's WhatsApp, review-before-send (spec §8): the caller
- * composes/edits `body` client-side (mirroring the sendProjectWhatsApp/
- * sendContractWhatsApp convention), and generates the durable PDF first if one
- * doesn't exist yet so the message can carry a link that works without login.
- * Gated (no provider → logged, never sent); audited either way.
+ * Send a PO to its vendor's WhatsApp — the caller (a one-click quick action,
+ * mirroring the leads/projects/service/proposals convention) composes `body`
+ * client-side from data already on the page and redirects immediately; this just
+ * logs the send. Gated (no provider → logged, never sent); audited either way.
  */
 export async function sendPOWhatsApp(ctx: Ctx, poId: string, body: string) {
   requireAdmin(ctx);
@@ -634,7 +620,7 @@ export async function listPOs(ctx: Ctx, take = 100) {
   requireAdmin(ctx); // POs carry rates → admin-only
   const pos = await prisma.purchaseOrder.findMany({
     where: { companyId: ctx.companyId },
-    include: { vendor: { select: { name: true } }, grns: true },
+    include: { vendor: { select: { name: true, phone: true } }, grns: true },
     orderBy: { createdAt: "desc" },
     take: Math.min(take, 200),
   });

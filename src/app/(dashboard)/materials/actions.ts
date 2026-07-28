@@ -10,7 +10,6 @@ import {
   deleteVendor,
   createPO,
   setPOStatus,
-  poShareDraft,
   sendPOWhatsApp,
   receiveGRN,
   transferStock,
@@ -91,11 +90,6 @@ export async function setPOStatusAction(poId: string, status: "SENT" | "CLOSED")
   await setPOStatus(s, poId, status);
   revalidatePath("/materials", "layout"); // "layout" ⇒ covers the nested sections too
   return { ok: true };
-}
-
-export async function poShareDraftAction(poId: string) {
-  const s = await getSession();
-  return poShareDraft(s, poId);
 }
 
 export async function sendPOWhatsAppAction(poId: string, body: string) {
