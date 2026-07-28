@@ -13,6 +13,7 @@ import { ProfileCard } from "./profile-card";
 import { CompanyDetailsCard, ThresholdsCard } from "./company-settings-cards";
 import { ResetPasswordButton } from "./reset-password-button";
 import { EditUserButton } from "./edit-user-button";
+import { DeleteUserButton } from "./delete-user-button";
 import { CreateUserButton } from "./create-user-button";
 import { JobTitleSelect } from "./job-title-select";
 
@@ -33,13 +34,9 @@ export default async function SettingsPage() {
     <div>
       <PageHeader title="Settings" subtitle={isAdmin ? "Your profile, team & workspace" : "Your profile & account"} />
 
-      {/* Available to every role — your own account. Capped width — a profile summary
-          doesn't need to stretch full-bleed on a wide monitor. */}
-      <div className="max-w-xl">
+      {/* Available to every role — your own account. */}
+      <div className="grid gap-4 lg:grid-cols-2">
         <ProfileCard profile={profile} />
-      </div>
-
-      <div className="mt-4">
         <PushToggle />
       </div>
 
@@ -82,6 +79,7 @@ export default async function SettingsPage() {
                     <EditUserButton userId={u.id} name={u.name} phone={u.phone} email={u.email} role={u.role} active={u.active} />
                   )}
                   <ResetPasswordButton userId={u.id} name={u.name} />
+                  {u.id !== session.userId && <DeleteUserButton userId={u.id} name={u.name} />}
                 </div>
               </div>
             ))}

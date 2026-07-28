@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { updateProfile, updateEmail, changePassword, updateAvatar } from "@/server/services/profile";
-import { adminResetPassword, createUser, setUserJobTitle, adminUpdateUser, type CreateUserInput, type UpdateUserInput } from "@/server/services/user-admin";
+import { adminResetPassword, createUser, setUserJobTitle, adminUpdateUser, deleteUser, type CreateUserInput, type UpdateUserInput } from "@/server/services/user-admin";
 import type { JobTitle } from "@prisma/client";
 import {
   updateCompanyDetails,
@@ -82,6 +82,17 @@ export async function adminUpdateUserAction(userId: string, input: UpdateUserInp
     await adminUpdateUser(session, userId, input);
     revalidatePath("/settings");
     return { ok: true, message: "User updated" };
+  } catch (e) {
+    return { ok: false, error: toMessage(e) };
+  }
+}
+
+export async function deleteUserAction(userId: string): Promise<ActionState> {
+  const session = await getSession();
+  try {
+    await deleteUser(session, userId);
+    revalidatePath("/settings");
+    return { ok: true, message: "User deleted" };
   } catch (e) {
     return { ok: false, error: toMessage(e) };
   }

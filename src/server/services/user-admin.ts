@@ -136,6 +136,31 @@ export async function adminUpdateUser(ctx: Ctx, targetUserId: string, input: Upd
   return { ok: true };
 }
 
+/**
+ * Permanently removes a user account. Every other model keeps userId/createdById/
+ * assignedToId as a bare string (documented convention — no Prisma relation to User
+ * anywhere), so this is safe referentially: other records simply keep an orphaned id,
+ * the same "Unknown" display fallback already used e.g. in the activity log. Guards
+ * against deleting yourself (use deactivate via Edit instead) and the last active admin.
+ */
+export async function deleteUser(ctx: Ctx, targetUserId: string): Promise<{ ok: true }> {
+  requireAdmin(ctx);
+  if (targetUserId === ctx.userId) throw new Error("You can't delete your own account.");
+  const target = await prisma.user.findFirst({ where: { id: targetUserId, companyId: ctx.companyId } });
+  if (!target) throw new Error("User not found");
+
+  if (target.role === "ADMIN" && target.active) {
+    const otherActiveAdmins = await prisma.user.count({
+      where: { companyId: ctx.companyId, role: "ADMIN", active: true, id: { not: targetUserId } },
+    });
+    if (otherActiveAdmins === 0) throw new Error("Can't delete the only active admin — promote someone else first.");
+  }
+
+  await prisma.user.delete({ where: { id: targetUserId } });
+  await logAudit(ctx, { action: "DELETE", entity: "User", entityId: targetUserId, before: { name: target.name, phone: target.phone, role: target.role } });
+  return { ok: true };
+}
+
 /** Retroactively assign/change a job title on an existing user — display-only, no permission effect. */
 export async function setUserJobTitle(ctx: Ctx, targetUserId: string, jobTitle: JobTitle | null): Promise<{ ok: true }> {
   requireAdmin(ctx);
