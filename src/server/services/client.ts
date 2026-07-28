@@ -193,6 +193,25 @@ export interface ClientProjectTab {
   orderNo: string | null;
   proposalNo: string | null;
   status: string;
+  /** Descriptive fields for the "know the client completely" summary — proposal's
+   *  finalized values when a proposal exists, else the lead's own structured sizing. */
+  projectName: string | null;
+  plantType: string | null;
+  technology: string | null;
+  capacityKLD: number | null;
+  segment: string | null;
+  orderStatus: string | null;
+  progress: number | null; // stages done/total, only once an Order exists
+  /** Sell-side; page gates display behind isAdmin (this file's existing convention). */
+  projectValue: string | null;
+  startDate: string | null;
+  targetDate: string | null;
+}
+
+function progressOf(stages: { status: string }[]): number {
+  if (!stages.length) return 0;
+  const done = stages.filter((s) => s.status === "DONE").length;
+  return Math.round((done / stages.length) * 100);
 }
 
 /**
@@ -201,6 +220,8 @@ export interface ClientProjectTab {
  * scoped by the same clientWhere as the list (so an EMPLOYEE only sees tabs for
  * projects they themselves have access to). Empty array (not an error) when the
  * anchor isn't visible under clientWhere, so the caller can 404 without an existence leak.
+ * Carries plant type/technology/capacity/status/progress/value for each project so the
+ * client page can show a full "what has this client done with us" picture, not just codes.
  */
 export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<ClientProjectTab[]> {
   const where = clientWhere(ctx);
@@ -209,16 +230,49 @@ export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<Clien
 
   const leads = await prisma.lead.findMany({
     where: { ...where, customerName: anchor.customerName },
-    include: { proposal: { select: { number: true, order: { select: { orderNo: true } } } } },
+    include: {
+      proposal: {
+        select: {
+          number: true,
+          projectName: true,
+          plantType: true,
+          technology: true,
+          capacityKLD: true,
+          order: {
+            select: {
+              orderNo: true,
+              status: true,
+              projectValue: true,
+              startDate: true,
+              targetDate: true,
+              stages: { select: { status: true } },
+            },
+          },
+        },
+      },
+    },
     orderBy: { createdAt: "asc" },
   });
-  return leads.map((l, i) => ({
-    id: l.id,
-    label: `Project ${i + 1}`,
-    orderNo: l.proposal?.order?.orderNo ?? null,
-    proposalNo: l.proposal?.number ?? null,
-    status: l.status,
-  }));
+  return leads.map((l, i) => {
+    const order = l.proposal?.order;
+    return {
+      id: l.id,
+      label: `Project ${i + 1}`,
+      orderNo: order?.orderNo ?? null,
+      proposalNo: l.proposal?.number ?? null,
+      status: l.status,
+      projectName: l.proposal?.projectName ?? l.projectName ?? null,
+      plantType: l.proposal?.plantType ?? l.plantType ?? null,
+      technology: l.proposal?.technology ?? l.technology ?? null,
+      capacityKLD: l.proposal?.capacityKLD ?? l.capacityKLD ?? null,
+      segment: l.segment ?? null,
+      orderStatus: order?.status ?? null,
+      progress: order ? progressOf(order.stages) : null,
+      projectValue: order ? order.projectValue.toString() : null,
+      startDate: order?.startDate?.toISOString() ?? null,
+      targetDate: order?.targetDate?.toISOString() ?? null,
+    };
+  });
 }
 
 export interface ClientAnalytics {
