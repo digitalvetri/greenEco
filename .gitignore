@@ -48,3 +48,6 @@ playwright-report/
 # runtime-generated artifacts (storage adapter local mode)
 /public/pdfs
 /public/uploads
+
+# local pg_dump backups (scripts/backup.sh) — binary DB dumps, never committed
+/backups/
