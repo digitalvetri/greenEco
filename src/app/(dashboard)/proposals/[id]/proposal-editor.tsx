@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X, Printer, Image as ImageIcon, FileDown } from "lucide-react";
+import { Sparkles, Plus, Trash2, Check, AlertTriangle, Pencil, X, Printer, Image as ImageIcon, FileDown, PackageSearch, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { toast } from "@/components/ui/toast";
 import { SpeakButton } from "@/components/mobile/speak-button";
 import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
 import { formatINR } from "@/lib/money";
-import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, BOQ_UNITS, LOST_REASONS } from "@/lib/constants";
+import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, BOQ_UNITS, LOST_REASONS, ITEM_CATEGORIES, categoryLabel } from "@/lib/constants";
 import { ProposalStageTracker } from "./proposal-stage-tracker";
 import { ProposalTimeline } from "./proposal-timeline";
 import { ProposalDocumentsCard } from "./proposal-documents-card";
@@ -103,18 +103,32 @@ interface ElectricalLoadRow {
   hp: number;
 }
 
+/** Item.category (materials taxonomy) → BOQ.category (commercial-quote grouping) —
+ *  a reasonable default when adding a BOQ line from the material list; still editable per row. */
+const ITEM_TO_BOQ_CATEGORY: Record<string, string> = {
+  Plumbing: "Piping",
+  Civil: "Civil",
+  PumpsMotors: "PumpsBlowers",
+  Blowers: "PumpsBlowers",
+  Electrical: "Electrical",
+  MediaConsumables: "Media",
+  Tools: "Others",
+};
+
 export function ProposalEditor({
   view,
   isAdmin,
   events,
   documents,
   standardTermsTemplate,
+  materials,
 }: {
   view: ProposalView;
   isAdmin: boolean;
   events: ProposalEvent[];
   documents: { id: string; url: string; name: string }[];
   standardTermsTemplate: string;
+  materials: { id: string; name: string; unit: string; category: string }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -132,6 +146,30 @@ export function ProposalEditor({
   });
   const [editingBasics, setEditingBasics] = useState(false);
   const [boq, setBoq] = useState<BoqRow[]>(view.version?.boqItems ?? []);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerCategory, setPickerCategory] = useState("");
+  const [pickerSearch, setPickerSearch] = useState("");
+  const pickerResults = materials.filter(
+    (m) =>
+      (!pickerCategory || m.category === pickerCategory) &&
+      (!pickerSearch || m.name.toLowerCase().includes(pickerSearch.toLowerCase())),
+  );
+
+  function addFromMaterial(m: { name: string; unit: string; category: string }) {
+    setBoq((rows) => [
+      ...rows,
+      {
+        category: ITEM_TO_BOQ_CATEGORY[m.category] ?? "Others",
+        item: m.name,
+        unit: BOQ_UNITS.includes(m.unit as (typeof BOQ_UNITS)[number]) ? m.unit : "Nos",
+        qty: "1",
+        rate: "0",
+        amount: "0",
+        aiSuggested: false,
+      },
+    ]);
+    toast(`Added ${m.name}`);
+  }
   const [techText, setTechText] = useState(view.version?.technicalText ?? "");
   const [editingTech, setEditingTech] = useState(false);
   const [editingTcs, setEditingTcs] = useState(false);
@@ -1053,8 +1091,67 @@ export function ProposalEditor({
               <Plus className="size-4" /> Add line
             </Button>
           )}
+          {editable && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 ml-2"
+              onClick={() => setPickerOpen(true)}
+            >
+              <PackageSearch className="size-4" /> Add from materials
+            </Button>
+          )}
           </>
           )}
+
+          <Dialog open={pickerOpen} onClose={() => setPickerOpen(false)} title="Add from materials" className="max-w-lg">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Type of material">
+                  <Select value={pickerCategory} onChange={(e) => setPickerCategory(e.target.value)}>
+                    <option value="">All types</option>
+                    {ITEM_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{categoryLabel(c)}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Search">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted" />
+                    <Input
+                      className="pl-7"
+                      value={pickerSearch}
+                      onChange={(e) => setPickerSearch(e.target.value)}
+                      placeholder="Search item name…"
+                      autoFocus
+                    />
+                  </div>
+                </Field>
+              </div>
+              <div className="max-h-72 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+                {pickerResults.length === 0 ? (
+                  <p className="p-3 text-sm text-muted">No items match.</p>
+                ) : (
+                  pickerResults.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => addFromMaterial(m)}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-surface"
+                    >
+                      <span className="min-w-0 truncate">{m.name}</span>
+                      <span className="shrink-0 text-xs text-muted">{categoryLabel(m.category)} · {m.unit}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-muted">
+                Adds a line with this item&apos;s name and unit — set qty and the quote rate after.
+              </p>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setPickerOpen(false)}>Done</Button>
+              </div>
+            </div>
+          </Dialog>
 
           <div className="mt-3 border-t border-border pt-3 text-sm">
             <Row label="Subtotal" value={formatINR(subtotal)} />

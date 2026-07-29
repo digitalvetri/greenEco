@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getProposal, proposalActivity } from "@/server/services/proposal";
 import { getSettingsFor } from "@/server/services/company-settings";
+import { itemOptions } from "@/server/services/materials";
 import { ProposalEditor, type ProposalView } from "./proposal-editor";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +19,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  const [p, activity, company] = await Promise.all([
+  const [p, activity, company, materials] = await Promise.all([
     getProposal(session, id),
     proposalActivity(session, id),
     getSettingsFor(session),
+    itemOptions(session),
   ]);
   if (!p) notFound();
 
@@ -95,6 +97,7 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
       events={activity ?? []}
       documents={documents}
       standardTermsTemplate={company.standardTermsTemplate}
+      materials={materials}
     />
   );
 }

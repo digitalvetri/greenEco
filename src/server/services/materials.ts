@@ -227,11 +227,11 @@ export async function itemLedger(ctx: Ctx, itemId: string) {
   return stripPricing(view, ctx.role);
 }
 
-/** All items as lightweight options (id/name/unit) for dropdowns — no ledger scan. */
+/** All items as lightweight options (id/name/unit/category) for dropdowns — no ledger scan. */
 export async function itemOptions(ctx: Ctx) {
   return prisma.item.findMany({
     where: { companyId: ctx.companyId },
-    select: { id: true, name: true, unit: true },
+    select: { id: true, name: true, unit: true, category: true },
     orderBy: { name: "asc" },
   });
 }
