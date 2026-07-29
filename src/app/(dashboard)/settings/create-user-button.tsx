@@ -2,13 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { UserPlus } from "lucide-react";
-import type { JobTitle, Role } from "@prisma/client";
+import type { Role } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
-import { JOB_TITLES, JOB_TITLE_LABELS, JOB_TITLE_DEFAULT_ROLE } from "@/lib/job-titles";
+import { JOB_TITLES, jobTitleLabel, JOB_TITLE_DEFAULT_ROLE } from "@/lib/job-titles";
 import { createUserAction } from "./actions";
+
+const CUSTOM = "__custom__";
 
 const EMPTY = {
   name: "",
@@ -16,7 +18,9 @@ const EMPTY = {
   email: "",
   password: "",
   role: "EMPLOYEE" as Role,
-  jobTitle: "" as JobTitle | "",
+  jobTitle: "",
+  customJobTitle: "",
+  customMode: false,
 };
 
 /** Admin-only. Only rendered when AUTH_MODE !== "clerk" — Clerk mode provisions
@@ -31,20 +35,24 @@ export function CreateUserButton() {
       const next = { ...f, [key]: value };
       // jobTitle only *suggests* a starting role, and only while the admin hasn't
       // touched role themselves — role stays independently, explicitly editable.
-      if (key === "jobTitle" && value) next.role = JOB_TITLE_DEFAULT_ROLE[value as JobTitle];
+      // No suggestion for a custom (free-typed) title — leave role as-is.
+      if (key === "jobTitle" && value && JOB_TITLE_DEFAULT_ROLE[value as string]) {
+        next.role = JOB_TITLE_DEFAULT_ROLE[value as string];
+      }
       return next;
     });
   }
 
   function submit() {
     start(async () => {
+      const jobTitle = form.customMode ? form.customJobTitle.trim() : form.jobTitle;
       const res = await createUserAction({
         name: form.name,
         phone: form.phone,
         email: form.email,
         password: form.password,
         role: form.role,
-        jobTitle: form.jobTitle || null,
+        jobTitle: jobTitle || null,
       });
       if (res.ok) {
         toast(`${form.name} can now sign in`);
@@ -78,14 +86,33 @@ export function CreateUserButton() {
             <Input type="password" value={form.password} onChange={(e) => set("password", e.target.value)} autoComplete="new-password" />
           </Field>
           <Field label="Job title" hint="Display label only — does not change what they can access.">
-            <Select value={form.jobTitle} onChange={(e) => set("jobTitle", e.target.value as JobTitle | "")}>
-              <option value="">— None —</option>
-              {JOB_TITLES.map((t) => (
-                <option key={t} value={t}>
-                  {JOB_TITLE_LABELS[t]}
-                </option>
-              ))}
-            </Select>
+            {form.customMode ? (
+              <Input
+                value={form.customJobTitle}
+                onChange={(e) => set("customJobTitle", e.target.value)}
+                placeholder="Type a title…"
+                autoFocus
+              />
+            ) : (
+              <Select
+                value={form.jobTitle}
+                onChange={(e) => {
+                  if (e.target.value === CUSTOM) {
+                    set("customMode", true);
+                    return;
+                  }
+                  set("jobTitle", e.target.value);
+                }}
+              >
+                <option value="">— None —</option>
+                {JOB_TITLES.map((t) => (
+                  <option key={t} value={t}>
+                    {jobTitleLabel(t)}
+                  </option>
+                ))}
+                <option value={CUSTOM}>+ Create new title…</option>
+              </Select>
+            )}
           </Field>
           <Field label="Access level" required hint="Controls what they can see and do — set this deliberately.">
             <Select value={form.role} onChange={(e) => set("role", e.target.value as Role)}>

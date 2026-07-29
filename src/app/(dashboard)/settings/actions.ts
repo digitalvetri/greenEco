@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { updateProfile, updateEmail, changePassword, updateAvatar } from "@/server/services/profile";
 import { adminResetPassword, createUser, setUserJobTitle, adminUpdateUser, deleteUser, type CreateUserInput, type UpdateUserInput } from "@/server/services/user-admin";
-import type { JobTitle } from "@prisma/client";
 import {
   updateCompanyDetails,
   updateThresholds,
@@ -98,7 +97,7 @@ export async function deleteUserAction(userId: string): Promise<ActionState> {
   }
 }
 
-export async function setUserJobTitleAction(userId: string, jobTitle: JobTitle | null): Promise<ActionState> {
+export async function setUserJobTitleAction(userId: string, jobTitle: string | null): Promise<ActionState> {
   const session = await getSession();
   try {
     await setUserJobTitle(session, userId, jobTitle);

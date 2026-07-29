@@ -65,7 +65,7 @@ export default async function SettingsPage() {
                   <div className="min-w-0">
                     <div className="truncate font-medium">{u.name}</div>
                     <div className="text-xs text-muted">{u.phone}</div>
-                    <div className="mt-1 w-32">
+                    <div className="mt-1 w-44">
                       <JobTitleSelect userId={u.id} value={u.jobTitle} />
                     </div>
                   </div>

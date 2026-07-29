@@ -1,11 +1,10 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { Prisma, type JobTitle } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit, type AuditAction } from "@/lib/audit";
 import { hashPassword } from "@/lib/password";
-import { JOB_TITLES } from "@/lib/job-titles";
 import type { Ctx } from "@/lib/rbac";
 
 /**
@@ -38,7 +37,7 @@ const createUserSchema = z.object({
   email: z.string().email("Enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters").max(200),
   role: z.enum(["ADMIN", "EMPLOYEE"]),
-  jobTitle: z.enum(JOB_TITLES as [JobTitle, ...JobTitle[]]).nullable().optional(),
+  jobTitle: z.string().trim().min(1).max(60).nullable().optional(),
 });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
@@ -162,12 +161,14 @@ export async function deleteUser(ctx: Ctx, targetUserId: string): Promise<{ ok: 
 }
 
 /** Retroactively assign/change a job title on an existing user — display-only, no permission effect. */
-export async function setUserJobTitle(ctx: Ctx, targetUserId: string, jobTitle: JobTitle | null): Promise<{ ok: true }> {
+export async function setUserJobTitle(ctx: Ctx, targetUserId: string, jobTitle: string | null): Promise<{ ok: true }> {
   requireAdmin(ctx);
+  const clean = jobTitle?.trim() || null;
+  if (clean && clean.length > 60) throw new Error("Job title is too long");
   const target = await prisma.user.findFirst({ where: { id: targetUserId, companyId: ctx.companyId } });
   if (!target) throw new Error("User not found");
-  await prisma.user.update({ where: { id: targetUserId }, data: { jobTitle } });
-  await logAudit(ctx, { action: "UPDATE", entity: "User", entityId: targetUserId, before: { jobTitle: target.jobTitle }, after: { jobTitle } });
+  await prisma.user.update({ where: { id: targetUserId }, data: { jobTitle: clean } });
+  await logAudit(ctx, { action: "UPDATE", entity: "User", entityId: targetUserId, before: { jobTitle: target.jobTitle }, after: { jobTitle: clean } });
   return { ok: true };
 }
 
