@@ -20,6 +20,8 @@ import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, BOQ_UNITS, LOST_REASONS } fr
 import { ProposalStageTracker } from "./proposal-stage-tracker";
 import { ProposalTimeline } from "./proposal-timeline";
 import { ProposalDocumentsCard } from "./proposal-documents-card";
+import { ManualProposalUpload } from "./manual-proposal-upload";
+import { ProposalFollowUpForm } from "./proposal-followup-form";
 import { SendProposalButtons } from "./send-proposal-button";
 import type { ProposalEvent } from "@/server/services/proposal";
 import {
@@ -116,7 +118,8 @@ export function ProposalEditor({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState<"proposal" | "activity" | "documents">("proposal");
+  const [tab, setTab] = useState<"proposal" | "followups" | "activity" | "documents">("proposal");
+  const followUpEvents = events.filter((e) => e.kind === "followup");
   const locked = view.status === "WON" || view.status === "LOST";
   const editable = !locked && (isAdmin || view.status === "DRAFT");
 
@@ -379,19 +382,37 @@ export function ProposalEditor({
       <Tabs
         className="mb-4"
         active={tab}
-        onChange={(k) => setTab(k as "proposal" | "activity" | "documents")}
+        onChange={(k) => setTab(k as "proposal" | "followups" | "activity" | "documents")}
         items={[
           { key: "proposal", label: "Proposal" },
+          { key: "followups", label: "Follow-up", count: followUpEvents.length },
           { key: "activity", label: "Activity", count: events.length },
           { key: "documents", label: "Documents", count: documents.length },
         ]}
       />
 
+      {tab === "followups" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardContent className="pt-5">
+              <ProposalFollowUpForm proposalId={view.id} />
+            </CardContent>
+          </Card>
+          <div>
+            {followUpEvents.length === 0 ? (
+              <p className="text-sm text-muted">No follow-ups logged yet.</p>
+            ) : (
+              <ProposalTimeline events={followUpEvents} />
+            )}
+          </div>
+        </div>
+      )}
       {tab === "activity" && <ProposalTimeline events={events} />}
       {tab === "documents" && <ProposalDocumentsCard proposalId={view.id} documents={documents} />}
 
       {tab === "proposal" && (
         <>
+      <ManualProposalUpload proposalId={view.id} documents={documents} />
       {/* Basics — read-only summary by default; Edit reveals the form (was always an
           open editable form, felt cluttered — same pattern as Settings' profile/company
           cards). */}

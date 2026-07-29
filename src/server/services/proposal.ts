@@ -53,6 +53,46 @@ export async function addProposalDocument(ctx: Ctx, proposalId: string, doc: { u
   return created;
 }
 
+export interface AddProposalFollowUpInput {
+  type: "CALL" | "SITE_VISIT" | "WHATSAPP" | "EMAIL" | "MEETING";
+  notes: string;
+  rawTranscript?: string;
+  outcome?: "INTERESTED" | "NEEDS_TIME" | "PRICE_DISCUSSION" | "NOT_REACHABLE" | "NEGATIVE";
+  nextDate?: Date;
+  lat?: number;
+  lng?: number;
+  geoAddress?: string;
+}
+
+/**
+ * Log a follow-up against a proposal — the same FollowUp engine leads use (schema
+ * comment: "same engine reused post-quote"), but the write path only ever existed
+ * for leads; getProposal/proposalActivity already read proposal follow-ups, there
+ * was just no way to create one. Deliberately does NOT touch ProposalStatus (no
+ * lead-style closeStatus/lostReason coupling) — status transitions have their own
+ * dedicated controls (Mark under negotiation / Reopen / Mark lost).
+ */
+export async function addProposalFollowUp(ctx: Ctx, proposalId: string, input: AddProposalFollowUpInput) {
+  const p = await prisma.proposal.findFirst({ where: { id: proposalId, companyId: ctx.companyId } });
+  if (!p) throw new Error("Proposal not found");
+  const fu = await prisma.followUp.create({
+    data: {
+      proposalId,
+      type: input.type,
+      notes: input.notes,
+      rawTranscript: input.rawTranscript,
+      outcome: input.outcome,
+      nextDate: input.nextDate,
+      lat: input.lat,
+      lng: input.lng,
+      geoAddress: input.geoAddress,
+      createdById: ctx.userId,
+    },
+  });
+  await logAudit(ctx, { action: "CREATE", entity: "FollowUp", entityId: fu.id, after: { proposalId } });
+  return fu;
+}
+
 export async function deleteProposalDocument(ctx: Ctx, docId: string) {
   const doc = await prisma.proposalDocument.findFirst({ where: { id: docId, companyId: ctx.companyId } });
   if (!doc) throw new Error("Document not found");
