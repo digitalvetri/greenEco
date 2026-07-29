@@ -49,6 +49,10 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 # imports src/lib/password.ts directly and is meant to be run inside this image
 # (npm run db:seed) to create the first admin login after migrate deploy.
 COPY --from=builder /app/src ./src
+# scripts/ — one-off production maintenance commands (data cleanup, catalog import/
+# backfill) are meant to run inside this image via Coolify Terminal/Scheduled Tasks,
+# same as prisma/seed.ts. Not needed to serve the app; only for those manual runs.
+COPY --from=builder /app/scripts ./scripts
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 # Headless Chromium for the /print/* → PDF pipeline (src/lib/pdf.ts).
