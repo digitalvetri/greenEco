@@ -92,10 +92,10 @@ export default async function DashboardPage() {
       </div>
 
       {/* Main + right rail */}
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-3">
         {/* LEFT (2 cols) */}
-        <div className="space-y-5 lg:col-span-2">
-          <div className="grid gap-5 md:grid-cols-2">
+        <div className="min-w-0 space-y-5 lg:col-span-2">
+          <div className="grid min-w-0 gap-5 md:grid-cols-2">
             {/* Project Overview */}
             <Card>
               <CardHeader>
@@ -134,7 +134,7 @@ export default async function DashboardPage() {
             </Card>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid min-w-0 gap-5 md:grid-cols-2">
             {/* Recent Projects */}
             <Card>
               <CardHeader>
@@ -188,7 +188,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* Environmental impact + Alert */}
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid min-w-0 gap-5 md:grid-cols-2">
             <Card className="border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 dark:border-emerald-900/40 dark:from-emerald-950/40 dark:to-teal-950/30">
               <CardHeader>
                 <CardTitle className="text-emerald-700 dark:text-emerald-400">Environmental Impact (YTD)</CardTitle>
@@ -227,7 +227,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* RIGHT RAIL */}
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <Card>
             <CardHeader>
               <CardTitle>Upcoming Tasks</CardTitle>
