@@ -40,6 +40,8 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
     plantType: p.plantType,
     technology: p.technology,
     capacityKLD: p.capacityKLD,
+    capacityValue: p.capacityValue,
+    capacityUnit: p.capacityUnit,
     lostReason: p.lostReason,
     contactPersonId: p.contactPersonId,
     proposalType: p.proposalType,

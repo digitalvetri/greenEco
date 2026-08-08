@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/money";
+import { displayProposalNumber } from "@/lib/domain/proposal-aging";
 import { ClientDetailsEditor } from "./client-details-editor";
 
 export const dynamic = "force-dynamic";
@@ -114,7 +115,7 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
           <CardContent className="space-y-1 text-sm">
             {proposal ? (
               <>
-                <Row label="Proposal" value={proposal.number} />
+                <Row label="Proposal" value={displayProposalNumber(proposal.status, proposal.number)} />
                 <Row label="Status" value={proposal.status} />
                 {order && <Row label="Order" value={order.orderNo} />}
                 {isAdmin && order && <Row label="Value" value={formatINR(order.projectValue.toString())} />}

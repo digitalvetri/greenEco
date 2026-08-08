@@ -20,3 +20,14 @@ export function proposalExpiry(input: {
   if (daysLeft <= 7) return { state: "expiring", daysLeft };
   return { state: "active", daysLeft };
 }
+
+/**
+ * The proposal number is always allocated at creation (needed for the
+ * document's own internal referencing — sequential numbers are never
+ * reused, see numbering.ts) but the client only wants it surfaced once the
+ * proposal is actually complete (sent). DRAFT proposals show a placeholder
+ * instead — cosmetic only, no schema change.
+ */
+export function displayProposalNumber(status: string, number: string): string {
+  return status === "DRAFT" ? "DRAFT — number assigned on completion" : number;
+}

@@ -151,8 +151,38 @@ export const BOQ_UNITS = [
   "Nos", "Cum", "Sq.m", "Rmt", "Kg", "Ton", "Lot", "Set", "Pair", "Litre", "m³", "m²",
 ] as const;
 
-export const PLANT_TYPES = ["STP", "ETP", "WTP"] as const;
+export const PLANT_TYPES = [
+  "STP",
+  "ETP",
+  "WTP",
+  "Softener",
+  "UF",
+  "RO",
+  "UV",
+  "HNS System",
+  "OWC",
+  "SWM",
+  "Others",
+] as const;
 export const TECHNOLOGIES = ["MBBR", "SBR", "MBR", "ASP", "SAFF", "DAF"] as const;
+
+export const CAPACITY_UNITS = ["KLD", "LPH", "Kg/Day", "Tons/Day"] as const;
+
+/**
+ * KLD (kilolitres/day) is the canonical sizing dimension everything downstream
+ * reads (boqPreview, ProposalOutcome, the dashboard environmental strip, the AI
+ * draft prompt). LPH (litres/hour) is the same dimension — a flow rate — so it
+ * converts cleanly. Kg/Day and Tons/Day are a different dimension (a dosing/
+ * softening throughput, not a flow rate) and have no meaningful KLD equivalent —
+ * every existing consumer already no-ops on a falsy/zero KLD, so those return 0
+ * rather than a fabricated number.
+ */
+export function deriveCapacityKLD(value: number, unit: string): number {
+  if (!value || value <= 0) return 0;
+  if (unit === "LPH") return (value * 24) / 1000;
+  if (unit === "Kg/Day" || unit === "Tons/Day") return 0;
+  return value; // KLD, or an unrecognized unit — treat as already KLD
+}
 
 /** Industry segment taxonomy (spec §7.1) — drives segment-level pipeline analytics. */
 export const SEGMENTS = [

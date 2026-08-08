@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { proposalExpiry } from "./proposal-aging";
+import { proposalExpiry, displayProposalNumber } from "./proposal-aging";
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 
@@ -28,5 +28,17 @@ describe("proposalExpiry", () => {
 
   it("UNDER_NEGOTIATION is also subject to expiry", () => {
     expect(proposalExpiry({ status: "UNDER_NEGOTIATION", versionCreatedAt: daysAgo(40), validityDays: 30 })?.state).toBe("expired");
+  });
+});
+
+describe("displayProposalNumber", () => {
+  it("hides the real number while DRAFT", () => {
+    expect(displayProposalNumber("DRAFT", "GEC-PRO-2026-001")).toBe("DRAFT — number assigned on completion");
+  });
+
+  it("reveals the real number once sent/won/lost", () => {
+    expect(displayProposalNumber("SENT", "GEC-PRO-2026-001")).toBe("GEC-PRO-2026-001");
+    expect(displayProposalNumber("WON", "GEC-PRO-2026-001")).toBe("GEC-PRO-2026-001");
+    expect(displayProposalNumber("LOST", "GEC-PRO-2026-001")).toBe("GEC-PRO-2026-001");
   });
 });

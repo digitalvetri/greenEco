@@ -16,6 +16,7 @@ import { toast } from "@/components/ui/toast";
 import { SpeakButton } from "@/components/mobile/speak-button";
 import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
 import { formatINR } from "@/lib/money";
+import { displayProposalNumber } from "@/lib/domain/proposal-aging";
 import {
   PLANT_TYPES,
   TECHNOLOGIES,
@@ -26,6 +27,8 @@ import {
   categoryLabel,
   PROPOSAL_TYPES,
   PROJECT_CATEGORIES,
+  CAPACITY_UNITS,
+  deriveCapacityKLD,
 } from "@/lib/constants";
 import { ProposalStageTracker } from "./proposal-stage-tracker";
 import { ProposalTimeline } from "./proposal-timeline";
@@ -77,6 +80,8 @@ export interface ProposalView {
   plantType: string;
   technology: string;
   capacityKLD: number;
+  capacityValue: number | null;
+  capacityUnit: string;
   lostReason: string | null;
   contactPersonId: string | null;
   proposalType: string | null;
@@ -157,7 +162,11 @@ export function ProposalEditor({
     siteAddress: view.siteAddress,
     plantType: view.plantType,
     technology: view.technology,
-    capacityKLD: view.capacityKLD,
+    // Redisplay whatever was actually typed — capacityValue when a non-KLD
+    // unit was used, else the canonical capacityKLD.
+    capacityKLD:
+      view.capacityUnit !== "KLD" && view.capacityValue != null ? view.capacityValue : view.capacityKLD,
+    capacityUnit: view.capacityUnit,
     contactPersonId: view.contactPersonId ?? "",
     proposalType: view.proposalType ?? "",
     projectCategory: view.projectCategory ?? "",
@@ -313,7 +322,9 @@ export function ProposalEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description: aiDesc,
-          capacityKLD: basics.capacityKLD || undefined,
+          // basics.capacityKLD is the raw typed value in basics.capacityUnit (may not
+          // be KLD) — derive the canonical KLD number the AI prompt actually expects.
+          capacityKLD: deriveCapacityKLD(Number(basics.capacityKLD) || 0, basics.capacityUnit) || undefined,
           technology: basics.technology,
           plantType: basics.plantType,
         }),
@@ -378,7 +389,7 @@ export function ProposalEditor({
     <div>
       <PageHeader
         title={view.projectName || "Proposal"}
-        subtitle={view.number}
+        subtitle={displayProposalNumber(view.status, view.number)}
         backHref="/proposals"
         action={
           <div className="flex items-center gap-2">
@@ -491,7 +502,7 @@ export function ProposalEditor({
               <BasicsRow label="Site address" value={basics.siteAddress} />
               <BasicsRow label="Plant type" value={basics.plantType} />
               <BasicsRow label="Technology" value={basics.technology} />
-              <BasicsRow label="Capacity" value={`${basics.capacityKLD} KLD`} />
+              <BasicsRow label="Capacity" value={`${basics.capacityKLD} ${basics.capacityUnit}`} />
               <BasicsRow
                 label="Kind Attn"
                 value={contacts.find((c) => c.id === basics.contactPersonId)?.name ?? "—"}
@@ -537,12 +548,23 @@ export function ProposalEditor({
                   ))}
                 </Select>
               </Field>
-              <Field label="Capacity (KLD)">
-                <Input
-                  type="number"
-                  value={basics.capacityKLD}
-                  onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
-                />
+              <Field label="Capacity">
+                <div className="flex gap-1.5">
+                  <Input
+                    type="number"
+                    value={basics.capacityKLD}
+                    onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
+                  />
+                  <Select
+                    value={basics.capacityUnit}
+                    onChange={(e) => setBasics({ ...basics, capacityUnit: e.target.value })}
+                    className="w-28 shrink-0"
+                  >
+                    {CAPACITY_UNITS.map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </Select>
+                </div>
               </Field>
               <Field label="Kind Attn">
                 <Select
@@ -590,6 +612,7 @@ export function ProposalEditor({
                       try {
                         await updateBasicsAction(view.id, {
                           ...basics,
+                          capacityValue: basics.capacityKLD,
                           contactPersonId: basics.contactPersonId || null,
                           proposalType: basics.proposalType || null,
                           projectCategory: basics.projectCategory || null,

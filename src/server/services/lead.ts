@@ -5,7 +5,7 @@ import type { Ctx } from "@/lib/rbac";
 import { stripPricing } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
-import { boqPreview, SEGMENT_TO_CATEGORY } from "@/lib/constants";
+import { boqPreview, SEGMENT_TO_CATEGORY, deriveCapacityKLD } from "@/lib/constants";
 import { leadScore, leadCompleteness } from "@/lib/domain/lead-score";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
@@ -603,6 +603,18 @@ export async function findDuplicateByPhone(ctx: Ctx, phone: string) {
   });
 }
 
+/**
+ * capacityKLD is the canonical KLD number every downstream consumer reads
+ * (boqPreview, ProposalOutcome, dashboard env strip). Derived server-side
+ * from capacityValue/capacityUnit when a unit is given, rather than trusting
+ * whatever capacityKLD the client computed — the source of truth is
+ * value+unit; capacityKLD is a projection of it, not independently editable.
+ */
+function resolveCapacityKLD(input: { capacityKLD?: number; capacityValue?: number; capacityUnit?: string }) {
+  if (input.capacityUnit) return deriveCapacityKLD(input.capacityValue ?? input.capacityKLD ?? 0, input.capacityUnit);
+  return input.capacityKLD;
+}
+
 export async function createLead(ctx: Ctx, input: CreateLeadInput) {
   if (!input.overrideDuplicate) {
     const dup = await findDuplicateByPhone(ctx, input.phone);
@@ -641,7 +653,9 @@ export async function createLead(ctx: Ctx, input: CreateLeadInput) {
         requirement: input.requirement,
         plantType: input.plantType,
         technology: input.technology,
-        capacityKLD: input.capacityKLD,
+        capacityKLD: resolveCapacityKLD(input),
+        capacityValue: input.capacityValue,
+        capacityUnit: input.capacityUnit,
         segment: input.segment,
         budgetBand: input.budgetBand,
         decisionTimeline: input.decisionTimeline,
@@ -723,7 +737,9 @@ export async function updateLead(ctx: Ctx, id: string, input: UpdateLeadInput) {
         requirement: input.requirement,
         plantType: input.plantType,
         technology: input.technology,
-        capacityKLD: input.capacityKLD,
+        capacityKLD: resolveCapacityKLD(input),
+        capacityValue: input.capacityValue,
+        capacityUnit: input.capacityUnit,
         segment: input.segment,
         budgetBand: input.budgetBand,
         decisionTimeline: input.decisionTimeline,
@@ -1455,6 +1471,8 @@ export async function convertToProposal(ctx: Ctx, leadId: string) {
         plantType: lead.plantType ?? "STP",
         technology: lead.technology ?? "MBBR",
         capacityKLD: lead.capacityKLD ?? 0,
+        capacityValue: lead.capacityValue,
+        capacityUnit: lead.capacityUnit ?? "KLD",
         projectCategory: lead.segment ? (SEGMENT_TO_CATEGORY[lead.segment] ?? null) : null,
         status: "DRAFT",
         createdById: ctx.userId,

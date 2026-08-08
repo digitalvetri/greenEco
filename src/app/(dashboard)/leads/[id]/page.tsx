@@ -5,6 +5,7 @@ import { MessageCircle, Pencil, User, Activity, Flame } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getLead, listCompanyUsers, leadActivity } from "@/server/services/lead";
+import { displayProposalNumber } from "@/lib/domain/proposal-aging";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -71,7 +72,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             )}
             {lead.proposal && (
               <Link href={`/proposals/${lead.proposal.id}`}>
-                <Badge variant="review">Proposal {lead.proposal.number} →</Badge>
+                <Badge variant="review">
+                  Proposal {displayProposalNumber(lead.proposal.status, lead.proposal.number)} →
+                </Badge>
               </Link>
             )}
             <div className="ml-auto flex items-center gap-1.5 text-xs text-muted">
@@ -163,7 +166,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <CardContent className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
                 {lead.plantType && <Row label="Plant type" value={lead.plantType} />}
                 {lead.technology && <Row label="Technology" value={lead.technology} />}
-                {lead.capacityKLD != null && <Row label="Capacity" value={`${lead.capacityKLD} KLD`} />}
+                {lead.capacityKLD != null && (
+                  <Row
+                    label="Capacity"
+                    value={
+                      lead.capacityUnit && lead.capacityUnit !== "KLD" && lead.capacityValue != null
+                        ? `${lead.capacityValue} ${lead.capacityUnit} (${lead.capacityKLD} KLD)`
+                        : `${lead.capacityKLD} KLD`
+                    }
+                  />
+                )}
                 {lead.segment && <Row label="Segment" value={lead.segment} />}
                 {lead.budgetBand && <Row label="Budget" value={lead.budgetBand} />}
                 {lead.decisionTimeline && <Row label="Timeline" value={lead.decisionTimeline} />}

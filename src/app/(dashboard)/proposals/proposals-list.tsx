@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatINR } from "@/lib/money";
+import { displayProposalNumber } from "@/lib/domain/proposal-aging";
 
 export type ProposalExpiry = { state: "active" | "expiring" | "expired"; daysLeft: number } | null;
 
@@ -95,7 +96,7 @@ export function ProposalsList({
         <Card key={p.id} className="flex items-center justify-between gap-3 p-3 transition-colors hover:border-primary/40">
           <Link href={`/proposals/${p.id}`} className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs text-muted">{p.number}</span>
+              <span className="font-mono text-xs text-muted">{displayProposalNumber(p.status, p.number)}</span>
               <Badge variant={variant(p.status)}>{p.status.replace(/_/g, " ")}</Badge>
               {p.aiGenerated && (
                 <Badge variant="review">

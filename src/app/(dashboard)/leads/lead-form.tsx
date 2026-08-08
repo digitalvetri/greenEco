@@ -18,6 +18,7 @@ import {
   SEGMENTS,
   BUDGET_BANDS,
   DECISION_TIMELINES,
+  CAPACITY_UNITS,
 } from "@/lib/constants";
 import { createLeadAction, updateLeadAction, convertLeadAction } from "./actions";
 
@@ -50,6 +51,7 @@ export interface LeadFormInitial {
   plantType?: string;
   technology?: string;
   capacityKLD?: string;
+  capacityUnit?: string;
   segment?: string;
   budgetBand?: string;
   decisionTimeline?: string;
@@ -94,6 +96,7 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
     plantType: initial?.plantType ?? "",
     technology: initial?.technology ?? "",
     capacityKLD: initial?.capacityKLD ?? "",
+    capacityUnit: initial?.capacityUnit ?? "KLD",
     segment: initial?.segment ?? "",
     budgetBand: initial?.budgetBand ?? "",
     decisionTimeline: initial?.decisionTimeline ?? "",
@@ -138,6 +141,7 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
       leadType: form.leadType || undefined,
       howMet: form.howMet || undefined,
       state: form.state || undefined,
+      capacityValue: form.capacityKLD ? Number(form.capacityKLD) : undefined,
       overrideDuplicate: override,
     };
     startTransition(async () => {
@@ -332,13 +336,24 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
                 ))}
               </Select>
             </Field>
-            <Field label="Capacity (KLD)">
-              <Input
-                value={form.capacityKLD}
-                inputMode="decimal"
-                onChange={(e) => set("capacityKLD", e.target.value.replace(/[^\d.]/g, ""))}
-                placeholder="e.g. 50"
-              />
+            <Field label="Capacity">
+              <div className="flex gap-1.5">
+                <Input
+                  value={form.capacityKLD}
+                  inputMode="decimal"
+                  onChange={(e) => set("capacityKLD", e.target.value.replace(/[^\d.]/g, ""))}
+                  placeholder="e.g. 50"
+                />
+                <Select
+                  value={form.capacityUnit}
+                  onChange={(e) => set("capacityUnit", e.target.value)}
+                  className="w-28 shrink-0"
+                >
+                  {CAPACITY_UNITS.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </Select>
+              </div>
             </Field>
             <Field label="Segment">
               <Select value={form.segment} onChange={(e) => set("segment", e.target.value)}>

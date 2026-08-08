@@ -159,9 +159,11 @@ model Lead {
   // Structured plant-sizing (spec §7.1) — captured at the lead stage so the
   // pipeline can be filtered/analyzed by KLD and a BOQ band previewed pre-quote.
   // All nullable: pre-P2 leads have none; convertToProposal coalesces defaults.
-  plantType        String? // STP | ETP | WTP
+  plantType        String? // STP | ETP | WTP | Softener | UF | RO | UV | HNS System | OWC | SWM | Others
   technology       String? // MBBR | SBR | MBR | ASP | SAFF
-  capacityKLD      Float? //  central sizing dimension (kilolitres/day)
+  capacityKLD      Float? //  central sizing dimension (kilolitres/day) — always KLD-denominated, derived when capacityUnit != "KLD"
+  capacityValue    Float? // raw entered value in capacityUnit — kept alongside capacityKLD purely so the form can redisplay what was actually typed
+  capacityUnit     String? // KLD | LPH | Kg/Day | Tons/Day — see lib/constants.ts CAPACITY_UNITS
   segment          String? // Apartment | Textile | Hospital | Hotel | ITPark | Industrial | Municipal | Institution
   budgetBand       String? // indicative budget band
   decisionTimeline String? // expected decision timeframe
@@ -307,9 +309,11 @@ model Proposal {
   leadId         String            @unique
   projectName    String
   siteAddress    String
-  plantType      String // STP | ETP | WTP
+  plantType      String // STP | ETP | WTP | Softener | UF | RO | UV | HNS System | OWC | SWM | Others
   technology     String // MBBR | SBR | MBR | ASP | ...
-  capacityKLD    Float
+  capacityKLD    Float // always KLD-denominated — derived from capacityValue/capacityUnit when unit != "KLD"
+  capacityValue  Float? // raw entered value in capacityUnit — kept alongside capacityKLD purely so the editor can redisplay what was actually typed
+  capacityUnit   String @default("KLD") // KLD | LPH | Kg/Day | Tons/Day
   status         ProposalStatus    @default(DRAFT)
   lostReason     String? // required on LOST — feeds AI learning loop
   currentVersion Int               @default(1)

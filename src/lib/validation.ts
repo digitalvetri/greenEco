@@ -45,6 +45,8 @@ export const plantSizingFields = {
   plantType: optStr,
   technology: optStr,
   capacityKLD: optNum,
+  capacityValue: optNum,
+  capacityUnit: optStr,
   segment: optStr,
   budgetBand: optStr,
   decisionTimeline: optStr,

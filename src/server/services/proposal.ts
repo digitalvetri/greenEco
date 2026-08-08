@@ -11,7 +11,7 @@ import { allocateNumber } from "./numbering";
 import { recordProposalOutcome } from "@/server/automations/winloss-learning";
 import { generateProposalDraft, type AiProposalInput, type AiProposalDraft } from "@/lib/ai";
 import { streamProposalDraft } from "@/lib/ai-stream";
-import { DEFAULT_STAGES } from "@/lib/constants";
+import { DEFAULT_STAGES, deriveCapacityKLD } from "@/lib/constants";
 import { proposalExpiry } from "@/lib/domain/proposal-aging";
 import { formatINR } from "@/lib/money";
 import { sendWhatsAppText } from "@/lib/whatsapp";
@@ -288,6 +288,8 @@ export async function updateBasics(
     plantType?: string;
     technology?: string;
     capacityKLD?: number;
+    capacityValue?: number;
+    capacityUnit?: string;
     contactPersonId?: string | null;
     proposalType?: string | null;
     projectCategory?: string | null;
@@ -307,8 +309,17 @@ export async function updateBasics(
     });
     if (!contact) throw new Error("Contact person not found on this lead");
   }
-  await prisma.proposal.update({ where: { id }, data });
-  await logAudit(ctx, { action: "UPDATE", entity: "Proposal", entityId: id, after: data });
+  // capacityKLD is the canonical KLD number every downstream consumer reads —
+  // derived from capacityValue/capacityUnit here rather than trusting the
+  // client's math, same as the lead-side resolveCapacityKLD.
+  const resolved = {
+    ...data,
+    capacityKLD: data.capacityUnit
+      ? deriveCapacityKLD(data.capacityValue ?? data.capacityKLD ?? 0, data.capacityUnit)
+      : data.capacityKLD,
+  };
+  await prisma.proposal.update({ where: { id }, data: resolved });
+  await logAudit(ctx, { action: "UPDATE", entity: "Proposal", entityId: id, after: resolved });
   return { ok: true };
 }
 

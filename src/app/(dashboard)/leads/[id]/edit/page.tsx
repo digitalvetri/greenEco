@@ -29,7 +29,15 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
           lng: lead.lng ?? undefined,
           plantType: lead.plantType ?? "",
           technology: lead.technology ?? "",
-          capacityKLD: lead.capacityKLD != null ? String(lead.capacityKLD) : "",
+          // Redisplay whatever was actually typed — capacityValue when a non-KLD
+          // unit was used, else the canonical capacityKLD.
+          capacityKLD:
+            lead.capacityUnit && lead.capacityUnit !== "KLD" && lead.capacityValue != null
+              ? String(lead.capacityValue)
+              : lead.capacityKLD != null
+                ? String(lead.capacityKLD)
+                : "",
+          capacityUnit: lead.capacityUnit ?? "KLD",
           segment: lead.segment ?? "",
           budgetBand: lead.budgetBand ?? "",
           decisionTimeline: lead.decisionTimeline ?? "",
