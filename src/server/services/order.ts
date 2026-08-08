@@ -6,6 +6,7 @@ import { stripPricing } from "@/lib/rbac";
 import { requireAdmin, requireProjectAccess } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { computeMilestoneStatus } from "@/lib/domain/milestone";
+import { computeOrderFinancials } from "@/lib/domain/order-financials";
 import { formatINR } from "@/lib/money";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
@@ -450,6 +451,78 @@ export async function getOrder(ctx: Ctx, id: string) {
   if (!order) return null;
   const progress = progressOf(order.stages);
   return { ...stripPricing(order, ctx.role), progress };
+}
+
+/**
+ * Per-project Advance/Invoice/Payment summary for the client Financial view
+ * (proposal doc's ask). Money — admin-only, same gating as every other money
+ * surface. Invoice Raised is queried directly against Invoice (not via
+ * milestone.invoice, which only ever holds the ORIGINAL invoice — a credit
+ * note deliberately has no milestoneId, see createCreditNote) so credit notes
+ * are included and net out via their already-negative total.
+ */
+export async function getOrderFinancials(ctx: Ctx, orderId: string) {
+  requireAdmin(ctx);
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId: ctx.companyId }, select: { id: true } });
+  if (!order) throw new Error("Order not found");
+
+  const [milestones, invoices] = await Promise.all([
+    prisma.paymentMilestone.findMany({
+      where: { orderId },
+      select: { seq: true, receipts: { select: { amount: true } } },
+    }),
+    prisma.invoice.findMany({ where: { orderId, companyId: ctx.companyId }, select: { status: true, total: true } }),
+  ]);
+
+  return computeOrderFinancials(
+    milestones.map((m) => ({ seq: m.seq, receiptAmounts: m.receipts.map((r) => r.amount) })),
+    invoices,
+  );
+}
+
+/**
+ * Full per-project payment statement (milestones/receipts/invoices, incl.
+ * credit notes) for the /print/payment-statement route. Admin-only. Separate
+ * from getOrderFinancials (which returns only the 3 rolled-up totals) because
+ * the printed statement needs the actual line items, not just sums.
+ */
+export async function getPaymentStatement(ctx: Ctx, orderId: string) {
+  requireAdmin(ctx);
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, companyId: ctx.companyId },
+    select: {
+      id: true,
+      orderNo: true,
+      clientName: true,
+      siteAddress: true,
+      projectValue: true,
+      milestones: {
+        orderBy: { seq: "asc" },
+        select: {
+          seq: true,
+          description: true,
+          amount: true,
+          status: true,
+          dueDate: true,
+          receipts: { orderBy: { date: "asc" }, select: { date: true, amount: true, mode: true, refNo: true } },
+        },
+      },
+    },
+  });
+  if (!order) throw new Error("Order not found");
+
+  const invoices = await prisma.invoice.findMany({
+    where: { orderId, companyId: ctx.companyId },
+    orderBy: { date: "asc" },
+    select: { invoiceNo: true, date: true, total: true, status: true, isCreditNote: true },
+  });
+
+  const financials = computeOrderFinancials(
+    order.milestones.map((m) => ({ seq: m.seq, receiptAmounts: m.receipts.map((r) => r.amount) })),
+    invoices,
+  );
+
+  return { order, invoices, ...financials };
 }
 
 export async function updateStage(

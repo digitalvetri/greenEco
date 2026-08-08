@@ -275,6 +275,45 @@ export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<Clien
   });
 }
 
+/**
+ * Full client+project export (not just the visible/loaded page) — one row per
+ * project, same shape as listClientProjectTabs but company-wide. Same 5000-row
+ * cap convention as allLeadsForExport. projectValue is sell-side, admin-only
+ * (stripPricing handles the gate; EMPLOYEE gets it stripped from the row).
+ */
+export async function allClientsForExport(ctx: Ctx, search?: string) {
+  const rows = await prisma.lead.findMany({
+    where: clientWhere(ctx, search),
+    include: {
+      proposal: {
+        select: {
+          number: true,
+          projectName: true,
+          plantType: true,
+          technology: true,
+          capacityKLD: true,
+          order: { select: { orderNo: true, status: true, projectValue: true } },
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 5000,
+  });
+  return stripPricing(rows, ctx.role).map((l) => ({
+    customerName: l.customerName,
+    phone: l.phone,
+    address: l.address,
+    projectName: l.proposal?.projectName ?? l.projectName ?? "",
+    plantType: l.proposal?.plantType ?? l.plantType ?? "",
+    technology: l.proposal?.technology ?? l.technology ?? "",
+    capacityKLD: l.proposal?.capacityKLD ?? l.capacityKLD ?? "",
+    proposalNo: l.proposal?.number ?? "",
+    orderNo: l.proposal?.order?.orderNo ?? "",
+    orderStatus: l.proposal?.order?.status ?? "",
+    projectValue: l.proposal?.order?.projectValue?.toString() ?? "",
+  }));
+}
+
 export interface ClientAnalytics {
   uniqueCustomers: number; // distinct by customer name — see listClientCustomers for why
   repeatCustomers: number; // customers with > 1 project

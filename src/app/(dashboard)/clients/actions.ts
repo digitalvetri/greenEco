@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { updateLeadSchema } from "@/lib/validation";
 import { updateLead, addLeadContact, deleteLeadContact } from "@/server/services/lead";
+import { allClientsForExport } from "@/server/services/client";
 
 /**
  * Edit a client's core details from the Client 360 screen. A "client" is the origin
@@ -42,4 +43,9 @@ export async function deleteClientContactAction(leadId: string, contactId: strin
   } catch (e) {
     return { ok: false as const, error: e instanceof Error ? e.message : "Failed to remove contact" };
   }
+}
+
+export async function exportAllClientsAction(search?: string) {
+  const session = await getSession();
+  return allClientsForExport(session, search);
 }

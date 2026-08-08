@@ -5,6 +5,7 @@ import { listClientCustomers, clientStats } from "@/server/services/client";
 import { PageHeader, StatTile } from "@/components/ui/stat";
 import { ClientsList } from "./clients-list";
 import { ClientsSearch } from "./clients-search";
+import { ClientExportButton } from "./client-export-button";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,12 @@ export default async function ClientsPage({
         title="Clients"
         subtitle={`${items.length}${nextOffset !== null ? "+" : ""} shown`}
         action={
-          <Link href="/clients/analytics" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
-            <BarChart3 className="size-4" /> Analytics
-          </Link>
+          <div className="flex items-center gap-2">
+            <ClientExportButton search={search} />
+            <Link href="/clients/analytics" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted">
+              <BarChart3 className="size-4" /> Analytics
+            </Link>
+          </div>
         }
       />
 

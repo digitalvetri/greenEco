@@ -4,12 +4,14 @@ import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getClient360, listClientProjectTabs } from "@/server/services/client";
+import { getOrderFinancials } from "@/server/services/order";
 import { PageHeader } from "@/components/ui/stat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/money";
 import { displayProposalNumber } from "@/lib/domain/proposal-aging";
 import { ClientDetailsEditor } from "./client-details-editor";
+import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +41,7 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
   const order = proposal?.order;
   const isAdmin = session.role === "ADMIN";
   const hasMultipleProjects = tabs.length > 1;
+  const financials = isAdmin && order ? await getOrderFinancials(session, order.id) : null;
 
   return (
     <div>
@@ -205,6 +208,30 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
           )}
         </CardContent>
       </Card>
+
+      {/* Financial — Advance Received / Invoice Raised / Payment Received per project. Admin-only, money. */}
+      {financials && order && (
+        <Card className="mt-4">
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Financial</CardTitle>
+            <DownloadPdfButton docType="payment-statement" docId={order.id} label="Payment statement" />
+          </CardHeader>
+          <CardContent className="grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <div className="text-muted">Advance Received</div>
+              <div className="mt-0.5 font-semibold">{formatINR(financials.advanceReceived)}</div>
+            </div>
+            <div>
+              <div className="text-muted">Invoice Raised</div>
+              <div className="mt-0.5 font-semibold">{formatINR(financials.invoiceRaised)}</div>
+            </div>
+            <div>
+              <div className="text-muted">Payment Received</div>
+              <div className="mt-0.5 font-semibold text-ok">{formatINR(financials.paymentReceived)}</div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Every project this client has done with us — not just the current tab. */}
       {hasMultipleProjects && (
