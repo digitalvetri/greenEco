@@ -41,6 +41,57 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v42 — Client's Lead/Proposal doc, shipped as 4 phases (A→D)
+
+Client sent two docs (`Idea for Lead in CRM Green Ecocare.docx`, `Idea for Proposal in CRM Green
+Ecocare.docx`) sketching institutional/B2B lead capture, a proposal type/Kind-Attn/review→complete
+workflow, and a real Client entity with its own Financial view once won. Scoped into 4 independently-
+verified phases (see the approved plan for the full reasoning) rather than one large change.
+**Combined gate across all 4: tsc 0 · lint 0 new · 94 unit (+18 from 76) · `next build` clean ·
+every phase live-DB-verified with the real service functions (not simulated), test data cleaned up.**
+
+- **Phase A — Lead & Proposal fields (additive only).** `Lead.leadType/howMet/state/branchOffices`
+  (kept separate from the existing `source` field, which already drives by-source analytics/filters —
+  not touched); `ContactPerson.email/location`; `Proposal.contactPersonId` ("Kind Attn" — validated
+  against its own lead's contacts), `proposalType`, `projectCategory`. New `leadCompleteness()` — a
+  pure checklist %, not a validation gate (phone/address/source stay required exactly as before; only
+  State is newly required, and only at the UI layer on the create form — the Zod schema keeps it
+  optional so the existing Excel bulk-import path, which has no state column, keeps working). Leads
+  list gained a Sort-by control. Proposals list tabs reworked to Active/Revised (derived views, no new
+  stored status — same approach already used for EXPIRED)/Won/Loss/Inactive.
+- **Phase B — Proposal workflow polish.** Proposal numbers still allocate at creation (unchanged) but
+  the UI hides the real number behind "DRAFT — number assigned on completion" until sent, across every
+  surface that shows one. `PLANT_TYPES` widened to include Softener/UF/RO/UV/HNS System/OWC/SWM
+  (confirmed `boqPreview()` is pure KLD-math with no plantType branching before widening). Capacity is
+  now unit-aware (KLD/LPH/Kg per Day/Tons per Day) on Lead and Proposal — `capacityKLD` stays the
+  canonical number every existing consumer reads (never repurposed); new `capacityValue`+`capacityUnit`
+  hold what was actually typed for faithful redisplay, with `capacityKLD` derived server-side (LPH→KLD
+  flow conversion; Kg/Day and Tons/Day are a different dimension with no flow equivalent → resolve to 0,
+  which every existing consumer already no-ops on).
+- **Phase C — Real `Client` model.** Today "client" was purely a UI-side grouping of Leads by
+  `customerName` — no real row existed. New `Client` model + `Order.clientId`, created/linked inside
+  `markWon`'s existing transaction, found by **exact customerName match** — deliberately the same
+  identity key `listClientCustomers` already groups by (not phone — a repeat customer often submits a
+  different site phone per project). A repeat customer's new Won proposal attaches to their existing
+  Client row instead of duplicating it (verified live: won two proposals for the same customer name,
+  confirmed both orders point at one Client row). `scripts/backfill-clients.ts` for pre-existing Won
+  orders (idempotent, same grouping key). **Deliberately scoped**: `client.ts`'s existing list/
+  analytics/360 read paths are unchanged this round — they already produce materially the same grouping
+  via customerName, and rewiring every consumer route was a wide-blast-radius change for a
+  currently-working module with no visible difference to the user. The Client model is populated
+  write-side and ready for D to join against via `Order.clientId`.
+- **Phase D — Financial segment + payment statement.** New Financial card on the client detail page:
+  Advance Received (receipts against the seq-1 milestone — the schema's only "advance" convention,
+  matching `DEFAULT_PAYMENT_TERMS[0]`), Invoice Raised, Payment Received — admin-only. Invoice Raised is
+  queried directly against `Invoice` rather than via `milestone.invoice`, which only ever holds the
+  *original* invoice — a credit note deliberately has no `milestoneId` (see `createCreditNote`), so
+  going through the milestone relation would silently miss every credit note and overstate the number.
+  New `/print/payment-statement/[orderId]` PDF route, same branded/print-token pipeline as
+  invoice/PO/closeout. New Excel export on the clients list (`allClientsForExport`, same SheetJS
+  pattern as leads). Verified live end-to-end: won a proposal, recorded a real receipt, issued a real
+  invoice, confirmed the Financial card showed the exact receipted/invoiced amounts, downloaded the
+  real generated PDF (200, valid `%PDF-` bytes) and a real `.xlsx` from the export button.
+
 ### v41 — Removed the global 1400px content cap (wide/desktop monitors were badly under-used)
 
 Client screenshot from viewing the app on another laptop/desktop: large empty gutter beside every
