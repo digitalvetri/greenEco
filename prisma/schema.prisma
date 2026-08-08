@@ -262,7 +262,34 @@ model ContactPerson {
   location    String? // where this person is normally available (site/office/branch)
 
   lead      Lead?      @relation(fields: [leadId], references: [id])
+  client    Client?    @relation(fields: [clientId], references: [id])
   proposals Proposal[] // "Kind Attn" back-relation
+}
+
+/**
+ * A real client identity, distinct from Lead (an enquiry) — created the moment a
+ * proposal is marked Won (see markWon), found by exact customerName match within
+ * the company so a repeat customer's new project attaches to their existing Client
+ * row instead of creating a duplicate (same identity key listClientCustomers
+ * already groups leads by, kept consistent on purpose). Backfilled once for
+ * pre-existing Won orders via scripts/backfill-clients.ts.
+ */
+model Client {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  state     String?
+  gstin     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders   Order[]
+  contacts ContactPerson[]
+
+  @@index([companyId, name])
 }
 
 model Reference {
@@ -392,6 +419,7 @@ model Order {
   companyId    String
   orderNo      String      @unique // GEC-ORD-2026-001
   proposalId   String      @unique
+  clientId     String? // linked on Won — see markWon; nullable only for pre-Client-model orders until backfilled
   clientName      String
   siteAddress     String
   clientStateCode String? // 2-digit GSTIN state prefix for place-of-supply (IGST vs CGST/SGST)
@@ -417,6 +445,7 @@ model Order {
   deletedAt        DateTime? // archive / soft-delete
 
   proposal Proposal @relation(fields: [proposalId], references: [id])
+  client   Client?  @relation(fields: [clientId], references: [id])
 
   @@index([companyId, status])
 }

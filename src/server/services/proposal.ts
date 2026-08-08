@@ -705,7 +705,20 @@ export async function markWon(
   requireAdmin(ctx);
   const proposal = await prisma.proposal.findFirst({
     where: { id: proposalId, companyId: ctx.companyId },
-    include: { versions: { include: { boqItems: true } }, order: true, lead: { select: { phone: true } } },
+    include: {
+      versions: { include: { boqItems: true } },
+      order: true,
+      lead: {
+        select: {
+          phone: true,
+          customerName: true,
+          email: true,
+          address: true,
+          state: true,
+          contacts: { select: { id: true } },
+        },
+      },
+    },
   });
   if (!proposal) throw new Error("Proposal not found");
   if (proposal.order) return { orderId: proposal.order.id, already: true };
@@ -717,12 +730,35 @@ export async function markWon(
   const terms = (version.paymentTerms as Array<{ description: string; percent: number; trigger: string }>) ?? [];
 
   return prisma.$transaction(async (tx) => {
+    // Find-or-create the Client by exact name match (same identity key
+    // listClientCustomers already groups leads by) — a repeat customer's new
+    // project attaches to their existing Client row instead of duplicating it.
+    const client =
+      (await tx.client.findFirst({ where: { companyId: ctx.companyId, name: proposal.lead.customerName } })) ??
+      (await tx.client.create({
+        data: {
+          companyId: ctx.companyId,
+          name: proposal.lead.customerName,
+          phone: proposal.lead.phone,
+          email: proposal.lead.email,
+          address: proposal.lead.address,
+          state: proposal.lead.state,
+        },
+      }));
+    if (proposal.lead.contacts.length) {
+      await tx.contactPerson.updateMany({
+        where: { id: { in: proposal.lead.contacts.map((c) => c.id) } },
+        data: { clientId: client.id },
+      });
+    }
+
     const orderNo = await allocateNumber(tx, ctx.companyId, "ORDER", year);
     const order = await tx.order.create({
       data: {
         companyId: ctx.companyId,
         orderNo,
         proposalId,
+        clientId: client.id,
         clientName: proposal.projectName,
         siteAddress: proposal.siteAddress,
         clientPhone: proposal.lead.phone, // A4 payment reminders read this; was left null → reminders skipped every new order
