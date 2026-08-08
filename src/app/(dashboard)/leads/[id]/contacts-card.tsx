@@ -14,6 +14,8 @@ interface Contact {
   name: string;
   designation: string | null;
   mobile: string;
+  email: string | null;
+  location: string | null;
 }
 
 /**
@@ -24,14 +26,20 @@ export function ContactsCard({ leadId, contacts }: { leadId: string; contacts: C
   const router = useRouter();
   const [pending, start] = useTransition();
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ name: "", designation: "", mobile: "" });
+  const [form, setForm] = useState({ name: "", designation: "", mobile: "", email: "", location: "" });
 
   function add() {
     start(async () => {
-      const r = await addLeadContactAction(leadId, { name: form.name, designation: form.designation, mobile: form.mobile });
+      const r = await addLeadContactAction(leadId, {
+        name: form.name,
+        designation: form.designation,
+        mobile: form.mobile,
+        email: form.email || undefined,
+        location: form.location || undefined,
+      });
       if (r.ok) {
         toast("Contact added");
-        setForm({ name: "", designation: "", mobile: "" });
+        setForm({ name: "", designation: "", mobile: "", email: "", location: "" });
         setAdding(false);
         router.refresh();
       } else toast(r.error ?? "Failed to add contact", "error");
@@ -70,6 +78,8 @@ export function ContactsCard({ leadId, contacts }: { leadId: string; contacts: C
                 {c.designation ? <span className="font-normal text-muted"> · {c.designation}</span> : ""}
               </div>
               <a href={`tel:${c.mobile}`} className="text-xs text-primary hover:underline">{c.mobile}</a>
+              {c.email && <div className="truncate text-xs text-muted">{c.email}</div>}
+              {c.location && <div className="truncate text-xs text-muted">Usually at: {c.location}</div>}
             </div>
             <button onClick={() => remove(c.id)} disabled={pending} aria-label={`Remove ${c.name}`} className="shrink-0 text-muted hover:text-danger disabled:opacity-50">
               <Trash2 className="size-4" />
@@ -82,6 +92,8 @@ export function ContactsCard({ leadId, contacts }: { leadId: string; contacts: C
             <Input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Contact name" autoFocus />
             <Input placeholder="Designation (optional)" value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} aria-label="Contact designation" />
             <Input placeholder="Mobile (10 digits)" inputMode="numeric" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, "") })} aria-label="Contact mobile" />
+            <Input placeholder="Email (optional)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} aria-label="Contact email" />
+            <Input placeholder="Where usually available (optional)" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} aria-label="Contact location" />
             <div className="flex gap-2">
               <Button size="sm" onClick={add} loading={pending} disabled={!form.name || form.mobile.length < 10}>
                 <Plus className="size-4" /> Save

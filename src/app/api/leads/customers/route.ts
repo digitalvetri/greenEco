@@ -13,5 +13,6 @@ export const GET = api(async (session, req) => {
     search: p.get("search") ?? undefined,
     offset: p.get("offset") ? Number(p.get("offset")) : undefined,
     take: p.get("take") ? Number(p.get("take")) : undefined,
+    sort: (p.get("sort") as "newest" | "oldest" | "name" | null) ?? undefined,
   });
 });

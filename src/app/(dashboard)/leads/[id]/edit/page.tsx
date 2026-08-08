@@ -37,6 +37,9 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
           inletCOD: lead.inletCOD != null ? String(lead.inletCOD) : "",
           inletTSS: lead.inletTSS != null ? String(lead.inletTSS) : "",
           inletTDS: lead.inletTDS != null ? String(lead.inletTDS) : "",
+          leadType: lead.leadType ?? "",
+          howMet: lead.howMet ?? "",
+          state: lead.state ?? "",
         }}
       />
     </div>

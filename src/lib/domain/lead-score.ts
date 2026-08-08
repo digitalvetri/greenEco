@@ -64,3 +64,54 @@ export function leadScore(i: LeadScoreInput): LeadScoreResult {
   const temperature: LeadTemperature = s >= 60 ? "HOT" : s >= 30 ? "WARM" : "COLD";
   return { score: s, temperature };
 }
+
+/**
+ * Lead profile completeness (0-100%) — a checklist of optional-but-useful fields,
+ * NOT the create-form's required-field validation (customerName/address/phone/source
+ * are always required regardless of this %). Pure/deterministic so it's testable and
+ * so the UI progress bar can't drift from what's actually stored.
+ */
+export interface LeadCompletenessInput {
+  state?: string | null;
+  email?: string | null;
+  leadType?: string | null;
+  howMet?: string | null;
+  projectName?: string | null;
+  projectAddress?: string | null;
+  contactCount: number;
+  plantType?: string | null;
+  technology?: string | null;
+  capacityKLD?: number | null;
+  segment?: string | null;
+  budgetBand?: string | null;
+  decisionTimeline?: string | null;
+  inletBOD?: number | null;
+  inletCOD?: number | null;
+  inletTSS?: number | null;
+  inletTDS?: number | null;
+  hasLoggedMeeting: boolean;
+  hasUpcomingMeeting: boolean;
+}
+
+export function leadCompleteness(i: LeadCompletenessInput): number {
+  const checks: boolean[] = [
+    !!i.state,
+    !!i.email,
+    !!i.leadType,
+    !!i.howMet,
+    !!i.projectName,
+    !!i.projectAddress,
+    i.contactCount > 0,
+    !!i.plantType,
+    !!i.technology,
+    !!(i.capacityKLD && i.capacityKLD > 0),
+    !!i.segment,
+    !!i.budgetBand,
+    !!i.decisionTimeline,
+    i.inletBOD != null && i.inletCOD != null && i.inletTSS != null && i.inletTDS != null,
+    i.hasLoggedMeeting,
+    i.hasUpcomingMeeting,
+  ];
+  const filled = checks.filter(Boolean).length;
+  return Math.round((filled / checks.length) * 100);
+}

@@ -84,6 +84,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </div>
           </div>
 
+          {/* Profile completeness — pure checklist of optional fields, not a validation gate */}
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${lead.completeness}%` }}
+              />
+            </div>
+            <span className="shrink-0 text-xs text-muted">Profile {lead.completeness}% complete</span>
+          </div>
+
           <div className="h-px bg-border" />
 
           {/* Actions — one toolbar, uniform spacing (contact + lifecycle) */}
@@ -121,8 +132,23 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                   </span>
                 </div>
                 {lead.email && <Row label="Email" value={lead.email} />}
+                {lead.state && <Row label="State" value={lead.state} />}
+                {lead.leadType && <Row label="Lead Type" value={lead.leadType} />}
+                {lead.howMet && <Row label="How we met" value={lead.howMet} />}
                 {lead.requirement && <Row label="Requirement" value={lead.requirement} />}
                 {lead.reference && <Row label="Referred by" value={lead.reference.name} />}
+                {Array.isArray(lead.branchOffices) && lead.branchOffices.length > 0 && (
+                  <div className="border-t border-border pt-1.5">
+                    <span className="text-muted">Branch offices</span>
+                    {(lead.branchOffices as { address: string; phone?: string; email?: string }[]).map((b, i) => (
+                      <div key={i} className="mt-1 text-xs">
+                        {b.address}
+                        {b.phone ? ` · ${b.phone}` : ""}
+                        {b.email ? ` · ${b.email}` : ""}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

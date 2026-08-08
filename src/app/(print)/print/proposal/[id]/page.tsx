@@ -37,6 +37,12 @@ export default async function ProposalPrint({
         <div style={{ fontSize: 14, color: "#555" }}>
           {p.plantType} · {p.technology} · {p.capacityKLD} KLD
         </div>
+        {p.contactPerson && (
+          <div style={{ fontSize: 14, color: "#555", marginTop: 4 }}>
+            Kind Attn: {p.contactPerson.name}
+            {p.contactPerson.designation ? ` (${p.contactPerson.designation})` : ""}
+          </div>
+        )}
       </section>
 
       {v?.heroImageUrl && (

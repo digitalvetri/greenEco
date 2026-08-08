@@ -16,7 +16,17 @@ import { toast } from "@/components/ui/toast";
 import { SpeakButton } from "@/components/mobile/speak-button";
 import { DownloadPdfButton } from "@/components/pdf/download-pdf-button";
 import { formatINR } from "@/lib/money";
-import { PLANT_TYPES, TECHNOLOGIES, BOQ_CATEGORIES, BOQ_UNITS, LOST_REASONS, ITEM_CATEGORIES, categoryLabel } from "@/lib/constants";
+import {
+  PLANT_TYPES,
+  TECHNOLOGIES,
+  BOQ_CATEGORIES,
+  BOQ_UNITS,
+  LOST_REASONS,
+  ITEM_CATEGORIES,
+  categoryLabel,
+  PROPOSAL_TYPES,
+  PROJECT_CATEGORIES,
+} from "@/lib/constants";
 import { ProposalStageTracker } from "./proposal-stage-tracker";
 import { ProposalTimeline } from "./proposal-timeline";
 import { ProposalDocumentsCard } from "./proposal-documents-card";
@@ -68,6 +78,9 @@ export interface ProposalView {
   technology: string;
   capacityKLD: number;
   lostReason: string | null;
+  contactPersonId: string | null;
+  proposalType: string | null;
+  projectCategory: string | null;
   order: { id: string; orderNo: string } | null;
   version: {
     versionNo: number;
@@ -122,6 +135,7 @@ export function ProposalEditor({
   documents,
   standardTermsTemplate,
   materials,
+  contacts,
 }: {
   view: ProposalView;
   isAdmin: boolean;
@@ -129,6 +143,7 @@ export function ProposalEditor({
   documents: { id: string; url: string; name: string }[];
   standardTermsTemplate: string;
   materials: { id: string; name: string; unit: string; category: string }[];
+  contacts: { id: string; name: string; designation: string | null }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -143,6 +158,9 @@ export function ProposalEditor({
     plantType: view.plantType,
     technology: view.technology,
     capacityKLD: view.capacityKLD,
+    contactPersonId: view.contactPersonId ?? "",
+    proposalType: view.proposalType ?? "",
+    projectCategory: view.projectCategory ?? "",
   });
   const [editingBasics, setEditingBasics] = useState(false);
   const [boq, setBoq] = useState<BoqRow[]>(view.version?.boqItems ?? []);
@@ -474,6 +492,12 @@ export function ProposalEditor({
               <BasicsRow label="Plant type" value={basics.plantType} />
               <BasicsRow label="Technology" value={basics.technology} />
               <BasicsRow label="Capacity" value={`${basics.capacityKLD} KLD`} />
+              <BasicsRow
+                label="Kind Attn"
+                value={contacts.find((c) => c.id === basics.contactPersonId)?.name ?? "—"}
+              />
+              <BasicsRow label="Proposal type" value={basics.proposalType || "—"} />
+              <BasicsRow label="Project category" value={basics.projectCategory || "—"} />
             </dl>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -520,6 +544,42 @@ export function ProposalEditor({
                   onChange={(e) => setBasics({ ...basics, capacityKLD: Number(e.target.value) })}
                 />
               </Field>
+              <Field label="Kind Attn">
+                <Select
+                  value={basics.contactPersonId}
+                  onChange={(e) => setBasics({ ...basics, contactPersonId: e.target.value })}
+                >
+                  <option value="">—</option>
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.designation ? ` (${c.designation})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Proposal type">
+                <Select
+                  value={basics.proposalType}
+                  onChange={(e) => setBasics({ ...basics, proposalType: e.target.value })}
+                >
+                  <option value="">—</option>
+                  {PROPOSAL_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Project category">
+                <Select
+                  value={basics.projectCategory}
+                  onChange={(e) => setBasics({ ...basics, projectCategory: e.target.value })}
+                >
+                  <option value="">—</option>
+                  {PROJECT_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Select>
+              </Field>
               <div className="col-span-2 flex gap-2">
                 <Button
                   variant="outline"
@@ -528,7 +588,12 @@ export function ProposalEditor({
                   onClick={() =>
                     startTransition(async () => {
                       try {
-                        await updateBasicsAction(view.id, basics);
+                        await updateBasicsAction(view.id, {
+                          ...basics,
+                          contactPersonId: basics.contactPersonId || null,
+                          proposalType: basics.proposalType || null,
+                          projectCategory: basics.projectCategory || null,
+                        });
                         toast("Basics saved.");
                         setEditingBasics(false);
                         router.refresh();

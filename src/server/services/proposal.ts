@@ -28,7 +28,15 @@ export async function getProposal(ctx: Ctx, id: string) {
   const proposal = await prisma.proposal.findFirst({
     where: { id, companyId: ctx.companyId },
     include: {
-      lead: { select: { id: true, phone: true, customerName: true } },
+      lead: {
+        select: {
+          id: true,
+          phone: true,
+          customerName: true,
+          contacts: { select: { id: true, name: true, designation: true } },
+        },
+      },
+      contactPerson: { select: { id: true, name: true, designation: true } },
       order: { select: { id: true, orderNo: true } },
       versions: {
         orderBy: { versionNo: "desc" },
@@ -280,12 +288,24 @@ export async function updateBasics(
     plantType?: string;
     technology?: string;
     capacityKLD?: number;
+    contactPersonId?: string | null;
+    proposalType?: string | null;
+    projectCategory?: string | null;
   },
 ) {
   const proposal = await prisma.proposal.findFirst({ where: { id, companyId: ctx.companyId } });
   if (!proposal) throw new Error("Proposal not found");
   if (proposal.status === "WON" || proposal.status === "LOST") {
     throw new Error("Proposal is locked");
+  }
+  // "Kind Attn" must be one of THIS proposal's own lead's contacts — ContactPerson
+  // has no companyId, so tenant-safety comes from checking it belongs to the lead.
+  if (data.contactPersonId) {
+    const contact = await prisma.contactPerson.findFirst({
+      where: { id: data.contactPersonId, leadId: proposal.leadId },
+      select: { id: true },
+    });
+    if (!contact) throw new Error("Contact person not found on this lead");
   }
   await prisma.proposal.update({ where: { id }, data });
   await logAudit(ctx, { action: "UPDATE", entity: "Proposal", entityId: id, after: data });
@@ -758,16 +778,23 @@ export interface ProposalFilters {
  * validity), computed in JS since validity is per-version.
  */
 export async function listProposals(ctx: Ctx, filters: ProposalFilters = {}) {
+  // "expired"/"active"/"revised" are computed worklist views (derive, don't
+  // duplicate-store — same approach as EXPIRED itself), not persisted statuses.
   const expiredView = filters.status === "expired";
+  const activeView = filters.status === "active";
+  const revisedView = filters.status === "revised";
+  const computedView = expiredView || activeView || revisedView;
   const take = Math.min(filters.take ?? 50, 100);
 
   const where: Prisma.ProposalWhereInput = {
     companyId: ctx.companyId,
-    ...(expiredView
+    ...(expiredView || activeView
       ? { status: { in: ["SENT", "UNDER_NEGOTIATION"] } }
-      : filters.status
-        ? { status: filters.status as Prisma.EnumProposalStatusFilter["equals"] }
-        : {}),
+      : revisedView
+        ? { status: { notIn: ["WON", "LOST"] }, currentVersion: { gt: 1 } }
+        : filters.status
+          ? { status: filters.status as Prisma.EnumProposalStatusFilter["equals"] }
+          : {}),
     ...(filters.search
       ? {
           OR: [
@@ -785,8 +812,8 @@ export async function listProposals(ctx: Ctx, filters: ProposalFilters = {}) {
       order: { select: { id: true, orderNo: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: expiredView ? 300 : take + 1,
-    ...(filters.cursor && !expiredView ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+    take: computedView ? 300 : take + 1,
+    ...(filters.cursor && !computedView ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
   });
 
   const withExpiry = stripPricing(rows, ctx.role).map((p) => {
@@ -799,6 +826,13 @@ export async function listProposals(ctx: Ctx, filters: ProposalFilters = {}) {
 
   if (expiredView) {
     return { items: withExpiry.filter((p) => p.expiry?.state === "expired"), nextCursor: null };
+  }
+  if (activeView) {
+    // "Active" = genuinely still in play — SENT/UNDER_NEGOTIATION but not already stale.
+    return { items: withExpiry.filter((p) => p.expiry?.state !== "expired"), nextCursor: null };
+  }
+  if (revisedView) {
+    return { items: withExpiry, nextCursor: null };
   }
   const hasMore = withExpiry.length > take;
   const items = hasMore ? withExpiry.slice(0, take) : withExpiry;

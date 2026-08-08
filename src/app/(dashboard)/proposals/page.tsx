@@ -11,11 +11,11 @@ export const dynamic = "force-dynamic";
 const TABS = [
   { key: "", label: "All" },
   { key: "DRAFT", label: "Draft" },
-  { key: "SENT", label: "Sent" },
-  { key: "UNDER_NEGOTIATION", label: "Negotiating" },
-  { key: "expired", label: "Expiring" },
+  { key: "active", label: "Active" },
+  { key: "revised", label: "Revised" },
+  { key: "expired", label: "Inactive" },
   { key: "WON", label: "Won" },
-  { key: "LOST", label: "Lost" },
+  { key: "LOST", label: "Loss" },
 ];
 
 function compactINR(v: number): string {
@@ -81,7 +81,7 @@ export default async function ProposalsPage({
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="In play" value={stats.inPlay} icon={FileText} tone="primary" href={tabHref("SENT")} />
+        <StatTile label="In play" value={stats.inPlay} icon={FileText} tone="primary" href={tabHref("active")} />
         <StatTile label="Awaiting finalisation" value={stats.draft} icon={FileClock} tone="default" href={tabHref("DRAFT")} />
         <StatTile
           label="Expiring soon"

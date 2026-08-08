@@ -147,6 +147,15 @@ model Lead {
   assignedToId String
   referenceId  String?
 
+  // Institutional/B2B lead capture — additive, all nullable so pre-existing leads are
+  // unaffected. Deliberately separate from `source` (kept as-is — it already drives
+  // by-source analytics/filters/exports): `leadType` is WHAT the lead is (their trade),
+  // `howMet` is HOW we first made contact. See lib/constants.ts LEAD_TYPES/HOW_MET_OPTIONS.
+  leadType String? // Builder/Developers | Architects | Consultant-MEP | Consultant-PMC | Government Sector | Others
+  howMet   String? // Referred by | They call us | We visit office | We visit site | Other
+  state    String? // Indian state/UT name — see lib/constants.ts INDIAN_STATES
+  branchOffices Json? // [{address, phone, email}] — additional branch-office locations
+
   // Structured plant-sizing (spec §7.1) — captured at the lead stage so the
   // pipeline can be filtered/analyzed by KLD and a BOQ band previewed pre-quote.
   // All nullable: pre-P2 leads have none; convertToProposal coalesces defaults.
@@ -247,8 +256,11 @@ model ContactPerson {
   name        String
   designation String? // Manager, Association Secretary, etc.
   mobile      String
+  email       String?
+  location    String? // where this person is normally available (site/office/branch)
 
-  lead Lead? @relation(fields: [leadId], references: [id])
+  lead      Lead?      @relation(fields: [leadId], references: [id])
+  proposals Proposal[] // "Kind Attn" back-relation
 }
 
 model Reference {
@@ -291,7 +303,7 @@ model FollowUp {
 model Proposal {
   id             String            @id @default(cuid())
   companyId      String
-  number         String            @unique // GEC-PRO-2026-001
+  number         String            @unique // GEC-PRO-2026-001 — allocated at creation, revealed in the UI once complete
   leadId         String            @unique
   projectName    String
   siteAddress    String
@@ -301,6 +313,9 @@ model Proposal {
   status         ProposalStatus    @default(DRAFT)
   lostReason     String? // required on LOST — feeds AI learning loop
   currentVersion Int               @default(1)
+  contactPersonId  String? // "Kind Attn" — must belong to this proposal's own lead (checked in code; ContactPerson has no companyId)
+  proposalType     String? // Project Proposal | BOQ Proposal | AMC Proposal | Service Proposal | Others — capture-only, doesn't branch Won→Order yet
+  projectCategory  String? // Residential | Commercial | Industrial | Hospital | Academicals | Others
   versions       ProposalVersion[]
   followUps      FollowUp[]
   communications Communication[]
@@ -309,7 +324,8 @@ model Proposal {
   createdById    String
   createdAt      DateTime          @default(now())
 
-  lead Lead @relation(fields: [leadId], references: [id])
+  lead           Lead           @relation(fields: [leadId], references: [id])
+  contactPerson  ContactPerson? @relation(fields: [contactPersonId], references: [id])
 
   @@index([companyId, status])
 }

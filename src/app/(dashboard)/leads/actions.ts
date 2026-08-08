@@ -137,7 +137,10 @@ export async function deleteFollowUpAction(leadId: string, followUpId: string) {
   return { ok: true };
 }
 
-export async function addLeadContactAction(leadId: string, data: { name: string; designation?: string; mobile: string }) {
+export async function addLeadContactAction(
+  leadId: string,
+  data: { name: string; designation?: string; mobile: string; email?: string; location?: string },
+) {
   const session = await getSession();
   try {
     await addLeadContact(session, leadId, data);

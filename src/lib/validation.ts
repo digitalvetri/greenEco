@@ -11,6 +11,14 @@ export const contactSchema = z.object({
   name: z.string().trim().min(1),
   designation: z.string().trim().optional(),
   mobile: phoneSchema,
+  email: z.string().trim().email().optional().or(z.literal("")),
+  location: z.string().trim().optional(),
+});
+
+export const branchOfficeSchema = z.object({
+  address: z.string().trim().min(1),
+  phone: z.string().trim().optional(),
+  email: z.string().trim().email().optional().or(z.literal("")),
 });
 
 export const referenceSchema = z.object({
@@ -63,6 +71,13 @@ export const createLeadSchema = z.object({
   contacts: z.array(contactSchema).optional(),
   overrideDuplicate: z.boolean().optional(),
   duplicateNote: z.string().trim().optional(),
+  leadType: z.string().trim().optional(),
+  howMet: z.string().trim().optional(),
+  // Required on the manual create form (UI-enforced, like the follow-up next-date
+  // field) but optional at the schema level — the Excel bulk-import path
+  // (importLeadsAction) doesn't collect a state column and must keep working.
+  state: z.string().trim().optional(),
+  branchOffices: z.array(branchOfficeSchema).optional(),
   ...plantSizingFields,
 });
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
@@ -80,6 +95,10 @@ export const updateLeadSchema = z.object({
   source: leadSourceSchema,
   requirement: z.string().trim().optional(),
   overrideDuplicate: z.boolean().optional(),
+  leadType: z.string().trim().optional(),
+  howMet: z.string().trim().optional(),
+  state: z.string().trim().optional(), // required only on create — pre-existing leads aren't force-backfilled
+  branchOffices: z.array(branchOfficeSchema).optional(),
   ...plantSizingFields,
 });
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;

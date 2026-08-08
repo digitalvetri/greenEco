@@ -5,8 +5,8 @@ import type { Ctx } from "@/lib/rbac";
 import { stripPricing } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
-import { boqPreview } from "@/lib/constants";
-import { leadScore } from "@/lib/domain/lead-score";
+import { boqPreview, SEGMENT_TO_CATEGORY } from "@/lib/constants";
+import { leadScore, leadCompleteness } from "@/lib/domain/lead-score";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
 import { allocateNumber } from "./numbering";
@@ -95,6 +95,7 @@ export interface LeadFilters {
   search?: string;
   cursor?: string;
   take?: number;
+  sort?: "newest" | "oldest" | "name";
 }
 
 const leadInclude = {
@@ -236,14 +237,24 @@ export async function listLeadCustomers(
   const offset = filters.offset ?? 0;
   const where = buildLeadWhere(ctx, filters);
 
-  const groups = await prisma.lead.groupBy({
-    by: ["customerName"],
-    where,
-    _max: { updatedAt: true },
-    orderBy: { _max: { updatedAt: "desc" } },
-    skip: offset,
-    take: take + 1,
-  });
+  const groups =
+    filters.sort === "name"
+      ? await prisma.lead.groupBy({
+          by: ["customerName"],
+          where,
+          _max: { updatedAt: true },
+          orderBy: { customerName: "asc" },
+          skip: offset,
+          take: take + 1,
+        })
+      : await prisma.lead.groupBy({
+          by: ["customerName"],
+          where,
+          _max: { updatedAt: true },
+          orderBy: { _max: { updatedAt: filters.sort === "oldest" ? "asc" : "desc" } },
+          skip: offset,
+          take: take + 1,
+        });
   const hasMore = groups.length > take;
   const page = hasMore ? groups.slice(0, take) : groups;
   if (page.length === 0) return { items: [], nextOffset: null };
@@ -411,7 +422,7 @@ export type CustomerMatch = {
   address: string;
   segment: string | null;
   lastStatus: string;
-  contacts: { name: string; designation: string; mobile: string }[];
+  contacts: { name: string; designation: string; mobile: string; email: string; location: string }[];
 };
 
 /**
@@ -461,6 +472,8 @@ export async function searchExistingCustomers(ctx: Ctx, query: string): Promise<
         name: c.name,
         designation: c.designation ?? "",
         mobile: c.mobile,
+        email: c.email ?? "",
+        location: c.location ?? "",
       })),
     });
     if (out.length >= 10) break;
@@ -544,6 +557,7 @@ export async function getLead(ctx: Ctx, id: string) {
     return null;
   }
   const names = await userNameMap(ctx.companyId);
+  const now = new Date();
   return {
     ...stripPricing(lead, ctx.role),
     assignedToName: names.get(lead.assignedToId) ?? "Unassigned",
@@ -554,6 +568,27 @@ export async function getLead(ctx: Ctx, id: string) {
       decisionTimeline: lead.decisionTimeline,
       source: lead.source,
       latestOutcome: lead.followUps[0]?.outcome ?? null,
+    }),
+    completeness: leadCompleteness({
+      state: lead.state,
+      email: lead.email,
+      leadType: lead.leadType,
+      howMet: lead.howMet,
+      projectName: lead.projectName,
+      projectAddress: lead.projectAddress,
+      contactCount: lead.contacts.length,
+      plantType: lead.plantType,
+      technology: lead.technology,
+      capacityKLD: lead.capacityKLD,
+      segment: lead.segment,
+      budgetBand: lead.budgetBand,
+      decisionTimeline: lead.decisionTimeline,
+      inletBOD: lead.inletBOD,
+      inletCOD: lead.inletCOD,
+      inletTSS: lead.inletTSS,
+      inletTDS: lead.inletTDS,
+      hasLoggedMeeting: lead.followUps.some((f) => f.type === "MEETING"),
+      hasUpcomingMeeting: lead.followUps.some((f) => f.nextDate != null && f.nextDate > now),
     }),
     // Indicative pre-quote value (sell-side band from the KLD template; not cost).
     boqPreview: lead.capacityKLD ? boqPreview(lead.capacityKLD) : null,
@@ -614,6 +649,10 @@ export async function createLead(ctx: Ctx, input: CreateLeadInput) {
         inletCOD: input.inletCOD,
         inletTSS: input.inletTSS,
         inletTDS: input.inletTDS,
+        leadType: input.leadType || null,
+        howMet: input.howMet || null,
+        state: input.state,
+        branchOffices: input.branchOffices?.length ? input.branchOffices : undefined,
         status: "NEW",
         assignedToId: input.assignedToId || ctx.userId,
         referenceId,
@@ -624,6 +663,8 @@ export async function createLead(ctx: Ctx, input: CreateLeadInput) {
                 name: c.name,
                 designation: c.designation,
                 mobile: c.mobile,
+                email: c.email || null,
+                location: c.location || null,
               })),
             }
           : undefined,
@@ -690,6 +731,13 @@ export async function updateLead(ctx: Ctx, id: string, input: UpdateLeadInput) {
         inletCOD: input.inletCOD,
         inletTSS: input.inletTSS,
         inletTDS: input.inletTDS,
+        leadType: input.leadType || null,
+        howMet: input.howMet || null,
+        state: input.state || undefined,
+        // Branch offices aren't in the edit form (create-only for now, like most
+        // one-shot-capture fields) — undefined on both "not sent" and "sent empty"
+        // so a save from the edit form can never silently wipe them.
+        branchOffices: input.branchOffices?.length ? input.branchOffices : undefined,
       },
     });
     await logAudit(
@@ -1347,15 +1395,26 @@ export async function deleteFollowUp(ctx: Ctx, id: string) {
   return { ok: true };
 }
 
-/** Add a contact person to a lead (name / designation / mobile). RBAC via the lead; audited. */
-export async function addLeadContact(ctx: Ctx, leadId: string, data: { name: string; designation?: string; mobile: string }) {
+/** Add a contact person to a lead (name / designation / mobile / email / location). RBAC via the lead; audited. */
+export async function addLeadContact(
+  ctx: Ctx,
+  leadId: string,
+  data: { name: string; designation?: string; mobile: string; email?: string; location?: string },
+) {
   await accessibleLead(ctx, leadId);
   const name = data.name.trim();
   const mobile = data.mobile.replace(/\D/g, "");
   if (!name) throw new Error("Contact name is required");
   if (mobile.length < 10) throw new Error("Enter a valid 10-digit mobile");
   const contact = await prisma.contactPerson.create({
-    data: { leadId, name, designation: data.designation?.trim() || null, mobile },
+    data: {
+      leadId,
+      name,
+      designation: data.designation?.trim() || null,
+      mobile,
+      email: data.email?.trim() || null,
+      location: data.location?.trim() || null,
+    },
   });
   await logAudit(ctx, { action: "CREATE", entity: "ContactPerson", entityId: contact.id, after: { leadId } });
   return contact;
@@ -1396,6 +1455,7 @@ export async function convertToProposal(ctx: Ctx, leadId: string) {
         plantType: lead.plantType ?? "STP",
         technology: lead.technology ?? "MBBR",
         capacityKLD: lead.capacityKLD ?? 0,
+        projectCategory: lead.segment ? (SEGMENT_TO_CATEGORY[lead.segment] ?? null) : null,
         status: "DRAFT",
         createdById: ctx.userId,
         versions: {

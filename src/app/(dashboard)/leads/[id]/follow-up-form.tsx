@@ -108,12 +108,15 @@ export function FollowUpForm({ leadId }: { leadId: string }) {
           </Field>
         </div>
 
-        <Field label="Notes" required>
+        <Field label={f.type === "MEETING" ? "Minutes of meeting" : "Notes"} required>
           <Textarea value={f.notes} onChange={(e) => set("notes", e.target.value)} />
         </Field>
 
         <div className="grid grid-cols-2 gap-2">
-          <Field label={`Next follow-up date${f.close ? " (not needed)" : ""}`} required={!f.close}>
+          <Field
+            label={`${f.type === "MEETING" ? "Next meeting" : "Next follow-up"} date${f.close ? " (not needed)" : ""}`}
+            required={!f.close}
+          >
             <Input
               type="date"
               value={f.nextDate}

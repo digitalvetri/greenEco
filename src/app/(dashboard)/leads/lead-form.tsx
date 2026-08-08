@@ -10,6 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SpeakButton } from "@/components/mobile/speak-button";
 import {
   LEAD_SOURCES,
+  LEAD_TYPES,
+  HOW_MET_OPTIONS,
+  INDIAN_STATES,
   PLANT_TYPES,
   TECHNOLOGIES,
   SEGMENTS,
@@ -22,6 +25,14 @@ interface Contact {
   name: string;
   designation: string;
   mobile: string;
+  email: string;
+  location: string;
+}
+
+interface BranchOffice {
+  address: string;
+  phone: string;
+  email: string;
 }
 
 /** Sizing/water-quality fields arrive as strings from the form (schema coerces). */
@@ -46,6 +57,9 @@ export interface LeadFormInitial {
   inletCOD?: string;
   inletTSS?: string;
   inletTDS?: string;
+  leadType?: string;
+  howMet?: string;
+  state?: string;
 }
 
 /**
@@ -87,9 +101,13 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
     inletCOD: initial?.inletCOD ?? "",
     inletTSS: initial?.inletTSS ?? "",
     inletTDS: initial?.inletTDS ?? "",
+    leadType: initial?.leadType ?? "",
+    howMet: initial?.howMet ?? "",
+    state: initial?.state ?? "",
   });
   const [contacts, setContacts] = useState<Contact[]>(initialContacts ?? []);
   const [reference, setReference] = useState({ name: "", phone: "" });
+  const [branchOffices, setBranchOffices] = useState<BranchOffice[]>([]);
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -108,11 +126,18 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
 
   function submit(override = false, proposal = thenProposal) {
     setError(null);
+    if (!isEdit && !form.state) {
+      setError("State is required");
+      return;
+    }
     setThenProposal(proposal);
     const base = {
       ...form,
       email: form.email || undefined,
       requirement: form.requirement || undefined,
+      leadType: form.leadType || undefined,
+      howMet: form.howMet || undefined,
+      state: form.state || undefined,
       overrideDuplicate: override,
     };
     startTransition(async () => {
@@ -121,8 +146,13 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
           ? await updateLeadAction(leadId!, base)
           : await createLeadAction({
               ...base,
-              contacts: contacts.filter((c) => c.name && c.mobile),
+              contacts: contacts
+                .filter((c) => c.name && c.mobile)
+                .map((c) => ({ ...c, email: c.email || undefined, location: c.location || undefined })),
               reference: reference.name ? reference : undefined,
+              branchOffices: branchOffices.filter((b) => b.address).length
+                ? branchOffices.filter((b) => b.address).map((b) => ({ ...b, email: b.email || undefined }))
+                : undefined,
             });
         if ("duplicate" in res && res.duplicate) {
           setDuplicate(res.duplicate);
@@ -166,13 +196,32 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
       <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
       <Card>
         <CardContent className="space-y-4 pt-4">
-          <Field label="Customer Name" required>
+          <Field label="Company / Customer Name" required>
             <Input
               value={form.customerName}
               onChange={(e) => set("customerName", e.target.value)}
               placeholder="e.g. Green Meadows Apartments Assn."
             />
           </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Lead Type">
+              <Select value={form.leadType} onChange={(e) => set("leadType", e.target.value)}>
+                <option value="">—</option>
+                {LEAD_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="State" required={!isEdit}>
+              <Select value={form.state} onChange={(e) => set("state", e.target.value)}>
+                <option value="">—</option>
+                {INDIAN_STATES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
 
           <div>
             <Label>Address *</Label>
@@ -228,15 +277,25 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
             </Field>
           </div>
 
-          <Field label="Source" required>
-            <Select value={form.source} onChange={(e) => set("source", e.target.value)}>
-              {LEAD_SOURCES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Source" required>
+              <Select value={form.source} onChange={(e) => set("source", e.target.value)}>
+                {LEAD_SOURCES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="How we met">
+              <Select value={form.howMet} onChange={(e) => set("howMet", e.target.value)}>
+                <option value="">—</option>
+                {HOW_MET_OPTIONS.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
 
           <div>
             <div className="flex items-center justify-between">
@@ -334,48 +393,68 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
               type="button"
               variant="subtle"
               size="sm"
-              onClick={() => setContacts((c) => [...c, { name: "", designation: "", mobile: "" }])}
+              onClick={() =>
+                setContacts((c) => [...c, { name: "", designation: "", mobile: "", email: "", location: "" }])
+              }
             >
               <Plus className="size-4" /> Add
             </Button>
           </div>
           {contacts.map((c, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
-              <Input
-                placeholder="Name"
-                value={c.name}
-                onChange={(e) =>
-                  setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
-                }
-              />
-              <Input
-                placeholder="Designation"
-                value={c.designation}
-                onChange={(e) =>
-                  setContacts((cs) =>
-                    cs.map((x, j) => (j === i ? { ...x, designation: e.target.value } : x)),
-                  )
-                }
-              />
-              <Input
-                placeholder="Mobile"
-                value={c.mobile}
-                onChange={(e) =>
-                  setContacts((cs) =>
-                    cs.map((x, j) =>
-                      j === i ? { ...x, mobile: e.target.value.replace(/\D/g, "") } : x,
-                    ),
-                  )
-                }
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setContacts((cs) => cs.filter((_, j) => j !== i))}
-              >
-                <Trash2 className="size-4 text-danger" />
-              </Button>
+            <div key={i} className="space-y-2 rounded-lg border border-border p-2">
+              <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
+                <Input
+                  placeholder="Name"
+                  value={c.name}
+                  onChange={(e) =>
+                    setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
+                  }
+                />
+                <Input
+                  placeholder="Designation"
+                  value={c.designation}
+                  onChange={(e) =>
+                    setContacts((cs) =>
+                      cs.map((x, j) => (j === i ? { ...x, designation: e.target.value } : x)),
+                    )
+                  }
+                />
+                <Input
+                  placeholder="Mobile"
+                  value={c.mobile}
+                  onChange={(e) =>
+                    setContacts((cs) =>
+                      cs.map((x, j) =>
+                        j === i ? { ...x, mobile: e.target.value.replace(/\D/g, "") } : x,
+                      ),
+                    )
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setContacts((cs) => cs.filter((_, j) => j !== i))}
+                >
+                  <Trash2 className="size-4 text-danger" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Email (optional)"
+                  value={c.email}
+                  onChange={(e) =>
+                    setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))
+                  }
+                />
+                <Input
+                  placeholder="Where usually available (optional)"
+                  value={c.location}
+                  onChange={(e) =>
+                    setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, location: e.target.value } : x)))
+                  }
+                />
+              </div>
             </div>
           ))}
 
@@ -393,6 +472,53 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
                 onChange={(e) => setReference((r) => ({ ...r, phone: e.target.value }))}
               />
             </Field>
+          </div>
+
+          <div className="border-t border-border pt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold">Branch offices</span>
+              <Button
+                type="button"
+                variant="subtle"
+                size="sm"
+                onClick={() => setBranchOffices((b) => [...b, { address: "", phone: "", email: "" }])}
+              >
+                <Plus className="size-4" /> Add
+              </Button>
+            </div>
+            {branchOffices.map((b, i) => (
+              <div key={i} className="mt-2 grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
+                <Input
+                  placeholder="Branch address"
+                  value={b.address}
+                  onChange={(e) =>
+                    setBranchOffices((bs) => bs.map((x, j) => (j === i ? { ...x, address: e.target.value } : x)))
+                  }
+                />
+                <Input
+                  placeholder="Phone"
+                  value={b.phone}
+                  onChange={(e) =>
+                    setBranchOffices((bs) => bs.map((x, j) => (j === i ? { ...x, phone: e.target.value } : x)))
+                  }
+                />
+                <Input
+                  placeholder="Email"
+                  value={b.email}
+                  onChange={(e) =>
+                    setBranchOffices((bs) => bs.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setBranchOffices((bs) => bs.filter((_, j) => j !== i))}
+                >
+                  <Trash2 className="size-4 text-danger" />
+                </Button>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

@@ -23,9 +23,16 @@ const STATUS_TABS = [
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; search?: string; source?: string; assignee?: string; dueToday?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    search?: string;
+    source?: string;
+    assignee?: string;
+    dueToday?: string;
+    sort?: string;
+  }>;
 }) {
-  const { status, search, source, assignee, dueToday } = await searchParams;
+  const { status, search, source, assignee, dueToday, sort } = await searchParams;
   const session = await getSession();
   const isAdmin = session.role === "ADMIN";
   const cold = status === "cold";
@@ -39,6 +46,7 @@ export default async function LeadsPage({
       search: search || undefined,
       source: source || undefined,
       assignedToId: assignee || undefined,
+      sort: sort === "oldest" || sort === "name" ? sort : undefined,
       take: 25,
     }),
     leadStats(session),
@@ -50,6 +58,7 @@ export default async function LeadsPage({
   if (search) persist.search = search;
   if (source) persist.source = source;
   if (assignee) persist.assignee = assignee;
+  if (sort) persist.sort = sort;
 
   const query = new URLSearchParams({
     ...persist,

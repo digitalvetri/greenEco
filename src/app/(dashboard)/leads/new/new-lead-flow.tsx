@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { LeadForm, type LeadFormInitial } from "../lead-form";
 import { searchCustomersAction } from "../actions";
 
-type Contact = { name: string; designation: string; mobile: string };
+type Contact = { name: string; designation: string; mobile: string; email: string; location: string };
 type CustomerMatch = {
   id: string;
   customerName: string;

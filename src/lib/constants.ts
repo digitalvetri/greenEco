@@ -22,6 +22,97 @@ export const LEAD_SOURCES = [
   "Other",
 ] as const;
 
+/** What kind of entity the lead is (their trade) — distinct from `howMet`. */
+export const LEAD_TYPES = [
+  "Builder/Developers",
+  "Architects",
+  "Consultant – MEP",
+  "Consultant – PMC",
+  "Government Sector",
+  "Others",
+] as const;
+
+/** How we first made contact with this lead — distinct from `leadType`. */
+export const HOW_MET_OPTIONS = [
+  "Referred by",
+  "They call us",
+  "We visit office",
+  "We visit site",
+  "Other",
+] as const;
+
+/** All 28 Indian states + 8 union territories. */
+export const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry",
+] as const;
+
+/** Proposal Type — capture-only for now; Won always creates a project Order regardless. */
+export const PROPOSAL_TYPES = [
+  "Project Proposal",
+  "BOQ Proposal",
+  "AMC Proposal",
+  "Service Proposal",
+  "Others",
+] as const;
+
+/** Project Category — distinct from Lead.segment (finer sizing taxonomy). */
+export const PROJECT_CATEGORIES = [
+  "Residential",
+  "Commercial",
+  "Industrial",
+  "Hospital",
+  "Academicals",
+  "Others",
+] as const;
+
+/** Convenience default mapping used by convertToProposal — freely editable after. */
+export const SEGMENT_TO_CATEGORY: Record<string, string> = {
+  Apartment: "Residential",
+  "Villa/Gated": "Residential",
+  Hospital: "Hospital",
+  Textile: "Industrial",
+  Industrial: "Industrial",
+  ITPark: "Commercial",
+  Hotel: "Commercial",
+  Municipal: "Others",
+  Institution: "Others",
+};
+
 export const ITEM_CATEGORIES = [
   "Plumbing",
   "Civil",

@@ -41,6 +41,9 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
     technology: p.technology,
     capacityKLD: p.capacityKLD,
     lostReason: p.lostReason,
+    contactPersonId: p.contactPersonId,
+    proposalType: p.proposalType,
+    projectCategory: p.projectCategory,
     order: p.order ? { id: p.order.id, orderNo: p.order.orderNo } : null,
     version: current
       ? {
@@ -89,6 +92,7 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
   };
 
   const documents = (p.documents ?? []).map((d) => ({ id: d.id, url: d.url, name: d.name }));
+  const contacts = (p.lead.contacts ?? []).map((c) => ({ id: c.id, name: c.name, designation: c.designation }));
 
   return (
     <ProposalEditor
@@ -98,6 +102,7 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
       documents={documents}
       standardTermsTemplate={company.standardTermsTemplate}
       materials={materials}
+      contacts={contacts}
     />
   );
 }

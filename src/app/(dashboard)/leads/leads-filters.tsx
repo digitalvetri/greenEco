@@ -54,6 +54,7 @@ export function LeadsFilters({
   }, [search]);
 
   const source = params.get("source") ?? "";
+  const sort = params.get("sort") ?? "";
   const assignee = params.get("assignee") ?? "";
   const mine = params.get("assignee") === currentUserId;
 
@@ -91,6 +92,17 @@ export function LeadsFilters({
             {s}
           </option>
         ))}
+      </select>
+
+      <select
+        value={sort}
+        onChange={(e) => apply((p) => (e.target.value ? p.set("sort", e.target.value) : p.delete("sort")))}
+        aria-label="Sort by"
+        className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:border-primary/50"
+      >
+        <option value="">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="name">Name A–Z</option>
       </select>
 
       {isAdmin && (

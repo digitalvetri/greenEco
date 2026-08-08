@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { leadScore } from "./lead-score";
+import { leadScore, leadCompleteness, type LeadCompletenessInput } from "./lead-score";
+
+const EMPTY_COMPLETENESS: LeadCompletenessInput = {
+  contactCount: 0,
+  hasLoggedMeeting: false,
+  hasUpcomingMeeting: false,
+};
 
 describe("leadScore", () => {
   it("a large, well-budgeted, imminent, price-discussing lead is HOT", () => {
@@ -49,5 +55,52 @@ describe("leadScore", () => {
     const small = leadScore({ capacityKLD: 10, source: "Other" }).score;
     const large = leadScore({ capacityKLD: 100, source: "Other" }).score;
     expect(large).toBeGreaterThan(small);
+  });
+});
+
+describe("leadCompleteness", () => {
+  it("a bare lead with nothing filled is 0%", () => {
+    expect(leadCompleteness(EMPTY_COMPLETENESS)).toBe(0);
+  });
+
+  it("a fully-filled lead is 100%", () => {
+    const full: LeadCompletenessInput = {
+      state: "Tamil Nadu",
+      email: "a@b.com",
+      leadType: "Builder/Developers",
+      howMet: "Referred by",
+      projectName: "X",
+      projectAddress: "Y",
+      contactCount: 1,
+      plantType: "STP",
+      technology: "MBBR",
+      capacityKLD: 20,
+      segment: "Apartment",
+      budgetBand: "₹5–15L",
+      decisionTimeline: "1–3 months",
+      inletBOD: 200,
+      inletCOD: 400,
+      inletTSS: 150,
+      inletTDS: 500,
+      hasLoggedMeeting: true,
+      hasUpcomingMeeting: true,
+    };
+    expect(leadCompleteness(full)).toBe(100);
+  });
+
+  it("is monotonic — filling in one more field never lowers the %", () => {
+    const before = leadCompleteness(EMPTY_COMPLETENESS);
+    const after = leadCompleteness({ ...EMPTY_COMPLETENESS, state: "Kerala" });
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it("a zero/negative capacity does not count as filled", () => {
+    const withZero = leadCompleteness({ ...EMPTY_COMPLETENESS, capacityKLD: 0 });
+    expect(withZero).toBe(0);
+  });
+
+  it("partial inlet readings (not all four) don't count as filled", () => {
+    const partial = leadCompleteness({ ...EMPTY_COMPLETENESS, inletBOD: 200, inletCOD: 400 });
+    expect(partial).toBe(0);
   });
 });
