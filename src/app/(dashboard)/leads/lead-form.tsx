@@ -2,16 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Plus, Trash2, AlertTriangle, FileUp } from "lucide-react";
+import { MapPin, Plus, Trash2, AlertTriangle, FileUp, Eye } from "lucide-react";
 import Link from "next/link";
 import { Input, Textarea, Label, Field, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { SpeakButton } from "@/components/mobile/speak-button";
 import {
   LEAD_SOURCES,
   LEAD_TYPES,
-  HOW_MET_OPTIONS,
   INDIAN_STATES,
   PLANT_TYPES,
   TECHNOLOGIES,
@@ -60,13 +60,16 @@ export interface LeadFormInitial {
   inletTSS?: string;
   inletTDS?: string;
   leadType?: string;
-  howMet?: string;
   state?: string;
 }
 
+const PHONE_RE = /^[6-9]\d{9}$/;
+
 /**
- * Create or edit a lead. In edit mode the contacts/reference section is hidden
- * (those are managed separately) and the core fields submit via updateLeadAction.
+ * Create or edit a lead. In edit mode the contacts/reference/branch-office section is
+ * hidden (those are managed separately) and plant sizing stays available (added once
+ * the deal progresses); in create mode plant sizing is deliberately not shown at all —
+ * a fresh enquiry rarely has it yet — and every save goes through a Preview step.
  */
 export function LeadForm({ mode = "create", leadId, initial, initialContacts }: {
   mode?: "create" | "edit";
@@ -79,8 +82,12 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ id: string; customerName: string } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   // When true, after saving the lead we immediately start a proposal from it.
   const [thenProposal, setThenProposal] = useState(false);
+  const [projectDetailsEnabled, setProjectDetailsEnabled] = useState(
+    () => !!(initial?.projectName || initial?.projectAddress),
+  );
 
   const [form, setForm] = useState({
     customerName: initial?.customerName ?? "",
@@ -105,7 +112,6 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
     inletTSS: initial?.inletTSS ?? "",
     inletTDS: initial?.inletTDS ?? "",
     leadType: initial?.leadType ?? "",
-    howMet: initial?.howMet ?? "",
     state: initial?.state ?? "",
   });
   const [contacts, setContacts] = useState<Contact[]>(initialContacts ?? []);
@@ -127,21 +133,42 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
     );
   }
 
-  function submit(override = false, proposal = thenProposal) {
-    setError(null);
-    if (!isEdit && !form.state) {
-      setError("State is required");
+  function validate(): string | null {
+    if (!form.customerName.trim()) return "Company / Customer Name is required";
+    if (!PHONE_RE.test(form.phone)) return "Enter a valid 10-digit mobile number";
+    if (!form.address.trim()) return "Address is required";
+    if (!isEdit && !form.state) return "State is required";
+    return null;
+  }
+
+  function openPreview() {
+    const err = validate();
+    if (err) {
+      setError(err);
       return;
     }
+    setError(null);
+    setPreviewOpen(true);
+  }
+
+  function submit(override = false, proposal = thenProposal) {
+    const err = validate();
+    if (err) {
+      setError(err);
+      setPreviewOpen(false);
+      return;
+    }
+    setError(null);
     setThenProposal(proposal);
     const base = {
       ...form,
       email: form.email || undefined,
       requirement: form.requirement || undefined,
       leadType: form.leadType || undefined,
-      howMet: form.howMet || undefined,
       state: form.state || undefined,
       capacityValue: form.capacityKLD ? Number(form.capacityKLD) : undefined,
+      projectName: projectDetailsEnabled ? form.projectName || undefined : undefined,
+      projectAddress: projectDetailsEnabled ? form.projectAddress || undefined : undefined,
       overrideDuplicate: override,
     };
     startTransition(async () => {
@@ -159,6 +186,7 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
                 : undefined,
             });
         if ("duplicate" in res && res.duplicate) {
+          setPreviewOpen(false);
           setDuplicate(res.duplicate);
           return;
         }
@@ -197,37 +225,50 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
         <div className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+      <div className={isEdit ? "grid gap-4 xl:grid-cols-2 xl:items-start" : "space-y-4"}>
       <Card>
-        <CardContent className="space-y-4 pt-4">
-          <Field label="Company / Customer Name" required>
-            <Input
-              value={form.customerName}
-              onChange={(e) => set("customerName", e.target.value)}
-              placeholder="e.g. Green Meadows Apartments Assn."
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Lead Type">
-              <Select value={form.leadType} onChange={(e) => set("leadType", e.target.value)}>
-                <option value="">—</option>
-                {LEAD_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="State" required={!isEdit}>
-              <Select value={form.state} onChange={(e) => set("state", e.target.value)}>
-                <option value="">—</option>
-                {INDIAN_STATES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </Select>
+        <CardContent className="grid gap-4 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="sm:col-span-2 lg:col-span-4">
+            <Field label="Company / Customer Name" required>
+              <Input
+                value={form.customerName}
+                onChange={(e) => set("customerName", e.target.value)}
+                placeholder="e.g. Green Meadows Apartments Assn."
+              />
             </Field>
           </div>
 
-          <div>
+          <Field label="Phone (10 digits)" required>
+            <Input
+              value={form.phone}
+              inputMode="numeric"
+              maxLength={10}
+              onChange={(e) => set("phone", e.target.value.replace(/\D/g, ""))}
+              placeholder="9XXXXXXXXX"
+            />
+          </Field>
+          <Field label="Email">
+            <Input value={form.email} onChange={(e) => set("email", e.target.value)} />
+          </Field>
+
+          <Field label="Lead Type">
+            <Select value={form.leadType} onChange={(e) => set("leadType", e.target.value)}>
+              <option value="">—</option>
+              {LEAD_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="State" required={!isEdit}>
+            <Select value={form.state} onChange={(e) => set("state", e.target.value)}>
+              <option value="">—</option>
+              {INDIAN_STATES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </Select>
+          </Field>
+
+          <div className="sm:col-span-2 lg:col-span-4">
             <Label>Address *</Label>
             <div className="flex gap-2">
               <Textarea
@@ -248,40 +289,45 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
             )}
           </div>
 
-          <Field label="Project Name" required>
-            <Input
-              value={form.projectName}
-              onChange={(e) => set("projectName", e.target.value)}
-              placeholder="e.g. STP Plant — Green Meadows Phase 2"
+          <div className="sm:col-span-2 lg:col-span-4 flex items-center gap-2 rounded-lg border border-dashed border-border p-3">
+            <input
+              type="checkbox"
+              id="project-details-toggle"
+              checked={projectDetailsEnabled}
+              onChange={(e) => setProjectDetailsEnabled(e.target.checked)}
+              className="size-4 shrink-0 accent-primary"
             />
-          </Field>
-
-          <Field label="Project Address" required>
-            <Textarea
-              value={form.projectAddress}
-              onChange={(e) => set("projectAddress", e.target.value)}
-              placeholder="Installation / project site address"
-              aria-label="Project Address"
-              className="min-h-16"
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Phone (10 digits)" required>
-              <Input
-                value={form.phone}
-                inputMode="numeric"
-                maxLength={10}
-                onChange={(e) => set("phone", e.target.value.replace(/\D/g, ""))}
-                placeholder="9XXXXXXXXX"
-              />
-            </Field>
-            <Field label="Email">
-              <Input value={form.email} onChange={(e) => set("email", e.target.value)} />
-            </Field>
+            <label htmlFor="project-details-toggle" className="cursor-pointer text-sm font-medium">
+              Project details known already (name &amp; site address) — most fresh enquiries don&apos;t have this yet
+            </label>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {projectDetailsEnabled && (
+            <>
+              <div className="sm:col-span-2 lg:col-span-4">
+                <Field label="Project Name">
+                  <Input
+                    value={form.projectName}
+                    onChange={(e) => set("projectName", e.target.value)}
+                    placeholder="e.g. STP Plant — Green Meadows Phase 2"
+                  />
+                </Field>
+              </div>
+              <div className="sm:col-span-2 lg:col-span-4">
+                <Field label="Project Address">
+                  <Textarea
+                    value={form.projectAddress}
+                    onChange={(e) => set("projectAddress", e.target.value)}
+                    placeholder="Installation / project site address"
+                    aria-label="Project Address"
+                    className="min-h-16"
+                  />
+                </Field>
+              </div>
+            </>
+          )}
+
+          <div className="sm:col-span-2 lg:col-span-4">
             <Field label="Source" required>
               <Select value={form.source} onChange={(e) => set("source", e.target.value)}>
                 {LEAD_SOURCES.map((s) => (
@@ -291,31 +337,43 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
                 ))}
               </Select>
             </Field>
-            <Field label="How we met">
-              <Select value={form.howMet} onChange={(e) => set("howMet", e.target.value)}>
-                <option value="">—</option>
-                {HOW_MET_OPTIONS.map((h) => (
-                  <option key={h} value={h}>{h}</option>
-                ))}
-              </Select>
-            </Field>
           </div>
 
-          <div>
+          {!isEdit && form.source === "Reference" && (
+            <div className="sm:col-span-2 lg:col-span-4 grid gap-3 rounded-lg border border-border bg-surface/60 p-3 sm:grid-cols-2">
+              <Field label="Referred by (name)">
+                <Input
+                  value={reference.name}
+                  onChange={(e) => setReference((r) => ({ ...r, name: e.target.value }))}
+                  placeholder="Who referred this lead"
+                />
+              </Field>
+              <Field label="Referred by (phone)">
+                <Input
+                  value={reference.phone}
+                  inputMode="numeric"
+                  onChange={(e) => setReference((r) => ({ ...r, phone: e.target.value.replace(/\D/g, "") }))}
+                />
+              </Field>
+            </div>
+          )}
+
+          <div className="sm:col-span-2 lg:col-span-4">
             <div className="flex items-center justify-between">
-              <Label>Notes</Label>
+              <Label>Meeting Notes</Label>
               <SpeakButton onTranscript={(t) => set("requirement", t)} />
             </div>
             <Textarea
               value={form.requirement}
               onChange={(e) => set("requirement", e.target.value)}
-              placeholder="Anything else about the requirement… (or Speak)"
-              aria-label="Notes"
+              placeholder="What did you discuss? How did you first meet them? (or Speak)"
+              aria-label="Meeting Notes"
             />
           </div>
         </CardContent>
       </Card>
 
+      {isEdit && (
       <Card>
         <CardContent className="space-y-4 pt-4">
           <span className="text-sm font-semibold">Plant sizing</span>
@@ -398,6 +456,7 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
           </div>
         </CardContent>
       </Card>
+      )}
 
       {!isEdit && (
       <Card>
@@ -473,22 +532,6 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
             </div>
           ))}
 
-          <div className="grid grid-cols-2 gap-2 border-t border-border pt-3">
-            <Field label="Reference (name)">
-              <Input
-                value={reference.name}
-                onChange={(e) => setReference((r) => ({ ...r, name: e.target.value }))}
-                placeholder="Who referred this lead"
-              />
-            </Field>
-            <Field label="Reference phone">
-              <Input
-                value={reference.phone}
-                onChange={(e) => setReference((r) => ({ ...r, phone: e.target.value }))}
-              />
-            </Field>
-          </div>
-
           <div className="border-t border-border pt-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold">Branch offices</span>
@@ -541,19 +584,80 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => submit(false, false)} disabled={pending}>
-          {pending && !thenProposal ? "Saving…" : isEdit ? "Save changes" : "Save Lead"}
-        </Button>
-        {!isEdit && (
-          <Button variant="subtle" onClick={() => submit(false, true)} disabled={pending}>
-            <FileUp className="size-4" />
-            {pending && thenProposal ? "Starting proposal…" : "Save & start proposal"}
+        {isEdit ? (
+          <Button onClick={() => submit(false, false)} disabled={pending}>
+            {pending ? "Saving…" : "Save changes"}
+          </Button>
+        ) : (
+          <Button onClick={openPreview} disabled={pending}>
+            <Eye className="size-4" /> Preview
           </Button>
         )}
         <Button variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
       </div>
+
+      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} title="Preview Lead" className="max-w-lg">
+        <div className="max-h-[60vh] space-y-3 overflow-y-auto text-sm">
+          <PreviewRow label="Company / Customer Name" value={form.customerName} />
+          <PreviewRow label="Phone" value={form.phone} />
+          <PreviewRow label="Email" value={form.email} />
+          <PreviewRow label="Lead Type" value={form.leadType} />
+          <PreviewRow label="State" value={form.state} />
+          <PreviewRow label="Address" value={form.address} />
+          {projectDetailsEnabled && (
+            <>
+              <PreviewRow label="Project Name" value={form.projectName} />
+              <PreviewRow label="Project Address" value={form.projectAddress} />
+            </>
+          )}
+          <PreviewRow label="Source" value={form.source} />
+          {!isEdit && form.source === "Reference" && reference.name && (
+            <PreviewRow label="Referred by" value={`${reference.name}${reference.phone ? ` · ${reference.phone}` : ""}`} />
+          )}
+          <PreviewRow label="Meeting Notes" value={form.requirement} />
+          {contacts.filter((c) => c.name).length > 0 && (
+            <div>
+              <div className="text-muted">Contact Persons</div>
+              {contacts
+                .filter((c) => c.name)
+                .map((c, i) => (
+                  <div key={i} className="mt-0.5 text-xs">
+                    {c.name}
+                    {c.designation ? ` · ${c.designation}` : ""}
+                    {c.mobile ? ` · ${c.mobile}` : ""}
+                  </div>
+                ))}
+            </div>
+          )}
+          {branchOffices.filter((b) => b.address).length > 0 && (
+            <div>
+              <div className="text-muted">Branch offices</div>
+              {branchOffices
+                .filter((b) => b.address)
+                .map((b, i) => (
+                  <div key={i} className="mt-0.5 text-xs">
+                    {b.address}
+                    {b.phone ? ` · ${b.phone}` : ""}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-3">
+          <Button onClick={() => submit(false, false)} disabled={pending}>
+            {pending && !thenProposal ? "Saving…" : "Save Lead"}
+          </Button>
+          <Button variant="subtle" onClick={() => submit(false, true)} disabled={pending}>
+            <FileUp className="size-4" />
+            {pending && thenProposal ? "Starting proposal…" : "Save & start proposal"}
+          </Button>
+          <Button variant="outline" onClick={() => setPreviewOpen(false)} disabled={pending}>
+            Back to edit
+          </Button>
+        </div>
+      </Dialog>
 
       {duplicate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -589,6 +693,16 @@ export function LeadForm({ mode = "create", leadId, initial, initialContacts }: 
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+function PreviewRow({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="shrink-0 text-muted">{label}</span>
+      <span className="text-right font-medium">{value}</span>
     </div>
   );
 }

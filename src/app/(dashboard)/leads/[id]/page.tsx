@@ -87,17 +87,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </div>
           </div>
 
-          {/* Profile completeness — pure checklist of optional fields, not a validation gate */}
-          <div className="flex items-center gap-2">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${lead.completeness}%` }}
-              />
-            </div>
-            <span className="shrink-0 text-xs text-muted">Profile {lead.completeness}% complete</span>
-          </div>
-
           <div className="h-px bg-border" />
 
           {/* Actions — one toolbar, uniform spacing (contact + lifecycle) */}

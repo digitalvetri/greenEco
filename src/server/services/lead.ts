@@ -6,7 +6,7 @@ import { stripPricing } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { boqPreview, SEGMENT_TO_CATEGORY, deriveCapacityKLD } from "@/lib/constants";
-import { leadScore, leadCompleteness } from "@/lib/domain/lead-score";
+import { leadScore } from "@/lib/domain/lead-score";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
 import { allocateNumber } from "./numbering";
@@ -557,7 +557,6 @@ export async function getLead(ctx: Ctx, id: string) {
     return null;
   }
   const names = await userNameMap(ctx.companyId);
-  const now = new Date();
   return {
     ...stripPricing(lead, ctx.role),
     assignedToName: names.get(lead.assignedToId) ?? "Unassigned",
@@ -568,27 +567,6 @@ export async function getLead(ctx: Ctx, id: string) {
       decisionTimeline: lead.decisionTimeline,
       source: lead.source,
       latestOutcome: lead.followUps[0]?.outcome ?? null,
-    }),
-    completeness: leadCompleteness({
-      state: lead.state,
-      email: lead.email,
-      leadType: lead.leadType,
-      howMet: lead.howMet,
-      projectName: lead.projectName,
-      projectAddress: lead.projectAddress,
-      contactCount: lead.contacts.length,
-      plantType: lead.plantType,
-      technology: lead.technology,
-      capacityKLD: lead.capacityKLD,
-      segment: lead.segment,
-      budgetBand: lead.budgetBand,
-      decisionTimeline: lead.decisionTimeline,
-      inletBOD: lead.inletBOD,
-      inletCOD: lead.inletCOD,
-      inletTSS: lead.inletTSS,
-      inletTDS: lead.inletTDS,
-      hasLoggedMeeting: lead.followUps.some((f) => f.type === "MEETING"),
-      hasUpcomingMeeting: lead.followUps.some((f) => f.nextDate != null && f.nextDate > now),
     }),
     // Indicative pre-quote value (sell-side band from the KLD template; not cost).
     boqPreview: lead.capacityKLD ? boqPreview(lead.capacityKLD) : null,

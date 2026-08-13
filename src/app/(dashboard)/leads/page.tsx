@@ -14,10 +14,7 @@ const STATUS_TABS = [
   { key: "", label: "All" },
   { key: "NEW", label: "New" },
   { key: "IN_FOLLOWUP", label: "In Follow-up" },
-  { key: "QUOTE_REQUESTED", label: "Quote Req." },
   { key: "cold", label: "Going Cold" },
-  { key: "CONVERTED", label: "Converted" },
-  { key: "LOST", label: "Lost" },
 ];
 
 export default async function LeadsPage({

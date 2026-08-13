@@ -32,15 +32,6 @@ export const LEAD_TYPES = [
   "Others",
 ] as const;
 
-/** How we first made contact with this lead — distinct from `leadType`. */
-export const HOW_MET_OPTIONS = [
-  "Referred by",
-  "They call us",
-  "We visit office",
-  "We visit site",
-  "Other",
-] as const;
-
 /** All 28 Indian states + 8 union territories. */
 export const INDIAN_STATES = [
   "Andhra Pradesh",

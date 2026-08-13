@@ -21,6 +21,8 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
         initial={{
           customerName: lead.customerName,
           address: lead.address,
+          projectName: lead.projectName ?? "",
+          projectAddress: lead.projectAddress ?? "",
           phone: lead.phone,
           email: lead.email ?? "",
           source: lead.source,
@@ -46,7 +48,6 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
           inletTSS: lead.inletTSS != null ? String(lead.inletTSS) : "",
           inletTDS: lead.inletTDS != null ? String(lead.inletTDS) : "",
           leadType: lead.leadType ?? "",
-          howMet: lead.howMet ?? "",
           state: lead.state ?? "",
         }}
       />
