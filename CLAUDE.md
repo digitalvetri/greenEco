@@ -41,6 +41,30 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v43 — New Lead page redesign + leads list/detail cleanup (client bug PDF)
+
+Client sent a PDF of concrete UI fixes against the New Lead page/leads list/lead detail page.
+**Gate: tsc 0 · lint 0 new · 89 unit (-5, expected — removed leadCompleteness and its tests) ·
+`next build` clean · browser-verified 1440px + 390px + the new preview dialog, live-DB verified.**
+
+- **New Lead page rebuilt**: Plant Sizing box removed from create (kept for edit — sizing gets
+  added once a deal progresses, not at initial capture) so the form now fills the page; Project
+  Name/Address hidden behind a new "Project details known already" checkbox (most fresh enquiries
+  don't have this yet); Phone/Email moved above Lead Type; Source=Reference now reveals inline
+  "Referred by" name/phone fields (replacing the old disconnected section under Contact Persons);
+  "How we met" dropdown removed, folded into one relabelled "Meeting Notes" box right after Source.
+  Save now goes through a **Preview** dialog (summarizes every field) before Save Lead/Save & start
+  proposal — edit mode keeps its existing direct save.
+- **Bug found + fixed while wiring the checkbox default**: the edit page never passed the lead's
+  existing `projectName`/`projectAddress` into the form, so editing a lead that already had project
+  details would've shown the new checkbox unchecked and hidden real saved data.
+- **Leads list**: removed the Quote Req./Converted/Lost tabs (All/New/In Follow-up/Going Cold kept).
+- **Lead detail**: removed the "Profile N% complete" bar entirely per direct feedback — this was
+  v42's own `leadCompleteness` feature; removed cleanly (function + 5 tests + service call +
+  constant), not just hidden, since nothing else depended on it.
+- **Deliberately not built**: no dedicated Site Visit sub-fields (doc didn't specify what they'd be;
+  the general Meeting Notes box already covers visit-specific narrative) — flagged rather than guessed.
+
 ### v42 — Client's Lead/Proposal doc, shipped as 4 phases (A→D)
 
 Client sent two docs (`Idea for Lead in CRM Green Ecocare.docx`, `Idea for Proposal in CRM Green
