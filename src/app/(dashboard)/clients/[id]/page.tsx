@@ -126,7 +126,13 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
                   <Row
                     key={p.id}
                     label={p.proposalType ?? "Proposal"}
-                    value={`${displayProposalNumber(p.status, p.number)} · ${p.status}`}
+                    // A DRAFT's placeholder already says "DRAFT — number assigned on
+                    // completion", so appending the status again just repeats the word.
+                    value={
+                      p.status === "DRAFT"
+                        ? displayProposalNumber(p.status, p.number)
+                        : `${p.number} · ${p.status}`
+                    }
                   />
                 ))}
                 {order && <Row label="Order" value={order.orderNo} />}

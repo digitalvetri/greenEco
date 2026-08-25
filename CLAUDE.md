@@ -80,14 +80,28 @@ at 1440px + 390px, zero console errors.**
   that already exists, `status !== "DRAFT"`, rather than inventing a second state machine: a proposal
   leaves DRAFT exactly when an admin runs Approve & Send, which already means "this is finished".
   One exported predicate applied in the **service return path** across every read surface —
-  `listProposals` / `getProposal` (and therefore `/print/proposal/[id]` + `/api/pdf`) /
+  `listProposals` / `getProposal` (and therefore `/print/proposal/[id]`, which resolves the document
+  through it; `/api/pdf` queries Prisma directly in `pdf.ts` `resolve()` and is gated by its own
+  `requireAdmin`, so a non-admin never reaches it at all) /
   `proposalActivity` / `proposalStats` / `proposalAnalytics` / `/api/proposals` / **⌘K search** /
   the nested `proposals` include on `lead.ts` and `client.ts` / `clientWhere` / the dashboard's
-  clients KPI. The negative assertions are the point of `verify-proposals-p6`: an employee cannot
-  reach an unconfirmed proposal via list, API, search, direct id, lead badges, clients, or export.
-  Consequences accepted: the old "EMPLOYEE may edit a DRAFT proposal" path is now dead (correct —
-  the office writes, the field requests), and the Draft tab + "Awaiting finalisation" tile are
+  clients KPI — **and the WRITE paths too**: `saveVersion`, `addProposalFollowUp`,
+  `addProposalDocument`, `deleteProposalDocument`. Gating reads alone wasn't enough — the draft's id
+  IS reachable by the requester (it's serialized into their own request row), so "the UI doesn't
+  link it" is not a boundary. `saveVersion`'s old rule is now exactly inverted: it used to *permit*
+  an employee precisely while `status === "DRAFT"`. The negative assertions are the point of
+  `verify-proposals-p6`: an employee cannot reach an unconfirmed proposal via list, API, search,
+  direct id, lead badges, clients, or export — **nor write to one** given its id.
+  Consequences accepted: the old "EMPLOYEE may edit a DRAFT proposal" path is gone (correct — the
+  office writes, the field requests), and the Draft tab + "Awaiting finalisation" tile are
   admin-only (they'd always be empty for an employee).
+- **Bug found by browser-driving the flow, not by the type checker**: submitting a request created
+  the row in the DB but the list didn't show it. `RequestsList` seeded `useState(initialItems)`, and
+  a `useState` initializer only runs on mount — so `router.refresh()` fetched fresh props the
+  component ignored. Same class as the v8 leads-list bug, but the `key={…}` trick used there can't
+  work when nothing in the key changes. Fixed properly: page 1 is derived from props and only the
+  *additional* loaded pages live in state, so a refresh is always reflected. This bites on this page
+  specifically because it is the only list where rows are created and actioned in place.
 - **`verify-sell` updated, not silenced** — it fetched a DRAFT as an EMPLOYEE to assert
   `estimatedCost` stripping, which the new gate correctly blocks. Now asserts *both*: employee gets
   `null` on the draft, **and** after confirmation they can open it with `estimatedCost` still

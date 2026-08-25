@@ -59,7 +59,10 @@ export async function getProposal(ctx: Ctx, id: string) {
 /** Attach an already-uploaded document (url/name from /api/uploads) to a proposal. */
 export async function addProposalDocument(ctx: Ctx, proposalId: string, doc: { url: string; name: string }) {
   const p = await prisma.proposal.findFirst({ where: { id: proposalId, companyId: ctx.companyId } });
-  if (!p) throw new Error("Proposal not found");
+  // The WRITE paths need the same office-only gate as the reads: an employee who
+  // learned a draft's id (it is serialized into their own request row) must not be
+  // able to write to a proposal they cannot open. Same collapsed error as not-found.
+  if (!p || !canSeeProposal(ctx, p)) throw new Error("Proposal not found");
   const created = await prisma.proposalDocument.create({
     data: { companyId: ctx.companyId, proposalId, url: doc.url, name: doc.name, createdById: ctx.userId },
   });
@@ -88,7 +91,7 @@ export interface AddProposalFollowUpInput {
  */
 export async function addProposalFollowUp(ctx: Ctx, proposalId: string, input: AddProposalFollowUpInput) {
   const p = await prisma.proposal.findFirst({ where: { id: proposalId, companyId: ctx.companyId } });
-  if (!p) throw new Error("Proposal not found");
+  if (!p || !canSeeProposal(ctx, p)) throw new Error("Proposal not found");
   const fu = await prisma.followUp.create({
     data: {
       proposalId,
@@ -108,8 +111,13 @@ export async function addProposalFollowUp(ctx: Ctx, proposalId: string, input: A
 }
 
 export async function deleteProposalDocument(ctx: Ctx, docId: string) {
-  const doc = await prisma.proposalDocument.findFirst({ where: { id: docId, companyId: ctx.companyId } });
-  if (!doc) throw new Error("Document not found");
+  const doc = await prisma.proposalDocument.findFirst({
+    where: { id: docId, companyId: ctx.companyId },
+    include: { proposal: { select: { status: true } } },
+  });
+  // Gate on the PARENT proposal — a document hanging off an unconfirmed draft is
+  // just as office-only as the draft itself.
+  if (!doc || !canSeeProposal(ctx, doc.proposal)) throw new Error("Document not found");
   await prisma.proposalDocument.delete({ where: { id: docId } });
   await logAudit(ctx, { action: "DELETE", entity: "ProposalDocument", entityId: docId, before: { name: doc.name } });
   return { ok: true };
@@ -389,10 +397,15 @@ export async function saveVersion(ctx: Ctx, proposalId: string, input: VersionSa
     where: { id: proposalId, companyId: ctx.companyId },
     include: { versions: { include: { boqItems: true } } },
   });
-  if (!proposal) throw new Error("Proposal not found");
+  // Gate BEFORE the status checks below. The old rule ("an employee may edit while
+  // DRAFT") is now exactly inverted: DRAFT is the one state an employee must not
+  // touch, because the office writes proposals and an unconfirmed one isn't theirs
+  // to see, let alone edit. Collapsed to not-found so a draft id learned elsewhere
+  // (it is serialized into the requester's own request row) reveals nothing.
+  if (!proposal || !canSeeProposal(ctx, proposal)) throw new Error("Proposal not found");
   if (proposal.status === "WON" || proposal.status === "LOST") throw new Error("Proposal is locked");
-  if (ctx.role !== "ADMIN" && proposal.status !== "DRAFT") {
-    throw new Error("Only admins can edit a sent proposal");
+  if (ctx.role !== "ADMIN") {
+    throw new Error("Only admins can edit a proposal");
   }
 
   const current = currentVersionOf(proposal)!;

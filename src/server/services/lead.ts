@@ -1521,7 +1521,9 @@ export async function convertToProposal(ctx: Ctx, leadId: string, opts: ConvertT
     // request can never be marked FULFILLED against a proposal that didn't commit.
     if (opts.requestId) {
       await tx.proposalRequest.updateMany({
-        where: { id: opts.requestId, companyId: ctx.companyId },
+        // Scoped to THIS lead as well as the tenant — otherwise a crafted requestId
+        // could mark an unrelated enquiry's request fulfilled against this proposal.
+        where: { id: opts.requestId, companyId: ctx.companyId, leadId: lead.id },
         data: { status: "FULFILLED", proposalId: proposal.id, reviewedById: ctx.userId, reviewedAt: new Date() },
       });
     }

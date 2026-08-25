@@ -21,6 +21,8 @@ import {
   approveAndSend,
   saveVersion,
   markWon,
+  addProposalFollowUp,
+  addProposalDocument,
 } from "@/server/services/proposal";
 import {
   createProposalRequest,
@@ -29,7 +31,15 @@ import {
   pendingProposalRequestCount,
 } from "@/server/services/proposal-request";
 import { searchAll } from "@/server/services/search";
-import { listClients, clientStats, clientAnalytics, allClientsForExport } from "@/server/services/client";
+import {
+  listClients,
+  clientStats,
+  clientAnalytics,
+  allClientsForExport,
+  getClient360,
+  listClientProjectTabs,
+  listClientCustomers,
+} from "@/server/services/client";
 
 const uniquePhone = () => "9" + String(Date.now()).slice(-9);
 
@@ -191,6 +201,34 @@ async function main() {
       !empExport.some((r) => r.proposalNo === number),
     );
 
+    // ---------- WRITE paths must be gated too, not just reads ----------
+    // The draft's id IS reachable by the employee — it is serialized into their own
+    // request row — so "the UI doesn't link it" is not a boundary. These assert the
+    // service refuses, which is where the boundary has to live.
+    const writeBlocked = async (label: string, fn: () => Promise<unknown>) => {
+      let blocked = false;
+      try {
+        await fn();
+      } catch {
+        blocked = true;
+      }
+      check(label, blocked);
+    };
+    await writeBlocked("employee CANNOT saveVersion on an unconfirmed draft", () =>
+      saveVersion(E, proposalId, { technicalText: "injected" }),
+    );
+    await writeBlocked("employee CANNOT log a follow-up against an unconfirmed draft", () =>
+      addProposalFollowUp(E, proposalId, { type: "CALL", notes: "injected" }),
+    );
+    await writeBlocked("employee CANNOT attach a document to an unconfirmed draft", () =>
+      addProposalDocument(E, proposalId, { url: "/uploads/x.pdf", name: "x.pdf" }),
+    );
+    const stillClean = await prisma.proposalVersion.findFirst({
+      where: { proposalId },
+      select: { technicalText: true },
+    });
+    check("…and none of that wrote anything", stillClean?.technicalText !== "injected");
+
     // ---------- The admin confirms → it becomes visible ----------
     // Approve & Send needs a version; give it a real BOQ so totals are non-zero.
     await saveVersion(A, proposalId, {
@@ -297,6 +335,46 @@ async function main() {
     const thisLeadRows = exportRows.filter((r) => r.customerName === leadRes.lead!.customerName);
     check("the client export emits one row PER PROPOSAL, dropping none", thisLeadRows.length === 2);
 
+    // ---------- Client 360 + project tabs, with a genuinely multi-proposal lead ----------
+    // These are the biggest rewrites in this change and the regression scripts skip
+    // them on an empty DB, so exercise them here while the two-won-proposal lead exists.
+    const c360 = await getClient360(A, leadId);
+    check("getClient360 resolves for a multi-proposal lead", c360 !== null);
+    const c = c360 as unknown as {
+      lead: { proposals: { id: string }[] };
+      timeline: { kind: string }[];
+      primaryProposalId: string | null;
+    };
+    check("360 carries BOTH proposals", c.lead.proposals.length === 2);
+    check(
+      "360 timeline has an event for each proposal",
+      c.timeline.filter((e) => e.kind === "proposal").length === 2,
+    );
+    check(
+      "360 timeline has an event for each order",
+      c.timeline.filter((e) => e.kind === "order").length === 2,
+    );
+    check(
+      "360 names a primary proposal the page can key its header off",
+      !!c.primaryProposalId && c.lead.proposals.some((p) => p.id === c.primaryProposalId),
+    );
+
+    const tabs = await listClientProjectTabs(A, leadId);
+    check("project tabs return one entry for this lead (a tab is a site, not a quote)", tabs.length === 1);
+    check("the tab resolves its proposal + order", tabs[0].proposalNo !== null && tabs[0].orderNo !== null);
+
+    const customers = await listClientCustomers(A, { take: 100 });
+    check(
+      "the customer card lists this client",
+      customers.items.some((x) => x.customerName === leadRes.lead!.customerName),
+    );
+
+    const emp360 = await getClient360(E, leadId);
+    check(
+      "employee's 360 shows both proposals too (both are confirmed by now)",
+      !!emp360 && (emp360 as unknown as { lead: { proposals: unknown[] } }).lead.proposals.length === 2,
+    );
+
     // ---------- Rejection carries a reason ----------
     const req2 = await createProposalRequest(E, { leadId, proposalType: "AMC Proposal" });
     created.requestIds.push(req2.id);
@@ -336,8 +414,16 @@ async function main() {
     });
     await prisma.client.deleteMany({ where: { id: { in: created.clientIds } } });
     await prisma.proposalRequest.deleteMany({ where: { leadId: { in: created.leadIds } } });
+    // Both notification shapes: request-side rows AND the "your proposal is ready"
+    // rows, which are written with entity "Proposal". Missing the second kind leaves
+    // OPEN tasks in the live notifications menu pointing at deleted proposals.
     await prisma.automationTask.deleteMany({
-      where: { entity: "ProposalRequest", entityId: { in: created.requestIds } },
+      where: {
+        OR: [
+          { entity: "ProposalRequest", entityId: { in: created.requestIds } },
+          { entity: "Proposal", entityId: { in: created.proposalIds } },
+        ],
+      },
     });
     const versions = await prisma.proposalVersion.findMany({
       where: { proposalId: { in: created.proposalIds } },

@@ -58,8 +58,21 @@ export function RequestsList({
   isAdmin: boolean;
 }) {
   const router = useRouter();
-  const [items, setItems] = useState(initialItems);
-  const [cursor, setCursor] = useState(initialCursor);
+  // Only the ADDITIONAL pages live in state; page 1 is read straight from props.
+  //
+  // The obvious `useState(initialItems)` is wrong HERE specifically: unlike the other
+  // lists in this app, requests are created and actioned ON this page, so it calls
+  // router.refresh() and gets fresh props — but a useState initializer only ever runs
+  // on mount, so the freshly-created request would never appear (verified in-browser:
+  // the row was in the DB and absent from the page). Same class as the v8 leads-list
+  // bug, which was papered over with a `key` — that trick can't work when the key
+  // wouldn't change. Deriving page 1 from props keeps refresh honest.
+  const [more, setMore] = useState<{ items: RequestRow[]; cursor: string | null }>({
+    items: [],
+    cursor: null,
+  });
+  const items = [...initialItems, ...more.items];
+  const cursor = more.items.length > 0 ? more.cursor : initialCursor;
   const [loading, setLoading] = useState(false);
   const [rejecting, setRejecting] = useState<RequestRow | null>(null);
   const [pending, start] = useTransition();
@@ -73,8 +86,7 @@ export function RequestsList({
       const res = await fetch(`/api/proposal-requests?${params.toString()}`);
       if (!res.ok) throw new Error("Could not load more");
       const data: { items: RequestRow[]; nextCursor: string | null } = await res.json();
-      setItems((p) => [...p, ...data.items]);
-      setCursor(data.nextCursor);
+      setMore((p) => ({ items: [...p.items, ...data.items], cursor: data.nextCursor }));
     } catch (e) {
       toast(e instanceof Error ? e.message : "Failed to load more", "error");
     } finally {
