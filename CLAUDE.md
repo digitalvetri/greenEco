@@ -41,6 +41,86 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v45 — Type-aware proposal documents: template layer, wizard, editable sections (Phase B of 3)
+
+Phase A gave employees a way to *request* a proposal by type; Phase B gives the admin the type-aware
+content and the form to create one. **Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) ·
+126 unit (+24) · `next build` clean · new `verify-proposals-p7` (74 checks, live DB, rows cleaned
+up) · p6 (65) + p0/p4/p5 + sell + clients-p0 green · wizard AND the new editor sections both
+browser-driven end-to-end at 1440px + 390px, zero console errors.**
+
+- **Three tiers, so ~85% of the document is never retyped or AI-generated.** Diffing the client's
+  four Project Proposal samples showed exactly six blocks differ per technology; the rest is company
+  boilerplate. So:
+  - `src/lib/project-report-templates.ts` — `PROJECT_REPORT_TEMPLATES` for MBBR/SBR/ASP/MBR holding
+    the six differing blocks (recommendation · flow-chart nodes · process-unit descriptions ·
+    equipment table · materials-spec sheet · electrical-load rows) plus the shared pre/post units.
+    A lookup, not a model call: the wording is the client's, must not drift between quotes, and has
+    to work with no API key. Kept out of `constants.ts` purely for size.
+  - `src/lib/project-report-boilerplate.ts` + 14 `Company.doc*` columns, edited in a new
+    **Settings → Proposal document** card. Exactly the `standardTermsTemplate` precedent: null falls
+    back to the shipped default, so blanking a field restores the original wording and a fresh
+    company gets the real document with zero data entry.
+  - `ProposalVersion.documentData Json?` (migration `proposal_document_data`) with a **per-type Zod
+    schema** (`lib/domain/proposal-document.ts`) — one column rather than ~15 divergent nullable
+    ones, because the four types have genuinely heterogeneous field sets. A deliberate, documented
+    divergence from v29's column-per-field approach.
+- **`saveVersion` merges `documentData` at TWO levels** — omitted keeps what's stored (the failure
+  mode that function already warned about), *and* a partial payload shallow-merges over it. Without
+  the second level the wizard's single `capacityCalc` field would have wiped the recommendation,
+  flow chart, equipment list and spec sheet seeded from the template moments earlier. Validated
+  against the proposal's own type, so a BOQ field can't land on a Project Report.
+- **The money invariant is explicitly unmoved.** The Project Report's four rolled-up cost buckets and
+  the BOQ's itemised table are both ordinary `BOQItem` rows — only the print template will group them
+  differently — so `subtotal`/`gstAmount`/`grandTotal` and `markWon`'s milestone derivation are
+  untouched by proposal type. p7 proves it against the sample's own worked example:
+  ₹7,80,000 + 18% = ₹9,20,400 → Won → order value and milestones all reconcile.
+- **`/proposals/new` creation wizard** (admin; Enquiry & format → Design basis → Pricing → Preview) —
+  its own route, deliberately not more sections on the already-1,600-line `proposal-editor.tsx`.
+  Prefills from a request (`?request=`) or a lead. Goes through the SAME `convertToProposal` as the
+  other two entry points, then writes its inputs via `saveVersion`, so BOQ/GST/rounding invariants
+  aren't duplicated. The request queue's "Create proposal" now opens this prefilled rather than
+  creating blind. Live capacity + load maths as you type.
+- **Sample arithmetic reproduced, sample mistakes not.** `computeCapacity` (500 × 45 + 7,500 = 30,000
+  LPD ≈ 30 KLD) and `computeLoadTotals` (Σ HP → +10% → whole HP → kW → round up to the next ½ kW) are
+  pure and unit-tested against BOTH worked examples in the client's PDFs — the SBR one (11.6 / 1.16 /
+  12.76 → 13 HP → 10 kW) is what proved the totals carry **2** decimals, not 1. Two slips in their
+  source are deliberately NOT copied: the ASP sample's flow chart is titled "30 KLD MBBR", and the
+  MBBR sample's printed unit/running totals (10/6) are SBR's numbers — its own five rows sum to 9/5.
+  Both are asserted as regression tests so a future edit can't quietly reintroduce them.
+- **Five review findings fixed before shipping**, two of which would have blocked Phase C:
+  1. **No silent MBBR substitution.** `projectReportTemplate()` used to `?? MBBR`, so a proposal
+     recorded as SAFF/DAF would carry MBBR's recommendation, flow chart, equipment and load table —
+     wrong engineering content on a document a customer reads (same class as the fabricated ₹0
+     rejected in v38). It now returns `null`, the seeders seed nothing rather than something wrong,
+     all three technology pickers offer only `PROJECT_REPORT_TECHNOLOGIES`, and
+     `createProposalRequest` refuses the combination server-side with a message naming the four.
+  2. **The "editable afterwards" promise made real.** The wizard's own copy said the process
+     description, flow chart, equipment list, spec sheet and load table were editable, but nothing
+     edited `documentData` — ~16 equipment rows and ~15 spec blocks per proposal were unreachable.
+     New `[id]/project-report-sections.tsx` (its own component) with seven collapsed-by-default
+     sections, and the electrical-load table gained its four missing columns.
+  3. **No fabricated headcount.** The seeder back-computed `people` from the lead's KLD, which §6.1
+     prints as a stated fact about the customer's site ("Total number of people … = N"). Only the
+     industry-standard 45 lpd/head is seeded now. This mattered most on the lead-detail Create
+     button, which never shows the design-basis step.
+  4. **Duplicated boilerplate headed off before Phase C.** `DEFAULT_STANDARD_TERMS` contains Taxes &
+     Duties / Warranty / Scope-by-GEC / Acceptance blocks that Phase B also added as §10.2/§12/§13/§11
+     company fields — both would have printed. `shouldPrintStandardTerms()` + `resolvePointsToNote()`
+     encode the precedence (numbered sections win on a Project Report *unless* the admin customised
+     the terms; per-proposal points-to-note wins over the company standard), unit-tested.
+  5. **Widened `electricalLoad` round-trip asserted.** The four new columns surviving an editor save
+     was inference, not a test; silent loss would degrade the 7-column table to 2 columns invisibly
+     until the PDF printed.
+- **Still deferred to Phase C**: the print templates. `/print/proposal/[id]` still renders the
+  existing generic layout for every type — the data is now captured and correct, but the PDF does not
+  yet look like the samples. **Service/AMC layouts remain unbuilt and unguessed** (no sample supplied);
+  their schema is a free-text scope so those types work end-to-end today.
+- **Gotcha**: `NEXT_PUBLIC_APP_URL` is `http://localhost:3000`, but port 3000 on this machine belongs
+  to a different app, so `npm run dev` lands on 3001+ and PDF generation 400s with
+  `ERR_CONNECTION_REFUSED` (the headless renderer navigates to `appUrl`). Point it at the actual dev
+  port to exercise PDFs locally — verified: a real 917 KB `%PDF-` file.
+
 ### v44 — Proposal requests, 1:many lead→proposals, office-only visibility (Phase A of 3)
 
 Client asked for: employees request a proposal by type (Project Report / BOQ / Service / AMC — and
