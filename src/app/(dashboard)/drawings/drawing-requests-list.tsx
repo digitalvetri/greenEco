@@ -265,6 +265,9 @@ export function DrawingRequestsList({
                         accept=".dwg,.dxf,application/pdf,image/*"
                         multiple={false}
                         compress={false}
+                        // Drawings are internal engineering documents — stored behind
+                        // a login rather than at a public-but-unguessable URL.
+                        scope="secure"
                         label={r.status === "CHANGES_REQUESTED" ? "Upload revision" : "Upload drawing"}
                         onUploaded={(files) => {
                           const f = files[0];

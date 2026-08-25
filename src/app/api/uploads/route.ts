@@ -11,6 +11,9 @@ const MULTIPART_SLACK = 512 * 1024;
  * Upload endpoint. Auth-gated; enforces a size ceiling and a MIME/extension
  * allowlist; persists via the storage adapter (local in dev, S3/R2 in prod).
  *
+ * An optional `scope=secure` form field stores the file under a session-gated root
+ * instead of the public-but-unguessable default — see api/files/[...path]/route.ts.
+ *
  * Content-Length is checked *before* parsing, otherwise an oversized body is
  * truncated by the framework and surfaces as an opaque parse error instead of 413.
  */
@@ -44,7 +47,13 @@ export async function POST(req: Request) {
       throw new UploadError("No file provided", 400);
     }
 
-    const saved = await saveUpload(file);
+    // Optional storage scope. "secure" writes under a root that /api/files serves
+    // only to a signed-in session — used for engineering drawings, which no customer
+    // receives by link. Allowlisted, so a caller can't invent a root and escape the
+    // serving route's checks.
+    const scope = form.get("scope");
+    const prefix = scope === "secure" ? "secure" : "uploads";
+    const saved = await saveUpload(file, prefix);
     return NextResponse.json(saved);
   } catch (e) {
     if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });

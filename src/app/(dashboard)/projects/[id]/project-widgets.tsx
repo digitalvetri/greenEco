@@ -191,6 +191,8 @@ export function DrawingUpload({ orderId }: { orderId: string }) {
       <Uploader
         label="Upload drawing"
         accept=".dwg,.dxf,application/pdf,image/*"
+        // Internal engineering document — stored behind a login (see api/files).
+        scope="secure"
         // One drawing per upload. The default `multiple` uploaded every selected file
         // to storage but created a single Drawing row, silently orphaning the rest.
         multiple={false}

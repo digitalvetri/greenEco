@@ -104,9 +104,30 @@ console errors.**
   on the existing `Drawing` table, which fails outright when rows exist. Rewritten by hand as add-
   nullable → backfill from each drawing's order → `SET NOT NULL`, with a `DO $$` block that raises a
   named error rather than letting the constraint abort opaquely. No drawing is read, moved or deleted.
-- **Not built** (flagged, not silently skipped): customer-facing drawing approval, and any change to
-  the deliberately auth-free `/api/files` serving — stored drawings remain public-but-unguessable, the
-  same as every other stored file, which is a decision for the client rather than one to make silently.
+- **Drawing files are behind a login** (added on the client's go-ahead, after flagging it). `/api/files`
+  now has two tiers: `uploads/`+`pdfs/` stay **open** — those are the public-but-unguessable URLs a
+  customer opens from a WhatsApp/email invoice link, and gating them would break every link already
+  sent — while a new `secure/` root **requires a session**. Drawing uploads pass `scope="secure"` to
+  `/api/uploads`, which is allowlisted server-side so a caller can't invent a root. A signed-out
+  request gets **404, not 401**, so a probe can't distinguish "exists" from "wrong guess", and the
+  response carries `Cache-Control: private` — `public` would let a shared/CDN cache store an authed
+  file and hand it to a signed-out request, making the gate pointless. Prefix is `secure` rather than
+  `drawings` because `/drawings` is now a page route and a rewrite there would swallow the module.
+  - **Proving it needed TWO servers.** `AUTH_DEV_BYPASS=1` makes `getSession()` succeed with no cookie,
+    so a normal dev server authenticates everything and cannot demonstrate the refusal — the first run
+    "passed" a file it should have blocked. `verify-drawings-p0` now probes a session-gated API to
+    detect which kind of server it's pointed at and asserts the half that server can actually prove:
+    signed-in → 200 + `private` caching on a bypassed server; signed-out → 404 (while the identical
+    file under the open root returns 200, proving the gate refused it and not a broken route) on a
+    server started without the bypass. Note that starting one without the bypass trips v28's
+    production fail-fast, so it needs real `SESSION_SECRET`/`PRINT_TOKEN_SECRET` values.
+  - ⚠️ **Local storage driver only.** Under `STORAGE_DRIVER=s3` a file's URL is an absolute bucket URL
+    that never reaches this route, so bucket ACLs are the control there — keep the `secure/` prefix
+    private in the bucket policy.
+  - Drawings uploaded BEFORE this change keep their existing `/uploads/…` URLs and stay open. Nothing
+    is broken, but they aren't retroactively gated; there were 0 drawing rows in the live DB when this
+    shipped, so in practice this affects nothing.
+- **Not built** (flagged, not silently skipped): customer-facing drawing approval.
 
 ### v46 — Proposal print templates matching the client's real documents (Phase C of 3 — module complete)
 

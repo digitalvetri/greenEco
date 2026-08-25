@@ -250,6 +250,79 @@ async function main() {
     const stats = await drawingStats(A);
     check("stats are non-negative and coherent", stats.open >= 0 && stats.completed >= 1);
 
+    // ---------- Stored drawing files are behind a login ----------
+    // Drawings are internal engineering documents, unlike an invoice PDF a customer
+    // opens from a WhatsApp link. Requires a running dev server on APP_URL; skipped
+    // cleanly when there isn't one, so the rest of the script still runs standalone.
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const reachable = await fetch(`${base}/api/healthz`).then((r) => r.ok).catch(() => false);
+    // AUTH_DEV_BYPASS makes getSession() succeed with no cookie, which defeats the
+    // gate by design — so a bypassed server CANNOT prove it. Probe a session-gated
+    // API to find out which kind of server we're pointed at, and say so plainly
+    // rather than reporting a pass the environment didn't earn.
+    const bypassed = reachable
+      ? await fetch(`${base}/api/proposals`).then((r) => r.ok).catch(() => false)
+      : false;
+    if (!reachable) {
+      console.log(`  – skipped file-gate checks (no server on ${base})`);
+    } else if (bypassed) {
+      // A bypassed server treats every request as signed in, so it can't prove the
+      // REFUSAL — but it proves the other half, which matters just as much: a signed-in
+      // user must still be able to open a drawing, or the gate has broken the feature
+      // for everyone. Run this script against both kinds of server for full coverage.
+      const { writeFile, mkdir, rm } = await import("fs/promises");
+      const pathMod = await import("path");
+      const dir = pathMod.join(process.cwd(), "public", "secure");
+      const name = `verify-gate-${Date.now()}.dwg`;
+      await mkdir(dir, { recursive: true });
+      await writeFile(pathMod.join(dir, name), "not-a-real-dwg");
+      try {
+        const res = await fetch(`${base}/secure/${name}`);
+        check(`a SIGNED-IN request CAN read a secure file (got ${res.status})`, res.status === 200);
+        check(
+          "…and it is not cached publicly, so a shared cache can't leak it",
+          (res.headers.get("cache-control") ?? "").includes("private"),
+        );
+      } finally {
+        await rm(pathMod.join(dir, name), { force: true });
+      }
+      console.log(
+        "  – the signed-OUT refusal can't be proven here (AUTH_DEV_BYPASS authenticates\n" +
+          "    everything). Re-run against a server started without it for that half.",
+      );
+    } else {
+      const openFile = await fetch(`${base}/uploads/definitely-not-a-real-file.pdf`);
+      check("the OPEN root still answers without a session (404 for a miss, not a redirect)", openFile.status === 404);
+
+      const secureFile = await fetch(`${base}/secure/definitely-not-a-real-file.dwg`, { redirect: "manual" });
+      check(
+        `a signed-out request for a secure file is refused (got ${secureFile.status})`,
+        secureFile.status === 404 || secureFile.status === 401 || secureFile.status === 403,
+      );
+
+      // A real file, written where the secure root serves from, must still be gated.
+      const { writeFile, mkdir, rm } = await import("fs/promises");
+      const pathMod = await import("path");
+      const dir = pathMod.join(process.cwd(), "public", "secure");
+      const name = `verify-gate-${Date.now()}.dwg`;
+      await mkdir(dir, { recursive: true });
+      await writeFile(pathMod.join(dir, name), "not-a-real-dwg");
+      try {
+        const res = await fetch(`${base}/secure/${name}`, { redirect: "manual" });
+        check(`an EXISTING secure file is not served to a signed-out request (got ${res.status})`, res.status !== 200);
+        // Sanity: the same bytes under the open root ARE served, proving the gate is
+        // what refused it and not a broken route.
+        const openDir = pathMod.join(process.cwd(), "public", "uploads");
+        await mkdir(openDir, { recursive: true });
+        await writeFile(pathMod.join(openDir, name), "not-a-real-dwg");
+        const openRes = await fetch(`${base}/uploads/${name}`);
+        check("…while the same file under the open root IS served (so the route works)", openRes.status === 200);
+        await rm(pathMod.join(openDir, name), { force: true });
+      } finally {
+        await rm(pathMod.join(dir, name), { force: true });
+      }
+    }
+
     console.log(`\n✅ verify-drawings-p0: ${pass} checks passed`);
   } finally {
     await prisma.automationTask.deleteMany({ where: { entity: "DrawingRequest", entityId: { in: requestIds } } });

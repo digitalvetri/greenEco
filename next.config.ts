@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
       beforeFiles: [
         { source: "/uploads/:path*", destination: "/api/files/uploads/:path*" },
         { source: "/pdfs/:path*", destination: "/api/files/pdfs/:path*" },
+        // Session-gated files (engineering drawings). Named `secure` rather than
+        // `drawings` because /drawings is a page route — a rewrite there would
+        // swallow the module's own URLs.
+        { source: "/secure/:path*", destination: "/api/files/secure/:path*" },
       ],
     };
   },

@@ -19,6 +19,7 @@ export function Uploader({
   compress = true,
   className,
   disabled = false,
+  scope,
 }: {
   onUploaded: (files: { url: string; name: string }[]) => void;
   accept?: string;
@@ -30,6 +31,9 @@ export function Uploader({
   /** Blocks the picker entirely. Use when the surrounding form isn't ready — the file
    *  is in storage the moment it's picked, so bailing out afterwards orphans it. */
   disabled?: boolean;
+  /** "secure" stores the file behind a login instead of at a public-but-unguessable
+   *  URL. Use for internal documents (drawings) that no customer receives by link. */
+  scope?: "secure";
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -48,6 +52,7 @@ export function Uploader({
         }
         const fd = new FormData();
         fd.append("file", file, f.name);
+        if (scope) fd.append("scope", scope);
         const res = await fetch("/api/uploads", { method: "POST", body: fd });
         if (!res.ok) {
           // Surface the SERVER's reason. It was discarded in favour of a generic

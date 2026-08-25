@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { readFile, stat } from "fs/promises";
 import path from "path";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,28 @@ export const dynamic = "force-dynamic";
  * succeed, only the HTTP request 404s). next.config.ts rewrites /uploads/* and
  * /pdfs/* here (beforeFiles, so it runs before that failing manifest check).
  *
- * Deliberately no auth: these are the SAME public-but-unguessable URLs
- * (storage.ts's randomKey/randomUUID) a customer opens from a WhatsApp/email
- * link with no login — this route must stay exactly as open as static
- * public/ serving was.
+ * ## Two access tiers, on purpose
+ *
+ * `uploads/` and `pdfs/` are deliberately **open**: these are the same
+ * public-but-unguessable URLs (storage.ts's randomKey/randomUUID) a customer opens
+ * from a WhatsApp/email link with no login. That must stay exactly as open as static
+ * public/ serving was — gating it would break every invoice link already sent.
+ *
+ * `secure/` **requires a signed-in session**. Engineering drawings are internal
+ * documents that no customer receives by link, so an unguessable URL isn't the right
+ * control for them: a forwarded link, a browser history export or a shared screenshot
+ * would hand them out permanently. Anyone signed in to the workspace may read them —
+ * per-drawing authorization stays in the service layer, which is where it belongs;
+ * this is the "not the open internet" boundary.
+ *
+ * ⚠️ **Local storage driver only.** Under STORAGE_DRIVER=s3 a stored file's URL is an
+ * absolute bucket URL that never reaches this route, so bucket ACLs are the access
+ * control there. Keep the `secure/` prefix private in the bucket policy.
  */
-const ALLOWED_ROOTS = ["uploads", "pdfs"];
+const OPEN_ROOTS = ["uploads", "pdfs"];
+/** Roots that require a session. Prefix chosen to avoid colliding with the /drawings page route. */
+const AUTHED_ROOTS = ["secure"];
+const ALLOWED_ROOTS = [...OPEN_ROOTS, ...AUTHED_ROOTS];
 
 const MIME: Record<string, string> = {
   ".pdf": "application/pdf",
@@ -41,6 +58,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const authed = AUTHED_ROOTS.includes(segments[0]);
+  if (authed) {
+    try {
+      await getSession();
+    } catch {
+      // 404, not 401 — a signed-out probe learns nothing about whether the key exists,
+      // and the response is identical to a wrong guess. Same reasoning as the print
+      // token's forged-token handling.
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+  }
+
   const base = path.join(process.cwd(), "public");
   const full = path.join(base, ...segments);
   // Reject any resolved path that escapes the public/ root (blocks ../ traversal).
@@ -58,7 +87,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
       headers: {
         "Content-Type": MIME[ext] ?? "application/octet-stream",
         "Content-Length": String(st.size),
-        "Cache-Control": "public, max-age=31536000, immutable",
+        // `public` would let a shared/CDN cache store an authed file and hand it to a
+        // signed-out request — the gate above would be pointless. Keys are immutable
+        // either way (random UUID per file), so `private` costs nothing but a shared hit.
+        "Cache-Control": authed
+          ? "private, max-age=31536000, immutable"
+          : "public, max-age=31536000, immutable",
       },
     });
   } catch {
