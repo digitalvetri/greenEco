@@ -7,6 +7,7 @@ import {
   schemaForType,
 } from "./proposal-document";
 import { PROJECT_REPORT_TEMPLATES } from "../project-report-templates";
+import { shouldPrintStandardTerms, resolvePointsToNote } from "../project-report-boilerplate";
 
 describe("computeCapacity", () => {
   it("reproduces the sample document's arithmetic exactly", () => {
@@ -146,5 +147,52 @@ describe("project report templates", () => {
     // Their ASP document titles its flow chart "30 KLD MBBR". Match the format,
     // not the mistake.
     expect(PROJECT_REPORT_TEMPLATES.ASP.flowChart.main).not.toContain("MBBR TANK");
+  });
+});
+
+describe("section precedence (prevents duplicated boilerplate in Phase C)", () => {
+  const TEMPLATE = "Taxes & Duties:\nAll taxes as per law.\n\nWarranty:\nTwelve months.";
+
+  it("suppresses the generic T&Cs page on a Project Report using the untouched template", () => {
+    // §10.2 / §12 / §13 / §11 already carry this content — printing both duplicates a page.
+    expect(
+      shouldPrintStandardTerms({ proposalType: "Project Proposal", terms: TEMPLATE, companyTemplate: TEMPLATE }),
+    ).toBe(false);
+  });
+
+  it("still prints it when the admin customised the terms for this deal", () => {
+    expect(
+      shouldPrintStandardTerms({
+        proposalType: "Project Proposal",
+        terms: TEMPLATE + "\n\nSpecial clause for this customer.",
+        companyTemplate: TEMPLATE,
+      }),
+    ).toBe(true);
+  });
+
+  it("ignores whitespace-only differences when deciding 'customised'", () => {
+    expect(
+      shouldPrintStandardTerms({
+        proposalType: "Project Proposal",
+        terms: TEMPLATE.replace(/\n/g, "\n  "),
+        companyTemplate: TEMPLATE,
+      }),
+    ).toBe(false);
+  });
+
+  it("always prints for types with no numbered sections", () => {
+    for (const t of ["BOQ Proposal", "AMC Proposal", "Service Proposal", "Others"]) {
+      expect(shouldPrintStandardTerms({ proposalType: t, terms: TEMPLATE, companyTemplate: TEMPLATE })).toBe(true);
+    }
+  });
+
+  it("prints nothing when there are no terms at all", () => {
+    expect(shouldPrintStandardTerms({ proposalType: "BOQ Proposal", terms: "  ", companyTemplate: TEMPLATE })).toBe(false);
+  });
+
+  it("prefers a per-proposal points-to-note over the company standard, never both", () => {
+    expect(resolvePointsToNote("Deal-specific caveat", "Company standard")).toBe("Deal-specific caveat");
+    expect(resolvePointsToNote(null, "Company standard")).toBe("Company standard");
+    expect(resolvePointsToNote("   ", "Company standard")).toBe("Company standard");
   });
 });

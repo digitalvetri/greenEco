@@ -58,8 +58,18 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
           terms: typeof current.terms === "string" ? current.terms : "",
           technicalSpecs:
             (current.technicalSpecs as Array<{ section: string; item: string; spec: string; qty: string }> | null) ?? [],
+          // Widened row shape (v45) — the extra columns are optional so pre-existing
+          // two-column rows still type-check and render.
           electricalLoad:
-            (current.electricalLoad as Array<{ description: string; hp: number }> | null) ?? [],
+            (current.electricalLoad as Array<{
+              description: string;
+              hp: number;
+              hpPerUnit?: number | null;
+              units?: number | null;
+              running?: number | null;
+              standby?: number | null;
+            }> | null) ?? [],
+          documentData: current.documentData ?? null,
           heroImageUrl: current.heroImageUrl ?? null,
           aiGenerated: current.aiGenerated,
           approved: !!current.approvedById,

@@ -9,12 +9,12 @@ import { Input, Textarea, Field, Select } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import {
   PROPOSAL_TYPES,
-  TECHNOLOGIES,
   PLANT_TYPES,
   CAPACITY_UNITS,
   PROPOSAL_TYPE_HINTS,
   TECHNOLOGY_ONE_LINERS,
 } from "@/lib/constants";
+import { PROJECT_REPORT_TECHNOLOGIES } from "@/lib/project-report-templates";
 import { createProposalRequestAction } from "./actions";
 
 export interface LeadOption {
@@ -44,7 +44,7 @@ export function RequestProposalCard({ leads }: { leads: LeadOption[] }) {
   const [f, setF] = useState({
     leadId: "",
     proposalType: "Project Proposal" as (typeof PROPOSAL_TYPES)[number],
-    technology: "MBBR" as (typeof TECHNOLOGIES)[number],
+    technology: "MBBR" as (typeof PROJECT_REPORT_TECHNOLOGIES)[number],
     plantType: "STP" as (typeof PLANT_TYPES)[number],
     capacityValue: "",
     capacityUnit: "KLD" as (typeof CAPACITY_UNITS)[number],
@@ -61,7 +61,12 @@ export function RequestProposalCard({ leads }: { leads: LeadOption[] }) {
       ...p,
       leadId,
       plantType: (lead?.plantType as (typeof PLANT_TYPES)[number]) ?? p.plantType,
-      technology: (lead?.technology as (typeof TECHNOLOGIES)[number]) ?? p.technology,
+      // Only adopt the lead's technology if a Project Report document exists for it —
+      // SAFF/DAF have no sample, and requesting one would seed nothing (or, before
+      // this, silently seed MBBR's engineering content under a SAFF heading).
+      technology: PROJECT_REPORT_TECHNOLOGIES.includes(lead?.technology as never)
+        ? (lead!.technology as (typeof PROJECT_REPORT_TECHNOLOGIES)[number])
+        : p.technology,
       capacityValue: lead?.capacityValue ? String(lead.capacityValue) : p.capacityValue,
       capacityUnit: (lead?.capacityUnit as (typeof CAPACITY_UNITS)[number]) ?? p.capacityUnit,
     }));
@@ -153,10 +158,10 @@ export function RequestProposalCard({ leads }: { leads: LeadOption[] }) {
               <Select
                 value={f.technology}
                 onChange={(e) =>
-                  setF({ ...f, technology: e.target.value as (typeof TECHNOLOGIES)[number] })
+                  setF({ ...f, technology: e.target.value as (typeof PROJECT_REPORT_TECHNOLOGIES)[number] })
                 }
               >
-                {TECHNOLOGIES.map((t) => (
+                {PROJECT_REPORT_TECHNOLOGIES.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>

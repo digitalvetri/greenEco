@@ -1,8 +1,4 @@
-import {
-  projectReportTemplate,
-  processUnitsFor,
-  PROJECT_REPORT_TEMPLATES,
-} from "../project-report-templates";
+import { projectReportTemplate, processUnitsFor } from "../project-report-templates";
 import {
   DEFAULT_INLET_PARAMETERS,
   DEFAULT_OUTLET_PARAMETERS,
@@ -43,18 +39,25 @@ function seedProjectReport(input: {
   capacityKLD: number;
 }): ProjectReportData {
   const tpl = projectReportTemplate(input.technology);
+  // No sample document for this technology (SAFF/DAF) — seed only what is genuinely
+  // technology-agnostic. Better an empty engineering section the admin must fill than
+  // MBBR's content under a SAFF heading.
+  if (!tpl) {
+    return {
+      capacityCalc: { usagePerHead: 45 },
+      inletParameters: [...DEFAULT_INLET_PARAMETERS],
+      outletParameters: [...DEFAULT_OUTLET_PARAMETERS],
+      loadFactorOfSafetyPct: 10,
+    };
+  }
   return {
-    // Back-compute a plausible starting point from the sizing already captured on the
-    // lead, using the samples' own 45 lpd/head basis. Zero people when there's no
-    // capacity yet, so the form shows blanks rather than a fabricated headcount.
-    capacityCalc:
-      input.capacityKLD > 0
-        ? {
-            people: Math.round((input.capacityKLD * 1000 * 0.75) / 45),
-            usagePerHead: 45,
-            factorOfSafety: Math.round(input.capacityKLD * 1000 * 0.25),
-          }
-        : { usagePerHead: 45 },
+    // ONLY the industry-standard 45 lpd/head is seeded. `people` and `factorOfSafety`
+    // are deliberately left blank: §6.1 prints the headcount as a stated fact about the
+    // customer's site ("Total number of people working in factory all 3 shifts = N"),
+    // and back-computing one from the KLD would fabricate it. The creation wizard asks
+    // for it; the lead-detail Create button doesn't, so a proposal made there would
+    // otherwise carry an unreviewed invented figure into a client-facing document.
+    capacityCalc: { usagePerHead: 45 },
     inletParameters: [...DEFAULT_INLET_PARAMETERS],
     outletParameters: [...DEFAULT_OUTLET_PARAMETERS],
     recommendation: tpl.recommendation,
@@ -86,7 +89,9 @@ function seedBoqProposal(input: { plantType: string; capacityKLD: number }): Boq
  * shape stays backward-compatible.
  */
 export function seedElectricalLoad(technology: string) {
-  return (PROJECT_REPORT_TEMPLATES[technology] ?? PROJECT_REPORT_TEMPLATES.MBBR).electricalLoad.map((r) => ({
+  // Same rule as the document seed: no template ⇒ no rows, never another
+  // technology's load table under this technology's name.
+  return (projectReportTemplate(technology)?.electricalLoad ?? []).map((r) => ({
     description: r.description,
     hp: r.hp,
     hpPerUnit: r.hpPerUnit,

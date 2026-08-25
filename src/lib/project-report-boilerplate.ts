@@ -155,3 +155,54 @@ export const DEFAULT_OUTLET_PARAMETERS = [
   { parameter: "COD", value: "< 100 ppm" },
   { parameter: "TSS", value: "< 2 mg/L" },
 ];
+
+// ---------------------------------------------------------------------------
+// Section precedence — resolves two real collisions before Phase C renders them
+// ---------------------------------------------------------------------------
+
+/**
+ * COLLISION 1 — Terms & Conditions vs the numbered document sections.
+ *
+ * `DEFAULT_STANDARD_TERMS` (v29, printed as its own page-break section from
+ * `ProposalVersion.terms`) contains blocks titled Taxes & Duties, Warranty, Scope of
+ * Work by Green Ecocare and Acceptance/Commissioning. Phase B added those same four as
+ * dedicated company fields, which a Project Report prints as §10.2 / §12 / §13 / §11.
+ * Rendering both would duplicate a page of boilerplate in the client's PDF.
+ *
+ * Rule: for a **Project Proposal**, the numbered sections win and the generic T&Cs page
+ * is suppressed — UNLESS the admin has actually customised `terms` for this deal, in
+ * which case that edit is intentional and must still print. Every other proposal type
+ * has no numbered sections, so its T&Cs page always prints (it's the only place that
+ * content appears at all).
+ */
+export function shouldPrintStandardTerms(input: {
+  proposalType: string | null | undefined;
+  /** This proposal's stored T&Cs text. */
+  terms: string;
+  /** The company template it was seeded from. */
+  companyTemplate: string;
+}): boolean {
+  if (!input.terms.trim()) return false;
+  if (input.proposalType !== "Project Proposal") return true;
+  // Untouched copy of the template ⇒ already covered by §10.2–§14, so don't repeat it.
+  return normalise(input.terms) !== normalise(input.companyTemplate);
+}
+
+/**
+ * COLLISION 2 — points to note.
+ *
+ * v29 gave every proposal a per-proposal `pointsToNote` (AI-generated or hand-written);
+ * Phase B added a company-level `docPointsToNote` holding the client's own numbered
+ * list. Rule: the per-proposal text wins when present (someone wrote it for this deal),
+ * otherwise the company standard is used. Never both.
+ */
+export function resolvePointsToNote(
+  proposalPointsToNote: string | null | undefined,
+  companyPointsToNote: string,
+): string {
+  return proposalPointsToNote?.trim() ? proposalPointsToNote : companyPointsToNote;
+}
+
+function normalise(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}

@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { createAutomationTask } from "@/server/automations/util";
 import { PROPOSAL_TYPES, TECHNOLOGIES, PLANT_TYPES, CAPACITY_UNITS } from "@/lib/constants";
+import { hasProjectReportTemplate, PROJECT_REPORT_TECHNOLOGIES } from "@/lib/project-report-templates";
 import { accessibleLead } from "./lead";
 
 /**
@@ -28,17 +29,31 @@ import { accessibleLead } from "./lead";
  *      shared `accessibleLead` predicate — not trusted, and not re-derived here.
  */
 
-const createSchema = z.object({
-  leadId: z.string().min(1),
-  proposalType: z.enum(PROPOSAL_TYPES),
-  // Only meaningful for a Project Proposal — that's the one type with per-technology
-  // document variants. Stored anyway if supplied; the create form hides it otherwise.
-  technology: z.enum(TECHNOLOGIES).optional(),
+const createSchema = z
+  .object({
+    leadId: z.string().min(1),
+    proposalType: z.enum(PROPOSAL_TYPES),
+    // Only meaningful for a Project Proposal — that's the one type with per-technology
+    // document variants. Stored anyway if supplied; the create form hides it otherwise.
+    technology: z.enum(TECHNOLOGIES).optional(),
   plantType: z.enum(PLANT_TYPES).optional(),
   capacityValue: z.number().positive().optional(),
   capacityUnit: z.enum(CAPACITY_UNITS).default("KLD"),
-  notes: z.string().trim().max(4000).optional(),
-});
+    notes: z.string().trim().max(4000).optional(),
+  })
+  .superRefine((v, ctx) => {
+    // A Project Proposal's whole document is technology-specific, and only four
+    // technologies have one. Accepting SAFF/DAF here would record a technology whose
+    // engineering content doesn't exist — the request would produce a proposal with
+    // empty process/equipment/load sections and no indication why.
+    if (v.proposalType === "Project Proposal" && v.technology && !hasProjectReportTemplate(v.technology)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["technology"],
+        message: `There is no Project Proposal document format for ${v.technology} yet — choose ${PROJECT_REPORT_TECHNOLOGIES.join(", ")}, or request a different proposal type.`,
+      });
+    }
+  });
 
 export type CreateProposalRequestInput = z.input<typeof createSchema>;
 

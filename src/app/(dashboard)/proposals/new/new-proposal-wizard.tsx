@@ -108,10 +108,11 @@ export function NewProposalWizard({
   const gst = Math.round(subtotal * GST_RATE) / 100;
   const grand = subtotal + gst;
 
-  const loadPreview = useMemo(
-    () => (isProjectReport ? computeLoadTotals(projectReportTemplate(technology).electricalLoad) : null),
-    [isProjectReport, technology],
-  );
+  const loadPreview = useMemo(() => {
+    if (!isProjectReport) return null;
+    const tpl = projectReportTemplate(technology);
+    return tpl ? computeLoadTotals(tpl.electricalLoad) : null;
+  }, [isProjectReport, technology]);
 
   /** When the format changes, reset the cost table to that format's natural shape. */
   function pickType(next: string) {
@@ -129,14 +130,11 @@ export function NewProposalWizard({
     if (!l) return;
     if (l.plantType) setPlantType(l.plantType);
     if (l.technology && PROJECT_REPORT_TECHNOLOGIES.includes(l.technology as never)) setTechnology(l.technology);
-    // Back-fill the capacity calculation from the sizing already captured, using the
-    // samples' own 45 lpd/head basis — the admin confirms rather than re-derives.
-    if (l.capacityKLD && l.capacityKLD > 0) {
-      const lpd = l.capacityKLD * 1000;
-      setPeople(String(Math.round((lpd * 0.75) / 45)));
-      setUsagePerHead("45");
-      setFactorOfSafety(String(Math.round(lpd * 0.25)));
-    }
+    // Deliberately NOT back-filling people/factor-of-safety from the lead's KLD.
+    // §6.1 prints the headcount as a stated fact about the customer's site, and
+    // deriving it from a capacity that was itself estimated would be circular — an
+    // invented figure an admin could click straight past. Only the industry-standard
+    // 45 lpd/head is offered; the real basis has to be typed.
   }
 
   const alreadyQuoted = !!lead && lead.existingTypes.includes(proposalType);

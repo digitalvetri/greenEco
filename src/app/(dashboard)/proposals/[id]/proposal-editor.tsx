@@ -30,6 +30,8 @@ import {
   CAPACITY_UNITS,
   deriveCapacityKLD,
 } from "@/lib/constants";
+import { asProjectReportData, computeLoadTotals, type ProjectReportData } from "@/lib/domain/proposal-document";
+import { ProjectReportSections } from "./project-report-sections";
 import { ProposalStageTracker } from "./proposal-stage-tracker";
 import { ProposalTimeline } from "./proposal-timeline";
 import { ProposalDocumentsCard } from "./proposal-documents-card";
@@ -97,6 +99,8 @@ export interface ProposalView {
     technicalSpecs: TechSpecRow[];
     electricalLoad: ElectricalLoadRow[];
     heroImageUrl: string | null;
+    /** Per-type document fields (Project Report engineering content, etc). */
+    documentData: unknown;
     aiGenerated: boolean;
     approved: boolean;
     subtotal: string;
@@ -119,6 +123,13 @@ interface TechSpecRow {
 interface ElectricalLoadRow {
   description: string;
   hp: number;
+  // Widened in v45 for the Project Report's 7-column load table. Optional so a
+  // pre-existing two-column row still satisfies the type; the editor preserves
+  // them through edits by spreading, so a save never silently drops the columns.
+  hpPerUnit?: number | null;
+  units?: number | null;
+  running?: number | null;
+  standby?: number | null;
 }
 
 /** Item.category (materials taxonomy) → BOQ.category (commercial-quote grouping) —
@@ -207,6 +218,11 @@ export function ProposalEditor({
   const [technicalSpecs, setTechnicalSpecs] = useState<TechSpecRow[]>(view.version?.technicalSpecs ?? []);
   const [electricalLoad, setElectricalLoad] = useState<ElectricalLoadRow[]>(view.version?.electricalLoad ?? []);
   const [tcs, setTcs] = useState(view.version?.terms ?? "");
+  // Project Report engineering content — this proposal's own editable copy of the
+  // per-technology template it was seeded from.
+  const [docData, setDocData] = useState<ProjectReportData>(() =>
+    asProjectReportData(view.version?.documentData),
+  );
   // Pre-fill from the sizing already captured on the lead, so the Generate button
   // isn't stuck disabled-with-no-explanation on a freshly-converted proposal — the
   // admin can still edit this before generating. Pre-P2 leads coalesce capacityKLD
@@ -225,6 +241,8 @@ export function ProposalEditor({
   const [generatingImage, setGeneratingImage] = useState(false);
   const termsPct = terms.reduce((a, t) => a + (Number(t.percent) || 0), 0);
 
+  // Mirrors the sample's §9 chain (Σ HP → +10% → whole HP → kW → next ½ kW).
+  const loadTotals = computeLoadTotals(electricalLoad);
   const subtotal = boq.reduce((a, r) => a + (Number(r.amount) || 0), 0);
   const gst = Math.round(subtotal * 18) / 100;
   const grand = subtotal + gst;
@@ -298,6 +316,7 @@ export function ProposalEditor({
           technicalSpecs: technicalSpecs as never,
           electricalLoad: electricalLoad as never,
           terms: tcs,
+          documentData: docData,
         });
         setEditingTcs(false);
         toast("Saved.");
@@ -860,6 +879,15 @@ export function ProposalEditor({
         </Card>
       )}
 
+      {/* Project Report engineering content — only this type has it. */}
+      {view.proposalType === "Project Proposal" && (
+        <ProjectReportSections
+          doc={docData}
+          editable={editable}
+          onChange={(patch) => setDocData((d) => ({ ...d, ...patch }))}
+        />
+      )}
+
       {/* Technical specifications + electrical load */}
       {(technicalSpecs.length > 0 || electricalLoad.length > 0 || editable) && (
         <Card className="mb-4">
@@ -964,7 +992,8 @@ export function ProposalEditor({
                 <span className="text-sm font-semibold">Electrical Load Summary</span>
                 {electricalLoad.length > 0 && (
                   <span className="text-xs tabular-nums text-muted">
-                    Total {electricalLoad.reduce((a, l) => a + (Number(l.hp) || 0), 0)} HP
+                    {loadTotals.hp} HP + {loadTotals.factorOfSafetyHp} HP safety ={" "}
+                    <strong>{loadTotals.requiredHp} HP ≈ {loadTotals.supplyKw} kW</strong>
                   </span>
                 )}
               </div>
@@ -972,6 +1001,10 @@ export function ProposalEditor({
                 <THead>
                   <TR className="border-t-0">
                     <TH>Description</TH>
+                    <TH className="text-right">HP/unit</TH>
+                    <TH className="text-right">Units</TH>
+                    <TH className="text-right">Running</TH>
+                    <TH className="text-right">Standby</TH>
                     <TH className="text-right">HP</TH>
                     {editable && <TH></TH>}
                   </TR>
@@ -992,11 +1025,35 @@ export function ProposalEditor({
                           r.description
                         )}
                       </TD>
+                      {(["hpPerUnit", "units", "running", "standby"] as const).map((k) => (
+                        <TD key={k} className="text-right tabular-nums">
+                          {editable ? (
+                            <Input
+                              className="h-8 w-16 text-right"
+                              type="number"
+                              aria-label={`${k} for load row ${i + 1}`}
+                              value={r[k] ?? ""}
+                              onChange={(e) =>
+                                setElectricalLoad((rows) =>
+                                  rows.map((x, j) =>
+                                    // Spread preserves every other column — this is what
+                                    // keeps the widened row shape intact across a save.
+                                    j === i ? { ...x, [k]: e.target.value === "" ? null : Number(e.target.value) } : x,
+                                  ),
+                                )
+                              }
+                            />
+                          ) : (
+                            (r[k] ?? "—")
+                          )}
+                        </TD>
+                      ))}
                       <TD className="text-right tabular-nums">
                         {editable ? (
                           <Input
                             className="h-8 w-20 text-right"
                             type="number"
+                            aria-label={`Running capacity HP for load row ${i + 1}`}
                             value={r.hp}
                             onChange={(e) =>
                               setElectricalLoad((rows) => rows.map((x, j) => (j === i ? { ...x, hp: Number(e.target.value) } : x)))

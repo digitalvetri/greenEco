@@ -550,11 +550,32 @@ export const PROJECT_REPORT_TEMPLATES: Record<string, ProjectReportTemplate> = {
 export const PROJECT_REPORT_TECHNOLOGIES = ["MBBR", "SBR", "ASP", "MBR"] as const;
 export type ProjectReportTechnology = (typeof PROJECT_REPORT_TECHNOLOGIES)[number];
 
-export function projectReportTemplate(technology: string): ProjectReportTemplate {
-  return PROJECT_REPORT_TEMPLATES[technology] ?? PROJECT_REPORT_TEMPLATES.MBBR;
+/**
+ * The template for a technology, or **null** if there isn't one.
+ *
+ * Deliberately NOT `?? PROJECT_REPORT_TEMPLATES.MBBR`. Only MBBR/SBR/ASP/MBR have a
+ * sample document; SAFF and DAF do not. Silently substituting MBBR's recommendation,
+ * flow chart, equipment list and load table onto a proposal whose record says "SAFF"
+ * would put wrong engineering content on a document a customer reads — the same class
+ * of error as fabricating a ₹0 price for a vendor's "TBD" (rejected in v38).
+ *
+ * Callers seed nothing rather than something wrong. The pickers also restrict Project
+ * Proposals to `PROJECT_REPORT_TECHNOLOGIES`, so this should be unreachable in the UI —
+ * it stays honest for API/script callers and for a technology added to the enum before
+ * its document exists.
+ */
+export function projectReportTemplate(technology: string): ProjectReportTemplate | null {
+  return PROJECT_REPORT_TEMPLATES[technology] ?? null;
 }
 
-/** Full ordered process-unit list for a technology (shared pre + tech + shared post). */
+export function hasProjectReportTemplate(technology: string): boolean {
+  return technology in PROJECT_REPORT_TEMPLATES;
+}
+
+/** Full ordered process-unit list for a technology (shared pre + tech + shared post).
+ *  Empty for a technology with no template — see projectReportTemplate. */
 export function processUnitsFor(technology: string): ProcessUnit[] {
-  return [...PROCESS_UNITS_PRE, ...projectReportTemplate(technology).processUnits, ...PROCESS_UNITS_POST];
+  const tpl = projectReportTemplate(technology);
+  if (!tpl) return [];
+  return [...PROCESS_UNITS_PRE, ...tpl.processUnits, ...PROCESS_UNITS_POST];
 }

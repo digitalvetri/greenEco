@@ -183,6 +183,49 @@ async function main() {
     check(`SBR load chain reproduces the sample: ${sbrLoad.hp} HP → ${sbrLoad.requiredHp} HP → ${sbrLoad.supplyKw} kW`,
       sbrLoad.hp === 11.6 && sbrLoad.requiredHp === 13 && sbrLoad.supplyKw === 10);
 
+    // ---------- The widened electricalLoad row shape must survive an editor save ----------
+    // The editor's own row type is {description, hp, hpPerUnit?, units?, running?, standby?}
+    // and it edits by spreading. Assert the extra columns actually round-trip, because if
+    // they silently drop, the Project Report's 7-column load table degrades to 2 columns
+    // after the admin's first save — invisible until the PDF is printed.
+    // Use the ASP proposal: proposalIds[1] (SBR) was won above and a won proposal is
+    // correctly locked against further edits.
+    const loadProposal = proposalIds[2];
+    const beforeRows = (((await getProposal(A, loadProposal)) as { versions: Array<{ electricalLoad: unknown }> })
+      .versions[0].electricalLoad ?? []) as Record<string, unknown>[];
+    check("seeded load rows carry the widened columns", beforeRows.every((r) => "units" in r && "running" in r && "standby" in r));
+
+    // Send them back exactly as the editor would after touching one cell.
+    await saveVersion(A, loadProposal, {
+      electricalLoad: beforeRows.map((r, i) => (i === 0 ? { ...r, hp: 2 } : { ...r })) as never,
+    });
+    const afterRows = (((await getProposal(A, loadProposal)) as { versions: Array<{ electricalLoad: unknown }> })
+      .versions[0].electricalLoad ?? []) as Record<string, unknown>[];
+    check("…and still carry them after a save", afterRows.every((r) => "units" in r && "running" in r && "standby" in r));
+    check("…with the per-unit HP preserved", afterRows[1]?.hpPerUnit === 5);
+    const afterTotals = computeLoadTotals(afterRows as { description: string; hp: number }[]);
+    check(
+      `…so the load chain still computes (${afterTotals.units} units / ${afterTotals.running} running / ${afterTotals.hp} HP)`,
+      // ASP has five rows: 9 units, 5 running, 4 standby — the honest sums, not the
+      // sample's copy-pasted 10/6.
+      afterTotals.units === 9 && afterTotals.running === 5 && afterTotals.standby === 4,
+    );
+
+    // ---------- No silent substitution for a technology with no document ----------
+    const saffLead = await newLead(`P7 SAFF Co ${Date.now()}`, "SAFF");
+    const saff = await convertToProposal(A, saffLead, { proposalType: "Project Proposal", technology: "SAFF" });
+    proposalIds.push(saff.proposalId);
+    const saffDoc = asProjectReportData(
+      ((await getProposal(A, saff.proposalId)) as { versions: Array<{ documentData: unknown }> }).versions[0].documentData,
+    );
+    check("SAFF (no sample document) seeds NO recommendation rather than MBBR's", !saffDoc.recommendation);
+    check("…no equipment table", (saffDoc.equipment ?? []).length === 0);
+    check("…no flow chart", (saffDoc.flowChart ?? []).length === 0);
+    check("…but still gets the technology-agnostic water-quality defaults", (saffDoc.inletParameters ?? []).length === 4);
+    const saffLoad = ((await getProposal(A, saff.proposalId)) as { versions: Array<{ electricalLoad: unknown }> })
+      .versions[0].electricalLoad;
+    check("…and no borrowed electrical load table", ((saffLoad as unknown[]) ?? []).length === 0);
+
     console.log(`\n✅ verify-proposals-p7: ${pass} checks passed`);
   } finally {
     await prisma.stage.deleteMany({ where: { orderId: { in: orderIds } } });

@@ -7,12 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Select, Textarea } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
-import {
-  PROPOSAL_TYPES,
-  TECHNOLOGIES,
-  PROPOSAL_TYPE_HINTS,
-  TECHNOLOGY_ONE_LINERS,
-} from "@/lib/constants";
+import { PROPOSAL_TYPES, PROPOSAL_TYPE_HINTS, TECHNOLOGY_ONE_LINERS } from "@/lib/constants";
+import { PROJECT_REPORT_TECHNOLOGIES } from "@/lib/project-report-templates";
 import { convertLeadAction } from "../actions";
 import { createProposalRequestAction } from "../../proposals/requests/actions";
 
@@ -46,8 +42,13 @@ export function ConvertButton({
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [proposalType, setProposalType] = useState<(typeof PROPOSAL_TYPES)[number]>("Project Proposal");
-  const [technology, setTechnology] = useState<(typeof TECHNOLOGIES)[number]>(
-    (leadTechnology as (typeof TECHNOLOGIES)[number]) ?? "MBBR",
+  // Restricted to the four technologies that HAVE a Project Report document. A lead
+  // sized as SAFF/DAF falls back to MBBR *as a visible selection the admin can change*,
+  // rather than being recorded as SAFF with another technology's content seeded.
+  const [technology, setTechnology] = useState<(typeof PROJECT_REPORT_TECHNOLOGIES)[number]>(
+    PROJECT_REPORT_TECHNOLOGIES.includes(leadTechnology as never)
+      ? (leadTechnology as (typeof PROJECT_REPORT_TECHNOLOGIES)[number])
+      : "MBBR",
   );
   const [notes, setNotes] = useState("");
 
@@ -119,9 +120,9 @@ export function ConvertButton({
             <Field label="Technology" hint={TECHNOLOGY_ONE_LINERS[technology]}>
               <Select
                 value={technology}
-                onChange={(e) => setTechnology(e.target.value as (typeof TECHNOLOGIES)[number])}
+                onChange={(e) => setTechnology(e.target.value as (typeof PROJECT_REPORT_TECHNOLOGIES)[number])}
               >
-                {TECHNOLOGIES.map((t) => (
+                {PROJECT_REPORT_TECHNOLOGIES.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
