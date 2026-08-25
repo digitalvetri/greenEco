@@ -12,7 +12,7 @@ import { Textarea, Field } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
 import { displayProposalNumber } from "@/lib/domain/proposal-aging";
-import { reviewProposalRequestAction, createProposalFromRequestAction } from "./actions";
+import { reviewProposalRequestAction } from "./actions";
 
 export interface RequestRow {
   id: string;
@@ -106,22 +106,10 @@ export function RequestsList({
     });
   }
 
+  /** Opens the creation wizard prefilled from the request, rather than creating a
+   *  proposal blind — the admin still has to enter the design basis and pricing. */
   function createProposal(r: RequestRow) {
-    start(async () => {
-      try {
-        const res = await createProposalFromRequestAction(
-          r.id,
-          r.leadId,
-          r.proposalType,
-          r.technology ?? undefined,
-          r.plantType ?? undefined,
-        );
-        toast(res.already ? "This enquiry already had that proposal — opening it." : "Proposal created.");
-        router.push(`/proposals/${res.proposalId}`);
-      } catch (e) {
-        toast(e instanceof Error ? e.message : "Could not create the proposal", "error");
-      }
-    });
+    router.push(`/proposals/new?request=${r.id}`);
   }
 
   const tabHref = (key: string) => (key ? `/proposals/requests?status=${key}` : "/proposals/requests");

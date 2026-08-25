@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, FileClock, AlarmClock, IndianRupee, BarChart3 } from "lucide-react";
+import { FileText, FileClock, AlarmClock, IndianRupee, BarChart3, Plus } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listProposals, proposalStats } from "@/server/services/proposal";
 import { pendingProposalRequestCount } from "@/server/services/proposal-request";
@@ -76,12 +76,22 @@ export default async function ProposalsPage({
         title="Proposals"
         subtitle={`${items.length}${nextCursor ? "+" : ""} shown`}
         action={
-          <Link
-            href="/proposals/analytics"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted"
-          >
-            <BarChart3 className="size-4" /> Analytics
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/proposals/analytics"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted"
+            >
+              <BarChart3 className="size-4" /> Analytics
+            </Link>
+            {isAdmin && (
+              <Link
+                href="/proposals/new"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground"
+              >
+                <Plus className="size-4" /> New proposal
+              </Link>
+            )}
+          </div>
         }
       />
 

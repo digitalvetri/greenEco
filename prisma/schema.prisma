@@ -447,8 +447,28 @@ model ProposalVersion {
   pointsToNote        String? // caveats/callouts, one per line
   technologyExplainer String? // "how this technology works" — plant/technology specific
   technicalSpecs      Json? // [{section, item, spec, qty}] — component-level spec table
-  electricalLoad      Json? // [{description, hp}] — electrical load summary
+  /**
+   * Electrical load summary. Row shape widened ADDITIVELY from `{description, hp}` to
+   * `{description, hp, hpPerUnit?, units?, running?, standby?}` so the Project Report
+   * can print the sample's full 7-column table (incl. standby units and the HP→kW
+   * total) while every pre-existing row and consumer keeps working unchanged.
+   */
+  electricalLoad      Json?
   heroImageUrl        String? // AI-generated plant/process illustration (Gemini image model), shown in the PDF
+  /**
+   * Per-proposal-TYPE document fields — the numbers/parameters an admin actually
+   * enters for this deal (capacity calculation, inlet/outlet parameters, and the
+   * editable copies of the per-technology template blocks).
+   *
+   * ONE Json column with a per-type Zod schema rather than ~15 divergent nullable
+   * columns: the four proposal types have genuinely heterogeneous field sets, which
+   * is what Json is for. (Deliberate divergence from v29's richness fields, which
+   * went the column route — those were shared by every proposal, these are not.)
+   *
+   * ⚠️ Must be merged (not overwritten) in saveVersion's versionData, or a partial
+   * save blanks it — see the note on that function.
+   */
+  documentData        Json?
 
   proposal Proposal @relation(fields: [proposalId], references: [id])
 
@@ -973,6 +993,27 @@ model Company {
   // Standard proposal T&Cs (Settings) — seeds ProposalVersion.terms on every new
   // proposal; still freely editable per-proposal afterward (not locked to this).
   standardTermsTemplate String? @db.Text
+
+  // Project Report boilerplate (Settings → Proposal document). These are the sections
+  // of the client's real Project Proposal that are word-for-word identical across
+  // every sample regardless of technology, so they belong to the COMPANY, not to a
+  // proposal. Same convention as standardTermsTemplate: null = fall back to the
+  // DEFAULT_* constant, so a fresh company gets the real document with no data entry.
+  docIntroduction     String? @db.Text // §4 "Introduction" — who Green Ecocare is
+  docPlantAbout       String? @db.Text // §5 what an STP is
+  docCivilDesign      String? @db.Text // §7 Civil Design
+  docMepDesign        String? @db.Text // §8 MEP Design intro
+  docTaxesDuties      String? @db.Text // §10.2 Taxes & Duties
+  docSupplyErection   String? @db.Text // §11 Supply, Erection, Commissioning & Takeover
+  docWarranty         String? @db.Text // §12 Warranty Details
+  docScopeGreenEcocare String? @db.Text // §13 Scope of work by Green Ecocare
+  docScopeClient      String? @db.Text // §14 Scope of work for the Client
+  docPointsToNote     String? @db.Text // §14 "POINTS TO BE NOTED"
+  docSignatoryName    String? // cover-letter signature block
+  docSignatoryTitle   String?
+  docSignatoryPhone   String?
+  /** §15 Recent Completed Projects — [{client, project, plant, technology, capacity}] */
+  docRecentProjects   Json?
 
   // Editable thresholds (Settings) — read at automation runtime, no redeploy.
   minMarginPct      Decimal? @db.Decimal(5, 4) // e.g. 0.1000 = 10%

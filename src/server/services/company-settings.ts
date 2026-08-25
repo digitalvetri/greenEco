@@ -4,6 +4,25 @@ import type { Ctx } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { DEFAULT_STANDARD_TERMS } from "@/lib/constants";
+import * as B from "@/lib/project-report-boilerplate";
+
+/** The company-level half of the Project Report document (see project-report-boilerplate.ts). */
+export interface ProjectReportBoilerplate {
+  introduction: string;
+  plantAbout: string;
+  civilDesign: string;
+  mepDesign: string;
+  taxesDuties: string;
+  supplyErection: string;
+  warranty: string;
+  scopeGreenEcocare: string;
+  scopeClient: string;
+  pointsToNote: string;
+  signatoryName: string;
+  signatoryTitle: string;
+  signatoryPhone: string;
+  recentProjects: B.RecentProject[];
+}
 
 /**
  * Company-level settings that are editable from the Settings screen and consumed at
@@ -29,6 +48,9 @@ export interface CompanySettings {
   website: string;
   branches: string[];
   standardTermsTemplate: string;
+  /** Project Report boilerplate — the sections of the client's real document that are
+   *  identical across every technology, editable in Settings → Proposal document. */
+  doc: ProjectReportBoilerplate;
   // Thresholds
   minMarginPct: number; // 0..1
   autoApproveLimit: number; // ₹; 0 = all manual
@@ -60,6 +82,22 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     website: c?.website ?? "www.greenecocare.com",
     branches: c?.branches?.length ? c.branches : ["Bangalore", "Hyderabad", "Cochin", "Mangalore", "Chennai"],
     standardTermsTemplate: c?.standardTermsTemplate ?? DEFAULT_STANDARD_TERMS,
+    doc: {
+      introduction: c?.docIntroduction ?? B.DEFAULT_DOC_INTRODUCTION,
+      plantAbout: c?.docPlantAbout ?? B.DEFAULT_DOC_PLANT_ABOUT,
+      civilDesign: c?.docCivilDesign ?? B.DEFAULT_DOC_CIVIL_DESIGN,
+      mepDesign: c?.docMepDesign ?? B.DEFAULT_DOC_MEP_DESIGN,
+      taxesDuties: c?.docTaxesDuties ?? B.DEFAULT_DOC_TAXES_DUTIES,
+      supplyErection: c?.docSupplyErection ?? B.DEFAULT_DOC_SUPPLY_ERECTION,
+      warranty: c?.docWarranty ?? B.DEFAULT_DOC_WARRANTY,
+      scopeGreenEcocare: c?.docScopeGreenEcocare ?? B.DEFAULT_DOC_SCOPE_GREENECOCARE,
+      scopeClient: c?.docScopeClient ?? B.DEFAULT_DOC_SCOPE_CLIENT,
+      pointsToNote: c?.docPointsToNote ?? B.DEFAULT_DOC_POINTS_TO_NOTE,
+      signatoryName: c?.docSignatoryName ?? B.DEFAULT_DOC_SIGNATORY_NAME,
+      signatoryTitle: c?.docSignatoryTitle ?? B.DEFAULT_DOC_SIGNATORY_TITLE,
+      signatoryPhone: c?.docSignatoryPhone ?? B.DEFAULT_DOC_SIGNATORY_PHONE,
+      recentProjects: (c?.docRecentProjects as B.RecentProject[] | null) ?? B.DEFAULT_DOC_RECENT_PROJECTS,
+    },
     minMarginPct: c?.minMarginPct != null ? Number(c.minMarginPct) : env.minMarginPct,
     autoApproveLimit: c?.autoApproveLimit != null ? c.autoApproveLimit : env.autoApproveLimit,
     budgetAlertPct: c?.budgetAlertPct?.length ? c.budgetAlertPct : DEFAULT_BUDGET_ALERTS,
@@ -172,6 +210,66 @@ export async function updateThresholds(ctx: Ctx, input: ThresholdsInput) {
       lowStockMultiplier: before?.lowStockMultiplier?.toString() ?? null,
     },
     after: { minMarginPct: margin, autoApproveLimit: limit, budgetAlertPct: alerts, lowStockMultiplier: mult },
+  });
+  return { ok: true };
+}
+
+/**
+ * Project Report boilerplate editor (Settings → Proposal document). Deliberately its
+ * OWN updater rather than 14 more optional fields on CompanyDetailsInput — same split
+ * as updateThresholds, and it keeps the company-identity form from turning into a
+ * wall of textareas. Admin only, audited by field NAME (the values are long document
+ * copy, not worth duplicating into the audit log).
+ *
+ * A field cleared to empty is stored as null, which means "fall back to the shipped
+ * default" — so the office can always get back to the original wording by blanking it.
+ */
+export interface ProposalDocumentInput {
+  introduction?: string;
+  plantAbout?: string;
+  civilDesign?: string;
+  mepDesign?: string;
+  taxesDuties?: string;
+  supplyErection?: string;
+  warranty?: string;
+  scopeGreenEcocare?: string;
+  scopeClient?: string;
+  pointsToNote?: string;
+  signatoryName?: string;
+  signatoryTitle?: string;
+  signatoryPhone?: string;
+  recentProjects?: B.RecentProject[];
+}
+
+export async function updateProposalDocument(ctx: Ctx, input: ProposalDocumentInput) {
+  requireAdmin(ctx);
+  const t = (v: string | undefined) => (v?.trim() ? v.trim() : null);
+  await prisma.company.update({
+    where: { id: ctx.companyId },
+    data: {
+      docIntroduction: t(input.introduction),
+      docPlantAbout: t(input.plantAbout),
+      docCivilDesign: t(input.civilDesign),
+      docMepDesign: t(input.mepDesign),
+      docTaxesDuties: t(input.taxesDuties),
+      docSupplyErection: t(input.supplyErection),
+      docWarranty: t(input.warranty),
+      docScopeGreenEcocare: t(input.scopeGreenEcocare),
+      docScopeClient: t(input.scopeClient),
+      docPointsToNote: t(input.pointsToNote),
+      docSignatoryName: t(input.signatoryName),
+      docSignatoryTitle: t(input.signatoryTitle),
+      docSignatoryPhone: t(input.signatoryPhone),
+      docRecentProjects: input.recentProjects
+        ? (input.recentProjects.filter((p) => p.client?.trim() || p.project?.trim()) as object)
+        : undefined,
+    },
+  });
+  await logAudit(ctx, {
+    action: "UPDATE",
+    entity: "Company",
+    entityId: ctx.companyId,
+    after: { proposalDocumentFields: Object.keys(input) },
   });
   return { ok: true };
 }

@@ -13,6 +13,7 @@ import { generateProposalDraft, type AiProposalInput, type AiProposalDraft } fro
 import { streamProposalDraft } from "@/lib/ai-stream";
 import { DEFAULT_STAGES, deriveCapacityKLD } from "@/lib/constants";
 import { proposalExpiry } from "@/lib/domain/proposal-aging";
+import { parseDocumentData } from "@/lib/domain/proposal-document";
 import { visibleProposalWhere, canSeeProposal } from "./proposal-visibility";
 import { formatINR } from "@/lib/money";
 import { sendWhatsAppText } from "@/lib/whatsapp";
@@ -342,6 +343,8 @@ export async function updateBasics(
 
 interface VersionSaveInput {
   technicalText?: string;
+  /** Per-type document fields — validated against the proposal's own type. */
+  documentData?: unknown;
   coverLetter?: string;
   pointsToNote?: string;
   technologyExplainer?: string;
@@ -430,6 +433,24 @@ export async function saveVersion(ctx: Ctx, proposalId: string, input: VersionSa
       technologyExplainer: input.technologyExplainer ?? current.technologyExplainer,
       technicalSpecs: input.technicalSpecs ?? (current.technicalSpecs as Prisma.InputJsonValue),
       electricalLoad: input.electricalLoad ?? (current.electricalLoad as Prisma.InputJsonValue),
+      // MERGED, never overwritten, at TWO levels:
+      //   • omitted entirely → keep what's stored (the documented failure mode: a
+      //     partial save such as the standalone "Save write-up" button must not blank it)
+      //   • supplied partially → shallow-merge over what's stored, because this is a
+      //     bag of independent document sections. The creation wizard sends only the
+      //     capacity calculation; without this merge that single field would wipe the
+      //     recommendation, flow chart, equipment list and spec sheet seeded from the
+      //     technology template moments earlier.
+      // A section is cleared by sending it explicitly empty, not by omitting it.
+      // Validated against THIS proposal's type, so a BOQ payload can't land on a
+      // Project Report (and Zod strips anything the type's schema doesn't define).
+      documentData:
+        input.documentData !== undefined
+          ? (parseDocumentData(proposal.proposalType, {
+              ...((current.documentData as Record<string, unknown>) ?? {}),
+              ...(input.documentData as Record<string, unknown>),
+            }) as Prisma.InputJsonValue)
+          : (current.documentData as Prisma.InputJsonValue),
       scopeOfWork: input.scopeOfWork ?? (current.scopeOfWork as Prisma.InputJsonValue),
       terms: input.terms ?? (current.terms as Prisma.InputJsonValue),
       paymentTerms: input.paymentTerms ?? (current.paymentTerms as Prisma.InputJsonValue),

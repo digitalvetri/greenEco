@@ -5,7 +5,9 @@ import type { Ctx } from "@/lib/rbac";
 import { stripPricing } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
-import { boqPreview, SEGMENT_TO_CATEGORY, deriveCapacityKLD } from "@/lib/constants";
+import { boqPreview, SEGMENT_TO_CATEGORY, deriveCapacityKLD, DEFAULT_PAYMENT_TERMS, TECHNOLOGY_EXPLAINERS } from "@/lib/constants";
+import { seedDocumentData, seedElectricalLoad } from "@/lib/domain/proposal-document-seed";
+import { defaultCoverLetter } from "@/lib/project-report-boilerplate";
 import { leadScore } from "@/lib/domain/lead-score";
 import { primaryProposal } from "@/lib/domain/proposal-pick";
 import { visibleProposalFilter } from "./proposal-visibility";
@@ -1480,7 +1482,18 @@ export async function convertToProposal(ctx: Ctx, leadId: string, opts: ConvertT
   if (duplicate) return { proposalId: duplicate.id, number: duplicate.number, already: true };
 
   const year = new Date().getFullYear();
-  const { standardTermsTemplate } = await getCompanySettings(ctx.companyId);
+  const settings = await getCompanySettings(ctx.companyId);
+  const technology = opts.technology ?? lead.technology ?? "MBBR";
+  const plantType = opts.plantType ?? lead.plantType ?? "STP";
+  // Seed the document from the per-technology template so a fresh proposal already
+  // contains the client's real content — the admin edits a COPY, so a later template
+  // change never silently rewrites an existing quote.
+  const seededDocument = seedDocumentData({ proposalType, technology, plantType, capacityKLD: lead.capacityKLD ?? 0 });
+  const seededCoverLetter =
+    proposalType === "Project Proposal"
+      ? defaultCoverLetter({ plantType, capacityLPD: Math.round((lead.capacityKLD ?? 0) * 1000) })
+      : null;
+
   return prisma.$transaction(async (tx) => {
     const number = await allocateNumber(tx, ctx.companyId, "PROPOSAL", year);
     const proposal = await tx.proposal.create({
@@ -1494,8 +1507,8 @@ export async function convertToProposal(ctx: Ctx, leadId: string, opts: ConvertT
         // Carry the lead's structured sizing into the proposal; coalesce for
         // pre-P2 leads (Proposal.plantType/technology/capacityKLD are NOT nullable).
         // An explicit choice on the request/convert form wins over the lead's.
-        plantType: opts.plantType ?? lead.plantType ?? "STP",
-        technology: opts.technology ?? lead.technology ?? "MBBR",
+        plantType,
+        technology,
         capacityKLD: lead.capacityKLD ?? 0,
         capacityValue: lead.capacityValue,
         capacityUnit: lead.capacityUnit ?? "KLD",
@@ -1510,8 +1523,15 @@ export async function convertToProposal(ctx: Ctx, leadId: string, opts: ConvertT
             subtotal: 0,
             gstAmount: 0,
             grandTotal: 0,
-            paymentTerms: [],
-            terms: standardTermsTemplate,
+            paymentTerms: DEFAULT_PAYMENT_TERMS,
+            terms: settings.standardTermsTemplate,
+            coverLetter: seededCoverLetter,
+            technologyExplainer: TECHNOLOGY_EXPLAINERS[technology] ?? null,
+            documentData: seededDocument as Prisma.InputJsonValue,
+            electricalLoad:
+              proposalType === "Project Proposal"
+                ? (seedElectricalLoad(technology) as Prisma.InputJsonValue)
+                : undefined,
           },
         },
       },

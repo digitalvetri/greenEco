@@ -7,8 +7,10 @@ import { updateProfile, updateEmail, changePassword, updateAvatar } from "@/serv
 import { adminResetPassword, createUser, setUserJobTitle, adminUpdateUser, deleteUser, type CreateUserInput, type UpdateUserInput } from "@/server/services/user-admin";
 import {
   updateCompanyDetails,
+  updateProposalDocument,
   updateThresholds,
   type CompanyDetailsInput,
+  type ProposalDocumentInput,
   type ThresholdsInput,
 } from "@/server/services/company-settings";
 
@@ -114,6 +116,19 @@ export async function updateCompanyDetailsAction(input: CompanyDetailsInput): Pr
     await updateCompanyDetails(session, input);
     revalidatePath("/settings");
     return { ok: true, message: "Company details saved" };
+  } catch (e) {
+    return { ok: false, error: toMessage(e) };
+  }
+}
+
+export async function updateProposalDocumentAction(input: ProposalDocumentInput): Promise<ActionState> {
+  const session = await getSession();
+  try {
+    await updateProposalDocument(session, input);
+    revalidatePath("/settings");
+    // Every future proposal's document reads this, so bust the proposals subtree too.
+    revalidatePath("/proposals", "layout");
+    return { ok: true, message: "Proposal document saved" };
   } catch (e) {
     return { ok: false, error: toMessage(e) };
   }

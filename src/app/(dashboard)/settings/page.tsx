@@ -11,6 +11,7 @@ import { KeyRound, Zap, ScrollText } from "lucide-react";
 import { PushToggle } from "@/components/pwa/push-toggle";
 import { ProfileCard } from "./profile-card";
 import { CompanyDetailsCard, ThresholdsCard } from "./company-settings-cards";
+import { ProposalDocumentCard } from "./proposal-document-card";
 import { ResetPasswordButton } from "./reset-password-button";
 import { EditUserButton } from "./edit-user-button";
 import { DeleteUserButton } from "./delete-user-button";
@@ -95,8 +96,9 @@ export default async function SettingsPage() {
       </div>
 
       {companySettings && (
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
           <CompanyDetailsCard settings={companySettings} />
+          <ProposalDocumentCard doc={companySettings.doc} />
         </div>
       )}
 
