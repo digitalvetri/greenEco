@@ -205,6 +205,55 @@ async function main() {
       order.every((i) => i > -1) && order[0] < order[1] && order[1] < order[2],
     );
 
+    // ================= The GENERIC fallback path =================
+    // Covers every proposal that existed before this work, plus Service/AMC/Others —
+    // two of the four types the client asked for. It was produced by refactoring the
+    // old page into a pure component, so nothing had rendered it since; tsc being
+    // clean is not evidence it runs.
+    const l3 = await mkLead(`P8 Service ${Date.now()}`, "MBBR");
+    const sv = await convertToProposal(A, l3, { proposalType: "Service Proposal" });
+    proposalIds.push(sv.proposalId);
+    await saveVersion(A, sv.proposalId, {
+      technicalText: "Quarterly preventive maintenance of the installed plant.",
+      documentData: { summary: "Two visits per quarter, consumables at actuals." },
+      boqItems: [
+        { category: "Others", item: "Preventive maintenance visit", unit: "Nos", qty: 4, rate: 6000, amount: 24000, aiSuggested: false },
+      ],
+    });
+
+    console.log("\nRendering a Service Proposal (generic fallback) …");
+    const svPdf = await generatePdf(A, "proposal", sv.proposalId);
+    check(`generic layout renders a real PDF (${svPdf.bytes} bytes)`, svPdf.bytes > 20_000);
+    const S = pdfText(svPdf.url);
+    contains(S, "PROPOSAL", "generic: branded PrintShell header");
+    contains(S, "Preventive maintenance visit", "generic: BOQ line");
+    contains(S, "Quarterly preventive maintenance", "generic: technical write-up");
+    check("generic: totals present", S.includes("Grand Total") || S.includes("₹28,320"));
+    check(
+      "generic: does NOT use the Project Report structure",
+      !S.includes("Table of Contents") && !S.includes("10.1 Quotation"),
+    );
+
+    // ---- Orphaned-content regression: everything the editor exposes must print ----
+    // A Project Report must render the AI write-up, the technology explainer and the
+    // project-specific scope, not just documentData. These were generated + editable
+    // but unprinted when Phase C first landed.
+    const l4 = await mkLead(`P8 Content ${Date.now()}`, "MBBR");
+    const ct = await convertToProposal(A, l4, { proposalType: "Project Proposal", technology: "MBBR" });
+    proposalIds.push(ct.proposalId);
+    await saveVersion(A, ct.proposalId, {
+      technicalText: "MARKER-TECHNICAL-WRITEUP for this plant.",
+      scopeOfWork: { civil: "MARKER-SCOPE-CIVIL", mechanical: "MARKER-SCOPE-MECH" } as never,
+      boqItems: [{ category: "Others", item: "Lump sum", unit: "Lot", qty: 1, rate: 100000, amount: 100000, aiSuggested: false }],
+    });
+    console.log("\nRendering a Project Report with write-up + scope …");
+    const ctPdf = await generatePdf(A, "proposal", ct.proposalId);
+    const C = pdfText(ctPdf.url);
+    contains(C, "MARKER-TECHNICAL-WRITEUP", "prints the AI technical write-up");
+    contains(C, "MARKER-SCOPE-CIVIL", "prints the project-specific scope of work");
+    check("prints the technology explainer seeded for the document", /About MBBR/.test(C));
+    check("MBBR flow chart node", C.includes("MBBR TANK"));
+
     console.log(`\n✅ verify-proposals-p8: ${pass} checks passed`);
   } finally {
     const vs = await prisma.proposalVersion.findMany({ where: { proposalId: { in: proposalIds } }, select: { id: true } });

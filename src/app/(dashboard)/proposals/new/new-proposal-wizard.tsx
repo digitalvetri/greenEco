@@ -19,7 +19,7 @@ import {
   PROJECT_REPORT_TECHNOLOGIES,
   projectReportTemplate,
 } from "@/lib/project-report-templates";
-import { PROJECT_REPORT_COST_BUCKETS } from "@/lib/project-report-boilerplate";
+import { PROJECT_REPORT_COST_BUCKETS, PROJECT_REPORT_PLANT_TYPES } from "@/lib/project-report-boilerplate";
 import { computeCapacity, computeLoadTotals } from "@/lib/domain/proposal-document";
 import { createProposalFromWizardAction } from "./actions";
 
@@ -117,6 +117,10 @@ export function NewProposalWizard({
   /** When the format changes, reset the cost table to that format's natural shape. */
   function pickType(next: string) {
     setProposalType(next);
+    // A plant type with no Project Report copy can't carry that format.
+    if (next === "Project Proposal" && !PROJECT_REPORT_PLANT_TYPES.includes(plantType as never)) {
+      setPlantType("STP");
+    }
     setCostLines(
       next === "Project Proposal"
         ? PROJECT_REPORT_COST_BUCKETS.map((b) => ({ item: b, amount: "" }))
@@ -229,9 +233,20 @@ export function NewProposalWizard({
             </Field>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Plant type">
+              {/* A Project Report only has document copy for STP/ETP/WTP. Offering RO or
+                  OWC here would print "A Sewage Treatment Plant (STP) is…" under an RO
+                  heading — same class as the SAFF→MBBR substitution fixed in v45. Other
+                  plant types are still quotable via the BOQ/Service/AMC formats. */}
+              <Field
+                label="Plant type"
+                hint={
+                  isProjectReport
+                    ? "A Project Report is available for STP, ETP and WTP. For other plants use a BOQ proposal."
+                    : undefined
+                }
+              >
                 <Select value={plantType} onChange={(e) => setPlantType(e.target.value)}>
-                  {PLANT_TYPES.map((t) => (
+                  {(isProjectReport ? PROJECT_REPORT_PLANT_TYPES : PLANT_TYPES).map((t) => (
                     <option key={t}>{t}</option>
                   ))}
                 </Select>

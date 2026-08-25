@@ -45,7 +45,7 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 The final phase: `/print/proposal/[id]` now produces the client's actual document formats instead of a
 generic layout. **Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 126 unit · `next build`
-clean · new `verify-proposals-p8` (66 checks against the REAL rendered PDFs) · p7 (74) + p6 (65) +
+clean · new `verify-proposals-p8` (76 checks against the REAL rendered PDFs, all three template paths) · p7 (74) + p6 (65) +
 sell + clients-p0 green · every page visually compared against the source PDFs in `~/Downloads/STP`.**
 
 - **Dispatcher on `proposalType`**, with the pre-Phase-C layout kept as `generic-proposal.tsx` for
@@ -85,6 +85,30 @@ sell + clients-p0 green · every page visually compared against the source PDFs 
 - **The Phase-B precedence rule proven on paper**: the generated Project Report contains "Taxes &
   Duties" and "Points to be Noted" exactly once each, and the generic T&Cs page is correctly suppressed
   because its content now lives in §10.2–§14.
+- **Four review findings fixed before shipping**, two of which meant a wrong or missing PDF:
+  1. **Five content blocks were editable and generated but no longer printed** — `technicalText`
+     (the AI write-up, with its own editor card), `technologyExplainer` (which Phase B seeds
+     *specifically for this document*), `scopeOfWork`, `technicalSpecs`, and `heroImageUrl` (v40's
+     AI illustration). The old layout printed all five; the new one read none. That is the Phase-B
+     "editable afterwards" bug inverted. Now: the explainer renders inside §6.4 after the
+     recommendation (NOT as its own section — that would shift every later number depending on
+     whether the field is filled), the write-up as §6.7 Design Notes, the project-specific scope as
+     §13.1, the hero image after the cover letter, and v29's `technicalSpecs` as the §8.2 fallback
+     for pre-Phase-B proposals that have no `documentData.materialSpecs`.
+  2. **The generic fallback had never been executed.** `generic-proposal.tsx` was produced by
+     refactoring the old page into a pure component (dropped `async`, all five `await`s, the auth
+     block, `Decimal.toString()` → string) and p8 only rendered the two structured types — so the
+     path covering *every pre-existing proposal plus Service/AMC/Others* was tsc-clean and unproven.
+     p8 now renders a Service Proposal through it.
+  3. **A non-STP Project Proposal printed STP content.** `plantAbout` opens "A Sewage Treatment Plant
+     (STP) is…" and §6.4's sentence said "treat domestic and industrial sewage" — both stated as fact
+     under an RO or WTP heading, the same class as the SAFF→MBBR substitution fixed in v45. Added
+     `PLANT_TYPE_ABOUT` copy for STP/ETP/WTP (a company override still wins), made §6.4's wording
+     plant-aware, and restricted the Project Proposal plant-type picker to
+     `PROJECT_REPORT_PLANT_TYPES`; other plants remain quotable via the BOQ/Service/AMC formats.
+  4. **Operator note**: `Company.address` is empty in the live DB, so the cover page's *Submitted By*
+     block prints the name, phone, email and branches but **no street address** — on the first page
+     the customer sees. Fill Settings → Company details before sending anything. Data, not code.
 - **Running p8 needs a dev server** on `NEXT_PUBLIC_APP_URL` (the renderer navigates to `/print/*` over
   HTTP) plus `pdftotext`. On this machine port 3000 belongs to another app, so:
   `NEXT_PUBLIC_APP_URL=http://localhost:3005 npx tsx scripts/verify-proposals-p8.ts`.

@@ -10,6 +10,9 @@ import * as B from "@/lib/project-report-boilerplate";
 export interface ProjectReportBoilerplate {
   introduction: string;
   plantAbout: string;
+  /** Raw column value — null means "no company override", so the document can fall
+   *  back to the copy for ITS plant type rather than the STP default. */
+  plantAboutOverride: string | null;
   civilDesign: string;
   mepDesign: string;
   taxesDuties: string;
@@ -85,6 +88,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     doc: {
       introduction: c?.docIntroduction ?? B.DEFAULT_DOC_INTRODUCTION,
       plantAbout: c?.docPlantAbout ?? B.DEFAULT_DOC_PLANT_ABOUT,
+      plantAboutOverride: c?.docPlantAbout ?? null,
       civilDesign: c?.docCivilDesign ?? B.DEFAULT_DOC_CIVIL_DESIGN,
       mepDesign: c?.docMepDesign ?? B.DEFAULT_DOC_MEP_DESIGN,
       taxesDuties: c?.docTaxesDuties ?? B.DEFAULT_DOC_TAXES_DUTIES,

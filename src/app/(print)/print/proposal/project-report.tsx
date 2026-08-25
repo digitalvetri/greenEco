@@ -1,7 +1,7 @@
 import { formatINR, amountInWords } from "@/lib/money";
 import { asProjectReportData, computeCapacity, computeLoadTotals } from "@/lib/domain/proposal-document";
 import { TECHNOLOGY_COMPARISON } from "@/lib/project-report-templates";
-import { shouldPrintStandardTerms, resolvePointsToNote } from "@/lib/project-report-boilerplate";
+import { shouldPrintStandardTerms, resolvePointsToNote, PLANT_TYPE_ABOUT } from "@/lib/project-report-boilerplate";
 import {
   DocSection,
   DocProse,
@@ -67,6 +67,8 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
     companyTemplate: company.standardTermsTemplate,
   });
   const pointsToNote = resolvePointsToNote(v?.pointsToNote, company.doc.pointsToNote);
+  const scope = (v?.scopeOfWork ?? {}) as Record<string, string>;
+  const legacySpecs = (v?.technicalSpecs ?? []) as { section: string; item: string; spec: string; qty: string }[];
 
   const sections = [
     "Cover Letter",
@@ -112,6 +114,18 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
         </section>
       )}
 
+      {/* ---- Plant illustration (v40's AI image; the pre-Phase-C layout printed it) ---- */}
+      {v?.heroImageUrl && (
+        <section style={{ ...pageBreak, pageBreakAfter: "always", textAlign: "center" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- rendered by headless Chromium into a PDF, not the Next image pipeline */}
+          <img
+            src={v.heroImageUrl}
+            alt=""
+            style={{ width: "100%", maxHeight: "16cm", objectFit: "contain", display: "block" }}
+          />
+        </section>
+      )}
+
       {/* ---- Table of Contents ---- */}
       <section style={{ ...pageBreak, pageBreakAfter: "always" }}>
         <h2 style={{ color: BRAND, fontSize: 16, marginBottom: 12 }}>Table of Contents</h2>
@@ -133,7 +147,9 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
       </DocSection>
 
       <DocSection no={5} title={plantName}>
-        <DocProse text={company.doc.plantAbout} />
+        {/* The company's edited override wins; otherwise the copy for THIS plant type,
+            so an ETP/WTP proposal never opens "A Sewage Treatment Plant (STP) is…". */}
+        <DocProse text={company.doc.plantAboutOverride ?? PLANT_TYPE_ABOUT[p.plantType] ?? company.doc.plantAbout} />
       </DocSection>
 
       {/* ---- 6. Process design ---- */}
@@ -172,9 +188,10 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
 
         <div style={docH3}>6.4 Choosing the Process by Given Data</div>
         <p style={docP}>
-          {plantName}s treat domestic and industrial sewage to make the water reusable or safe for
-          discharge. Choosing the right technology ensures efficient treatment, compliance with
-          environmental norms, and reduced operational costs. The most common technologies are:
+          {plantName}s treat {p.plantType === "WTP" ? "raw water" : "domestic and industrial sewage"} to
+          make it {p.plantType === "WTP" ? "fit for its intended use" : "reusable or safe for discharge"}.
+          Choosing the right technology ensures efficient treatment, compliance with environmental
+          norms, and reduced operational costs. The most common technologies are:
         </p>
         <ol style={{ fontSize: 12.5, lineHeight: 1.6, paddingLeft: 20, marginBottom: 8 }}>
           {TECHNOLOGY_COMPARISON.map((t) => (
@@ -184,6 +201,16 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
           ))}
         </ol>
         {doc.recommendation && <p style={docP}>{doc.recommendation}</p>}
+        {/* The technology explainer (seeded from TECHNOLOGY_EXPLAINERS specifically for
+            this document) belongs INSIDE §6.4, after the recommendation — the samples
+            have no separate "About X" section, and inventing one would make the section
+            numbers shift depending on whether the field happens to be filled. */}
+        {v?.technologyExplainer && (
+          <>
+            <div style={{ ...docH3, marginTop: 8 }}>About {p.technology}</div>
+            <DocProse text={v.technologyExplainer} />
+          </>
+        )}
 
         {(doc.flowChart?.length ?? 0) > 0 && (
           <ProcessFlowChart
@@ -203,6 +230,13 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
                 <DocProse text={u.body} />
               </div>
             ))}
+          </div>
+        )}
+        {/* The AI "Technical Write-up" the editor exposes — printed, not orphaned. */}
+        {v?.technicalText && (
+          <div>
+            <div style={docH3}>6.7 Design Notes</div>
+            <DocProse text={v.technicalText} />
           </div>
         )}
       </DocSection>
@@ -232,6 +266,34 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
                     <td style={{ ...docCell, textAlign: "center" }}>{i + 1}</td>
                     <td style={docCell}>{e.name}</td>
                     <td style={docCell}>{e.quantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Legacy fallback: proposals created before Phase B carry v29's technicalSpecs
+            table and no documentData.materialSpecs. Print that rather than nothing. */}
+        {(doc.materialSpecs?.length ?? 0) === 0 && legacySpecs.length > 0 && (
+          <div style={avoidBreak}>
+            <div style={docH3}>8.2 Specifications of the Equipment</div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={docHeadCell}>Section</th>
+                  <th style={docHeadCell}>Item</th>
+                  <th style={docHeadCell}>Specification</th>
+                  <th style={{ ...docHeadCell, textAlign: "right" }}>Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {legacySpecs.map((r, i) => (
+                  <tr key={i}>
+                    <td style={docCell}>{r.section}</td>
+                    <td style={docCell}>{r.item}</td>
+                    <td style={docCell}>{r.spec}</td>
+                    <td style={num}>{r.qty}</td>
                   </tr>
                 ))}
               </tbody>
@@ -422,6 +484,23 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
 
       <DocSection no={13} title={`Scope of Work by ${company.name}`}>
         <DocProse text={company.doc.scopeGreenEcocare} />
+        {/* Project-specific scope from the AI generator — complements the company
+            standard above rather than replacing it. */}
+        {Object.keys(scope).length > 0 && (
+          <div style={avoidBreak}>
+            <div style={docH3}>13.1 Scope for this Project</div>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>
+                {Object.entries(scope).map(([k, val]) => (
+                  <tr key={k}>
+                    <td style={{ ...docCell, width: "22%", fontWeight: 700, textTransform: "capitalize" }}>{k}</td>
+                    <td style={docCell}>{val}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </DocSection>
 
       <DocSection no={14} title="Scope of Work for the Client">
