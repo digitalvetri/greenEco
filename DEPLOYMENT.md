@@ -154,6 +154,7 @@ mounts:
 |---|---|
 | `/app/public/uploads` | user-uploaded files (bill photos, documents) |
 | `/app/public/pdfs` | generated invoice/proposal/closeout PDFs |
+| `/app/public/secure` | **engineering drawings** — login-gated, served via `/api/files`. Without this volume every drawing is lost on redeploy. |
 
 Let Coolify create/manage the underlying volumes. Don't mount anything at
 `/app/public` itself — that would shadow the brand assets baked into the image.

@@ -13,6 +13,7 @@ npm-debug.log*
 .DS_Store
 public/uploads
 public/pdfs
+public/secure
 e2e
 playwright-report
 test-results

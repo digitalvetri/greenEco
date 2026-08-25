@@ -61,11 +61,14 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN node_modules/.bin/playwright-core install --with-deps chromium \
   && chmod +x docker-entrypoint.sh
 
-# Runtime-written directories (uploads, generated PDFs) — mount Coolify
-# persistent volumes here so they survive redeploys. Everything else under
-# public/ (brand assets, icons) comes from the image and must NOT be
+# Runtime-written directories (uploads, generated PDFs, login-gated drawings) —
+# mount Coolify persistent volumes here so they survive redeploys. Everything else
+# under public/ (brand assets, icons) comes from the image and must NOT be
 # shadowed by an empty volume mount.
-RUN mkdir -p public/uploads public/pdfs
+#
+# public/secure holds engineering drawings, served only to a signed-in session via
+# /api/files. WITHOUT a volume mounted here every drawing is destroyed on redeploy.
+RUN mkdir -p public/uploads public/pdfs public/secure
 
 EXPOSE 3000
 
