@@ -31,7 +31,7 @@ async function main() {
 
   // 3 — clientStats vs raw DB.
   const s = await clientStats(A);
-  const rawClients = await prisma.lead.count({ where: { companyId: A.companyId, deletedAt: null, proposal: { isNot: null } } });
+  const rawClients = await prisma.lead.count({ where: { companyId: A.companyId, deletedAt: null, proposals: { some: {} } } });
   check(`clientStats.totalClients matches DB (${s.totalClients}==${rawClients})`, s.totalClients === rawClients);
   check("clientStats.totalClients == list length (admin)", s.totalClients === all.items.length + (all.nextCursor ? 999 : 0) || s.totalClients >= all.items.length);
   check("lifetimeValue ≥ 0", s.lifetimeValue >= 0);

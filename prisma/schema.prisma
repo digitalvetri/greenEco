@@ -51,6 +51,19 @@ enum ProposalStatus {
   EXPIRED
 }
 
+/**
+ * PENDING   — raised by an employee, waiting on the office.
+ * ACCEPTED  — admin has taken it on but hasn't produced the proposal yet.
+ * REJECTED  — admin declined it (rejectionReason required).
+ * FULFILLED — the proposal exists; `proposalId` points at it.
+ */
+enum ProposalRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  FULFILLED
+}
+
 enum OrderStatus {
   ACTIVE
   ON_HOLD
@@ -178,7 +191,12 @@ model Lead {
   followUps      FollowUp[]
   communications Communication[]
   documents      LeadDocument[]
-  proposal       Proposal?
+  // One enquiry can carry several proposals — one per proposal TYPE (a Project
+  // Proposal *and* a BOQ *and* an AMC proposal for the same site). This was 1:1
+  // (`proposal Proposal?` + `leadId @unique`) until the proposal-type work; a
+  // *revision* is still a new ProposalVersion, never a second Proposal row.
+  proposals        Proposal[]
+  proposalRequests ProposalRequest[]
   createdById String
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -333,7 +351,9 @@ model Proposal {
   id             String            @id @default(cuid())
   companyId      String
   number         String            @unique // GEC-PRO-2026-001 — allocated at creation, revealed in the UI once complete
-  leadId         String            @unique
+  // NOT unique — a lead may have one proposal per type. The dropped @unique was
+  // also the only index serving `where: { leadId }`, hence the explicit @@index below.
+  leadId         String
   projectName    String
   siteAddress    String
   plantType      String // STP | ETP | WTP | Softener | UF | RO | UV | HNS System | OWC | SWM | Others
@@ -351,6 +371,7 @@ model Proposal {
   followUps      FollowUp[]
   communications Communication[]
   documents      ProposalDocument[]
+  requests       ProposalRequest[]
   order          Order?
   createdById    String
   createdAt      DateTime          @default(now())
@@ -359,6 +380,43 @@ model Proposal {
   contactPerson  ContactPerson? @relation(fields: [contactPersonId], references: [id])
 
   @@index([companyId, status])
+  @@index([leadId])
+}
+
+/**
+ * An employee's request to the office for a proposal (spec: field staff capture the
+ * enquiry, the admin writes the document). The employee-facing half deliberately
+ * carries NO pricing at all — same shape as MaterialRequest, the repo's other
+ * employee→admin request flow.
+ *
+ * `proposalType` picks which document format the admin will produce; `technology`
+ * only applies to a Project Proposal (MBBR|SBR|ASP|MBR), which is the only type
+ * with per-technology document variants.
+ */
+model ProposalRequest {
+  id              String                @id @default(cuid())
+  companyId       String
+  leadId          String
+  proposalType    String // see lib/constants.ts PROPOSAL_TYPES
+  technology      String? // MBBR | SBR | ASP | MBR — Project Proposal only
+  plantType       String? // STP | ETP | WTP | ...
+  capacityValue   Float?
+  capacityUnit    String                @default("KLD")
+  notes           String? // what the customer actually asked for
+  status          ProposalRequestStatus @default(PENDING)
+  rejectionReason String?
+  proposalId      String? // set once the admin creates the proposal from this request
+  requestedById   String
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime              @default(now())
+
+  lead     Lead      @relation(fields: [leadId], references: [id])
+  proposal Proposal? @relation(fields: [proposalId], references: [id])
+
+  @@index([companyId, status])
+  @@index([leadId])
+  @@index([companyId, requestedById])
 }
 
 model ProposalVersion {

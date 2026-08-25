@@ -3,12 +3,17 @@ import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import type { Ctx } from "@/lib/rbac";
 import { stripPricing } from "@/lib/rbac";
+import { primaryProposal, proposalsWithOrders } from "@/lib/domain/proposal-pick";
+import { visibleProposalFilter } from "./proposal-visibility";
 
 /**
  * Client 360 (spec §7.3), keyed by the origin lead id. Merges the full history:
  * identity + contacts + reference graph + chronological timeline (lead & proposal
- * follow-ups) + commercial history (proposal, order, invoices, receipts) +
+ * follow-ups) + commercial history (proposals, orders, invoices, receipts) +
  * execution record. Pricing/cost fields stripped for EMPLOYEE.
+ *
+ * A lead now carries several proposals (one per type), so the timeline walks ALL
+ * of them — previously it could only ever show the single 1:1 proposal.
  */
 export async function getClient360(ctx: Ctx, leadId: string) {
   const lead = await prisma.lead.findFirst({
@@ -17,7 +22,9 @@ export async function getClient360(ctx: Ctx, leadId: string) {
       contacts: true,
       reference: { include: { leads: { select: { id: true, customerName: true } } } },
       followUps: { orderBy: { datetime: "desc" } },
-      proposal: {
+      proposals: {
+        where: visibleProposalFilter(ctx),
+        orderBy: { createdAt: "desc" },
         include: {
           versions: { orderBy: { versionNo: "desc" } },
           followUps: { orderBy: { datetime: "desc" } },
@@ -41,14 +48,19 @@ export async function getClient360(ctx: Ctx, leadId: string) {
   for (const f of lead.followUps) {
     timeline.push({ kind: "followup", at: f.datetime.toISOString(), label: `Follow-up (${f.type})`, detail: f.notes });
   }
-  if (lead.proposal) {
-    timeline.push({ kind: "proposal", at: lead.proposal.createdAt.toISOString(), label: `Proposal ${lead.proposal.number}`, detail: lead.proposal.status });
-    for (const f of lead.proposal.followUps) {
+  for (const proposal of lead.proposals) {
+    timeline.push({
+      kind: "proposal",
+      at: proposal.createdAt.toISOString(),
+      label: `Proposal ${proposal.number}`,
+      detail: [proposal.proposalType, proposal.status].filter(Boolean).join(" · "),
+    });
+    for (const f of proposal.followUps) {
       timeline.push({ kind: "followup", at: f.datetime.toISOString(), label: `Proposal follow-up (${f.type})`, detail: f.notes });
     }
-    if (lead.proposal.order) {
-      timeline.push({ kind: "order", at: lead.proposal.order.createdAt.toISOString(), label: `Order ${lead.proposal.order.orderNo}`, detail: lead.proposal.order.status });
-      for (const m of lead.proposal.order.milestones) {
+    if (proposal.order) {
+      timeline.push({ kind: "order", at: proposal.order.createdAt.toISOString(), label: `Order ${proposal.order.orderNo}`, detail: proposal.order.status });
+      for (const m of proposal.order.milestones) {
         for (const r of m.receipts) {
           timeline.push({ kind: "receipt", at: r.date.toISOString(), label: `Payment received`, detail: r.mode });
         }
@@ -60,7 +72,10 @@ export async function getClient360(ctx: Ctx, leadId: string) {
   }
   timeline.sort((a, b) => (a.at < b.at ? 1 : -1));
 
-  return stripPricing({ lead, timeline }, ctx.role);
+  // The page's headline Commercial card + financials key off one proposal; the full
+  // list stays on `lead.proposals` so nothing is hidden.
+  const primary = primaryProposal(lead.proposals);
+  return stripPricing({ lead, timeline, primaryProposalId: primary?.id ?? null }, ctx.role);
 }
 
 export interface ClientFilters {
@@ -73,7 +88,14 @@ function clientWhere(ctx: Ctx, search?: string): Prisma.LeadWhereInput {
   return {
     companyId: ctx.companyId,
     deletedAt: null,
-    proposal: { isNot: null },
+    // "is a client" = has at least one VISIBLE proposal (was `proposal: { isNot: null }`
+    // when the relation was 1:1). Shared by every query in this file, so the list, the
+    // cards, the tabs, the export and both analytics surfaces always agree.
+    //
+    // The visibility filter belongs here too, not just on the nested include: without
+    // it an employee would see a lead listed as a client while its only proposal — an
+    // office draft — is filtered out of the row, showing a client with no proposal.
+    proposals: { some: visibleProposalFilter(ctx) ?? {} },
     ...(ctx.role !== "ADMIN" ? { OR: [{ assignedToId: ctx.userId }, { createdById: ctx.userId }] } : {}),
     ...(search
       ? {
@@ -100,21 +122,32 @@ export async function listClients(ctx: Ctx, filters: ClientFilters = {}) {
   const take = Math.min(filters.take ?? 50, 100);
   const rows = await prisma.lead.findMany({
     where: clientWhere(ctx, filters.search),
-    include: { proposal: { select: { number: true, status: true, order: { select: { orderNo: true, status: true } } } } },
+    include: {
+      proposals: {
+        where: visibleProposalFilter(ctx),
+        select: { number: true, status: true, createdAt: true, order: { select: { orderNo: true, status: true } } },
+      },
+    },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: take + 1,
     ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
   });
   const hasMore = rows.length > take;
   const page = hasMore ? rows.slice(0, take) : rows;
-  const items = page.map((l) => ({
-    id: l.id,
-    customerName: l.customerName,
-    phone: l.phone,
-    address: l.address,
-    proposalNo: l.proposal?.number ?? null,
-    orderNo: l.proposal?.order?.orderNo ?? null,
-  }));
+  const items = page.map((l) => {
+    // Display-only: one representative proposal per row. `proposalCount` tells the
+    // user when there's more behind it rather than silently showing one of several.
+    const p = primaryProposal(l.proposals);
+    return {
+      id: l.id,
+      customerName: l.customerName,
+      phone: l.phone,
+      address: l.address,
+      proposalNo: p?.number ?? null,
+      proposalCount: l.proposals.length,
+      orderNo: p?.order?.orderNo ?? null,
+    };
+  });
   return { items, nextCursor: hasMore ? page[page.length - 1].id : null };
 }
 
@@ -161,7 +194,9 @@ export async function listClientCustomers(
   const names = page.map((g) => g.customerName);
   const leads = await prisma.lead.findMany({
     where: { ...where, customerName: { in: names } },
-    include: { proposal: { select: { number: true, order: { select: { orderNo: true } } } } },
+    include: {
+      proposals: { where: visibleProposalFilter(ctx), select: { number: true, status: true, createdAt: true, order: { select: { orderNo: true } } } },
+    },
     orderBy: { updatedAt: "desc" },
   });
   const byName = new Map<string, typeof leads>();
@@ -174,14 +209,17 @@ export async function listClientCustomers(
   const items: ClientCustomerCard[] = page.map((g) => {
     const group = byName.get(g.customerName) ?? [];
     const latest = group[0]; // hydration query is ordered updatedAt desc
+    // projectCount stays lead-scoped: in this app a Lead IS one site/project, and a
+    // proposal is a quote for it — one project can now carry several quotes.
+    const p = primaryProposal(latest.proposals);
     return {
       id: latest.id,
       customerName: latest.customerName,
       phone: latest.phone,
       address: latest.address,
       projectCount: group.length,
-      proposalNo: latest.proposal?.number ?? null,
-      orderNo: latest.proposal?.order?.orderNo ?? null,
+      proposalNo: p?.number ?? null,
+      orderNo: p?.order?.orderNo ?? null,
     };
   });
   return { items, nextOffset: hasMore ? offset + take : null };
@@ -231,9 +269,12 @@ export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<Clien
   const leads = await prisma.lead.findMany({
     where: { ...where, customerName: anchor.customerName },
     include: {
-      proposal: {
+      proposals: {
+        where: visibleProposalFilter(ctx),
         select: {
           number: true,
+          status: true,
+          createdAt: true,
           projectName: true,
           plantType: true,
           technology: true,
@@ -254,17 +295,21 @@ export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<Clien
     orderBy: { createdAt: "asc" },
   });
   return leads.map((l, i) => {
-    const order = l.proposal?.order;
+    // One tab per Lead (= per site/project). Where a lead now has several quotes,
+    // the tab describes it via the representative one; the client-360 page below
+    // still lists every proposal.
+    const p = primaryProposal(l.proposals);
+    const order = p?.order;
     return {
       id: l.id,
       label: `Project ${i + 1}`,
       orderNo: order?.orderNo ?? null,
-      proposalNo: l.proposal?.number ?? null,
+      proposalNo: p?.number ?? null,
       status: l.status,
-      projectName: l.proposal?.projectName ?? l.projectName ?? null,
-      plantType: l.proposal?.plantType ?? l.plantType ?? null,
-      technology: l.proposal?.technology ?? l.technology ?? null,
-      capacityKLD: l.proposal?.capacityKLD ?? l.capacityKLD ?? null,
+      projectName: p?.projectName ?? l.projectName ?? null,
+      plantType: p?.plantType ?? l.plantType ?? null,
+      technology: p?.technology ?? l.technology ?? null,
+      capacityKLD: p?.capacityKLD ?? l.capacityKLD ?? null,
       segment: l.segment ?? null,
       orderStatus: order?.status ?? null,
       progress: order ? progressOf(order.stages) : null,
@@ -276,18 +321,27 @@ export async function listClientProjectTabs(ctx: Ctx, id: string): Promise<Clien
 }
 
 /**
- * Full client+project export (not just the visible/loaded page) — one row per
- * project, same shape as listClientProjectTabs but company-wide. Same 5000-row
- * cap convention as allLeadsForExport. projectValue is sell-side, admin-only
- * (stripPricing handles the gate; EMPLOYEE gets it stripped from the row).
+ * Full client+project export (not just the visible/loaded page) — company-wide,
+ * same 5000-row cap convention as allLeadsForExport. projectValue is sell-side,
+ * admin-only (stripPricing handles the gate; EMPLOYEE gets it stripped).
+ *
+ * **One row per PROPOSAL, not per lead.** A lead can now carry several quotes
+ * (Project Proposal + BOQ + AMC for one site), and picking just one would silently
+ * drop rows from an export whose whole purpose is completeness. The customer/site
+ * columns repeat across a lead's rows, which is what a flat export should do.
+ * `clientWhere` guarantees every returned lead has at least one proposal.
  */
 export async function allClientsForExport(ctx: Ctx, search?: string) {
   const rows = await prisma.lead.findMany({
     where: clientWhere(ctx, search),
     include: {
-      proposal: {
+      proposals: {
+        where: visibleProposalFilter(ctx),
+        orderBy: { createdAt: "desc" },
         select: {
           number: true,
+          status: true,
+          proposalType: true,
           projectName: true,
           plantType: true,
           technology: true,
@@ -299,19 +353,23 @@ export async function allClientsForExport(ctx: Ctx, search?: string) {
     orderBy: { updatedAt: "desc" },
     take: 5000,
   });
-  return stripPricing(rows, ctx.role).map((l) => ({
-    customerName: l.customerName,
-    phone: l.phone,
-    address: l.address,
-    projectName: l.proposal?.projectName ?? l.projectName ?? "",
-    plantType: l.proposal?.plantType ?? l.plantType ?? "",
-    technology: l.proposal?.technology ?? l.technology ?? "",
-    capacityKLD: l.proposal?.capacityKLD ?? l.capacityKLD ?? "",
-    proposalNo: l.proposal?.number ?? "",
-    orderNo: l.proposal?.order?.orderNo ?? "",
-    orderStatus: l.proposal?.order?.status ?? "",
-    projectValue: l.proposal?.order?.projectValue?.toString() ?? "",
-  }));
+  return stripPricing(rows, ctx.role).flatMap((l) =>
+    l.proposals.map((p) => ({
+      customerName: l.customerName,
+      phone: l.phone,
+      address: l.address,
+      projectName: p.projectName ?? l.projectName ?? "",
+      plantType: p.plantType ?? l.plantType ?? "",
+      technology: p.technology ?? l.technology ?? "",
+      capacityKLD: p.capacityKLD ?? l.capacityKLD ?? "",
+      proposalNo: p.number,
+      proposalType: p.proposalType ?? "",
+      proposalStatus: p.status,
+      orderNo: p.order?.orderNo ?? "",
+      orderStatus: p.order?.status ?? "",
+      projectValue: p.order?.projectValue?.toString() ?? "",
+    })),
+  );
 }
 
 export interface ClientAnalytics {
@@ -332,17 +390,25 @@ export interface ClientAnalytics {
 export async function clientAnalytics(ctx: Ctx): Promise<ClientAnalytics> {
   const leads = await prisma.lead.findMany({
     where: clientWhere(ctx),
-    select: { customerName: true, phone: true, proposal: { select: { order: { select: { status: true, projectValue: true } } } } },
+    select: {
+      customerName: true,
+      phone: true,
+      proposals: { where: visibleProposalFilter(ctx), select: { status: true, createdAt: true, order: { select: { status: true, projectValue: true } } } },
+    },
   });
   const byName = new Map<string, { phone: string; projects: number; value: Decimal }>();
   let totalLifetimeValue = new Decimal(0);
   for (const l of leads) {
     const g = byName.get(l.customerName) ?? { phone: l.phone, projects: 0, value: new Decimal(0) };
-    const order = l.proposal?.order;
-    if (order) {
+    // Iterate EVERY won proposal, never proposals[0] — a lead can carry two won
+    // quotes (e.g. a project and its AMC), each with its own Order. Because
+    // Order.proposalId is @unique, one proposal is exactly one order, so summing
+    // per-proposal cannot double-count. `projects` counts orders (not leads) so it
+    // stays consistent with the `value` shown beside it in topClients.
+    for (const p of proposalsWithOrders(l.proposals)) {
       g.projects += 1;
-      g.value = g.value.plus(new Decimal(order.projectValue));
-      totalLifetimeValue = totalLifetimeValue.plus(new Decimal(order.projectValue));
+      g.value = g.value.plus(new Decimal(p.order.projectValue));
+      totalLifetimeValue = totalLifetimeValue.plus(new Decimal(p.order.projectValue));
     }
     byName.set(l.customerName, g);
   }
@@ -368,15 +434,17 @@ export interface ClientStats {
 export async function clientStats(ctx: Ctx): Promise<ClientStats> {
   const leads = await prisma.lead.findMany({
     where: clientWhere(ctx),
-    select: { proposal: { select: { order: { select: { status: true, projectValue: true } } } } },
+    select: {
+      proposals: { where: visibleProposalFilter(ctx), select: { status: true, createdAt: true, order: { select: { status: true, projectValue: true } } } },
+    },
   });
   let activeProjects = 0;
   let lifetimeValue = new Decimal(0);
   for (const l of leads) {
-    const order = l.proposal?.order;
-    if (order) {
-      lifetimeValue = lifetimeValue.plus(new Decimal(order.projectValue));
-      if (order.status === "ACTIVE") activeProjects += 1;
+    // Same rule as clientAnalytics — sum every won proposal's order, never just one.
+    for (const p of proposalsWithOrders(l.proposals)) {
+      lifetimeValue = lifetimeValue.plus(new Decimal(p.order.projectValue));
+      if (p.order.status === "ACTIVE") activeProjects += 1;
     }
   }
   return { totalClients: leads.length, activeProjects, lifetimeValue: Math.round(lifetimeValue.toNumber()) };

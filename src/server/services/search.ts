@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Ctx } from "@/lib/rbac";
+import { visibleProposalWhere } from "./proposal-visibility";
 
 export interface SearchHit {
   type: "Lead" | "Proposal" | "Project" | "Item" | "Invoice";
@@ -28,7 +29,9 @@ export async function searchAll(ctx: Ctx, q: string): Promise<SearchHit[]> {
       select: { id: true, customerName: true, phone: true, status: true },
     }),
     prisma.proposal.findMany({
-      where: { companyId: ctx.companyId, OR: [{ projectName: contains }, { number: { contains: query } }] },
+      // ⌘K must honour the same office-only gate as the proposals list — otherwise
+      // an unconfirmed draft leaks through global search. See proposal-visibility.ts.
+      where: { companyId: ctx.companyId, ...visibleProposalWhere(ctx), OR: [{ projectName: contains }, { number: { contains: query } }] },
       take: 5,
       select: { id: true, number: true, projectName: true, status: true },
     }),

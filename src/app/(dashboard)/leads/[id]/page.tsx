@@ -70,13 +70,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 <Flame className="size-3" /> {lead.score.temperature[0] + lead.score.temperature.slice(1).toLowerCase()} · {lead.score.score}
               </Badge>
             )}
-            {lead.proposal && (
-              <Link href={`/proposals/${lead.proposal.id}`}>
+            {/* One badge per proposal — a lead can now be quoted once per type
+                (Project Proposal + BOQ + AMC), and hiding all but one would make
+                the others unreachable from the enquiry they belong to. */}
+            {lead.proposals.map((p) => (
+              <Link key={p.id} href={`/proposals/${p.id}`}>
                 <Badge variant="review">
-                  Proposal {displayProposalNumber(lead.proposal.status, lead.proposal.number)} →
+                  {p.proposalType ?? "Proposal"} {displayProposalNumber(p.status, p.number)} →
                 </Badge>
               </Link>
-            )}
+            ))}
             <div className="ml-auto flex items-center gap-1.5 text-xs text-muted">
               <User className="size-3.5" />
               {isAdmin ? (
@@ -187,12 +190,21 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
           <DocumentsCard leadId={lead.id} documents={lead.documents} />
 
-          {!converted && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3">
-              <span className="text-sm">Ready to quote? Convert this lead into a proposal.</span>
-              <ConvertButton leadId={lead.id} />
-            </div>
-          )}
+          {/* Stays available after the first quote — one enquiry can carry a Project
+              Proposal, a BOQ and an AMC proposal. Admins create; employees request. */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3">
+            <span className="text-sm">
+              {isAdmin
+                ? "Ready to quote? Create a proposal for this enquiry."
+                : "Need a quote for this enquiry? Ask the office to prepare one."}
+            </span>
+            <ConvertButton
+              leadId={lead.id}
+              isAdmin={isAdmin}
+              leadTechnology={lead.technology}
+              existingTypes={lead.proposals.map((p) => p.proposalType ?? "Project Proposal")}
+            />
+          </div>
 
           {!converted && <FollowUpForm leadId={lead.id} />}
         </div>

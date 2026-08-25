@@ -41,6 +41,68 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v44 — Proposal requests, 1:many lead→proposals, office-only visibility (Phase A of 3)
+
+Client asked for: employees request a proposal by type (Project Report / BOQ / Service / AMC — and
+within Project Report, one of MBBR/SBR/ASP/MBR), the admin creates it from their enquiry, and it only
+becomes visible to the employee once the admin confirms it. Sample documents in `~/Downloads/STP`
+(4 Project Proposal technology variants + 1 BOQ) drive Phases B/C; **this is Phase A**.
+**Gate: tsc 0 · lint 0 new (30 warnings, identical on unmodified `main`) · 102 unit (+13) ·
+`next build` clean · new `verify-proposals-p6` (52 checks, live DB, test rows cleaned up) ·
+verify-proposals-p0…p5 + sell + clients-p0/p1 + dashboard-p0/p1 green · browser-verified both roles
+at 1440px + 390px, zero console errors.**
+
+- **`Lead.proposal` 1:1 → `Lead.proposals` 1:many** (migration `proposal_requests`; dropped
+  `Proposal.leadId @unique`, added an explicit `@@index([leadId])` since the unique WAS the index).
+  One enquiry can now carry a Project Proposal *and* a BOQ *and* an AMC proposal. A *revision* is
+  still a new `ProposalVersion`, never a second Proposal. ~32 call sites, 14 of them in `client.ts`.
+  Nearly all were compile-errors (`Proposal[]` has no `.number`), so `tsc` found them — **the real
+  risk was in the fix**, and two rules keep it honest, in `lib/domain/proposal-pick.ts`:
+  `primaryProposal()` (won, else newest — display only) vs `proposalsWithOrders()` (money/counts
+  iterate EVERY proposal). A reflexive `proposals[0]` would have silently halved the lifetime value
+  of a client who won a project *and* its AMC. Verified live: two won proposals on one lead,
+  ₹10,97,400 across two orders, `clientStats` == `clientAnalytics` == raw DB sum, one Client row.
+  Also made `allClientsForExport` emit one row per proposal (its docstring already claimed "one row
+  per project" — `[0]` would have dropped rows from a completeness export), and
+  `getReferenceAnalytics` count won *proposals* so its `won` and `value` columns can't desync.
+  **No `@@unique([leadId, proposalType])`** — `proposalType` is nullable and Postgres allows multiple
+  NULLs in a composite unique, so the constraint wouldn't hold; the duplicate guard lives in
+  `convertToProposal`, which returns the existing proposal instead of minting a second number.
+- **`ProposalRequest` model + `src/server/services/proposal-request.ts`** — modelled on
+  `MaterialRequest`, with both v27 bugs deliberately avoided: `createProposalRequest` has **no
+  `requireAdmin`** (it IS the field-staff path) and `/proposals/requests` is **its own route, not
+  nested under `{isAdmin && …}`** — that mounting bug is what made material requests unreachable for
+  the only people meant to use them. The caller-supplied `leadId` is tenant+ownership checked via
+  `accessibleLead` (now exported from `lead.ts` so the predicate isn't re-derived). Notifications both
+  directions go through the existing `createAutomationTask()` choke point — no parallel path; the
+  read side needed nothing, since `queryTasks` already forces `assigneeId: ctx.userId` for non-admins.
+- **Office-only visibility** (`proposal-visibility.ts`) — "confirmed" deliberately reuses the gate
+  that already exists, `status !== "DRAFT"`, rather than inventing a second state machine: a proposal
+  leaves DRAFT exactly when an admin runs Approve & Send, which already means "this is finished".
+  One exported predicate applied in the **service return path** across every read surface —
+  `listProposals` / `getProposal` (and therefore `/print/proposal/[id]` + `/api/pdf`) /
+  `proposalActivity` / `proposalStats` / `proposalAnalytics` / `/api/proposals` / **⌘K search** /
+  the nested `proposals` include on `lead.ts` and `client.ts` / `clientWhere` / the dashboard's
+  clients KPI. The negative assertions are the point of `verify-proposals-p6`: an employee cannot
+  reach an unconfirmed proposal via list, API, search, direct id, lead badges, clients, or export.
+  Consequences accepted: the old "EMPLOYEE may edit a DRAFT proposal" path is now dead (correct —
+  the office writes, the field requests), and the Draft tab + "Awaiting finalisation" tile are
+  admin-only (they'd always be empty for an employee).
+- **`verify-sell` updated, not silenced** — it fetched a DRAFT as an EMPLOYEE to assert
+  `estimatedCost` stripping, which the new gate correctly blocks. Now asserts *both*: employee gets
+  `null` on the draft, **and** after confirmation they can open it with `estimatedCost` still
+  stripped — the stronger form, since it now runs against a version that actually has one stored.
+- **Deliberately deferred to Phases B/C** (agreed with the client): the per-type document data +
+  template layer (company boilerplate in Settings, per-technology blocks in `constants.ts`,
+  `ProposalVersion.documentData`), the admin creation wizard, and the print templates matching the
+  sample PDFs. **Service Proposal / AMC Proposal document layouts are NOT built and not guessed** —
+  the client has not supplied those two formats; both are wired end-to-end as selectable types.
+- **Gotcha for the next session**: port 3000 on this machine is occupied by a *different* app
+  (auth.js/Razorpay/Supabase), so `npm run dev` lands on 3001. The seeded passwords in
+  `AGENTS.md` (`Admin@123`/`Employee@123`) have been **rotated** in this live DB — browser-verify via
+  `AUTH_DEV_BYPASS=1` + a `dev_role` cookie (the same path `playwright.config.ts` uses) rather than
+  resetting a real user's password.
+
 ### v43 — New Lead page redesign + leads list/detail cleanup (client bug PDF)
 
 Client sent a PDF of concrete UI fixes against the New Lead page/leads list/lead detail page.
@@ -1234,4 +1296,4 @@ team un-assign (`removeTeam`); `setDrawingApproval`/`assignTeam` now audited. **
 ### Verification scripts
 `npx tsx scripts/verify-sell.ts` · `verify-execute.ts` · `verify-control.ts` · `verify-amc.ts` ·
 `verify-pdf.ts` · `verify-leads-p0.ts` … `verify-leads-p8.ts` · `verify-proposals-p0.ts` …
-`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.
+`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.

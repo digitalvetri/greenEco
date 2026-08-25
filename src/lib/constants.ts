@@ -81,6 +81,32 @@ export const PROPOSAL_TYPES = [
   "Others",
 ] as const;
 
+/**
+ * Plain-language "which one do I pick" help for the request form — field staff choose
+ * the type, and the four names alone don't say what the customer actually receives.
+ * Wording follows the client's real sample documents.
+ */
+export const PROPOSAL_TYPE_HINTS: Record<string, string> = {
+  "Project Proposal":
+    "The full engineered report — design basis, process flow, equipment specs, electrical load and a rolled-up price. Use this for a new plant.",
+  "BOQ Proposal":
+    "An itemised machinery estimate — every pump, blower, filter and panel listed with quantity and amount. Use this when the customer wants line-by-line pricing.",
+  "AMC Proposal": "An annual maintenance contract for a plant already handed over.",
+  "Service Proposal": "A one-off service, repair or upgrade on an existing plant.",
+  Others: "Anything that doesn't fit the four standard formats.",
+};
+
+/** One-line "why this technology" for the request form's picker (the full write-up
+ *  lives in TECHNOLOGY_EXPLAINERS, which goes into the document itself). */
+export const TECHNOLOGY_ONE_LINERS: Record<string, string> = {
+  MBBR: "Floating biomedia — compact, handles load swings, economical to run.",
+  SBR: "All stages in one tank on a timed cycle — the smallest civil footprint.",
+  MBR: "Membranes instead of a clarifier — best when treated water is reused.",
+  ASP: "Classic aeration + clarifier — cost-effective at large scale with land available.",
+  SAFF: "Fixed submerged media — robust, no sludge return line, low attention.",
+  DAF: "Dissolved-air flotation — removes oils, fats and fine suspended solids.",
+};
+
 /** Project Category — distinct from Lead.segment (finer sizing taxonomy). */
 export const PROJECT_CATEGORIES = [
   "Residential",

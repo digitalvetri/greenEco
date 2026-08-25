@@ -1,5 +1,6 @@
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
+import { visibleProposalFilter } from "./proposal-visibility";
 import type { Ctx } from "@/lib/rbac";
 import { orderStats } from "./order";
 import { amcAnalytics } from "./amc";
@@ -63,7 +64,9 @@ export async function getRichDashboard(ctx: Ctx) {
     prisma.order.count({ where: { companyId: ctx.companyId, status: "ACTIVE", ...orderScope } }),
     prisma.order.count({ where: { companyId: ctx.companyId, status: "COMPLETED", ...orderScope } }),
     prisma.proposal.count({ where: { companyId: ctx.companyId, status: { in: ["DRAFT", "SENT", "UNDER_NEGOTIATION"] } } }),
-    prisma.lead.count({ where: { companyId: ctx.companyId, deletedAt: null, proposal: { isNot: null } } }),
+    // "clients" = leads with at least one visible proposal — same definition as
+    // clientWhere() in client.ts, so this KPI matches the Clients page it links to.
+    prisma.lead.count({ where: { companyId: ctx.companyId, deletedAt: null, proposals: { some: visibleProposalFilter(ctx) ?? {} } } }),
     prisma.serviceTicket.count({ where: { companyId: ctx.companyId, status: { in: ["OPEN", "IN_PROGRESS"] } } }),
     prisma.serviceContract.count({ where: { companyId: ctx.companyId, status: "ACTIVE" } }),
     prisma.order.findMany({

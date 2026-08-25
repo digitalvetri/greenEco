@@ -221,9 +221,12 @@ export async function importLeadsAction(rows: Array<Record<string, unknown>>) {
   return { created, failed: errors.length };
 }
 
-export async function convertLeadAction(leadId: string) {
+export async function convertLeadAction(
+  leadId: string,
+  opts?: { proposalType?: string; technology?: string; plantType?: string },
+) {
   const session = await getSession();
-  const res = await convertToProposal(session, leadId);
+  const res = await convertToProposal(session, leadId, opts ?? {});
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/proposals");
   return res;

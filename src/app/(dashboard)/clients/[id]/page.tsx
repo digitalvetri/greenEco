@@ -36,8 +36,11 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
   const session = await getSession();
   const [data, tabs] = await Promise.all([getClient360(session, id), listClientProjectTabs(session, id)]);
   if (!data) notFound();
-  const { lead, timeline } = data;
-  const proposal = lead.proposal;
+  const { lead, timeline, primaryProposalId } = data;
+  // A lead now carries several proposals (one per type). `proposal` is the
+  // representative one the service already picked (won, else newest) and drives the
+  // headline cards; `lead.proposals` below lists every quote so none is hidden.
+  const proposal = lead.proposals.find((p) => p.id === primaryProposalId) ?? null;
   const order = proposal?.order;
   const isAdmin = session.role === "ADMIN";
   const hasMultipleProjects = tabs.length > 1;
@@ -116,10 +119,16 @@ export default async function Client360({ params }: { params: Promise<{ id: stri
             <CardTitle>Commercial</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
-            {proposal ? (
+            {lead.proposals.length > 0 ? (
               <>
-                <Row label="Proposal" value={displayProposalNumber(proposal.status, proposal.number)} />
-                <Row label="Status" value={proposal.status} />
+                {/* Every quote raised for this site, not just the primary one. */}
+                {lead.proposals.map((p) => (
+                  <Row
+                    key={p.id}
+                    label={p.proposalType ?? "Proposal"}
+                    value={`${displayProposalNumber(p.status, p.number)} · ${p.status}`}
+                  />
+                ))}
                 {order && <Row label="Order" value={order.orderNo} />}
                 {isAdmin && order && <Row label="Value" value={formatINR(order.projectValue.toString())} />}
               </>

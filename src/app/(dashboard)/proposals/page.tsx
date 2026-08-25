@@ -2,15 +2,19 @@ import Link from "next/link";
 import { FileText, FileClock, AlarmClock, IndianRupee, BarChart3 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listProposals, proposalStats } from "@/server/services/proposal";
+import { pendingProposalRequestCount } from "@/server/services/proposal-request";
 import { PageHeader, StatTile } from "@/components/ui/stat";
 import { ProposalsList, type ProposalRow } from "./proposals-list";
 import { ProposalsSearch } from "./proposals-search";
+import { ProposalsNav } from "./proposals-nav";
 
 export const dynamic = "force-dynamic";
 
+/** `adminOnly` on Draft: an unconfirmed proposal is office-only (see
+ *  proposal-visibility.ts), so an employee's Draft tab would always be empty. */
 const TABS = [
   { key: "", label: "All" },
-  { key: "DRAFT", label: "Draft" },
+  { key: "DRAFT", label: "Draft", adminOnly: true },
   { key: "active", label: "Active" },
   { key: "revised", label: "Revised" },
   { key: "expired", label: "Inactive" },
@@ -33,9 +37,10 @@ export default async function ProposalsPage({
   const session = await getSession();
   const isAdmin = session.role === "ADMIN";
 
-  const [{ items, nextCursor }, stats] = await Promise.all([
+  const [{ items, nextCursor }, stats, requestCount] = await Promise.all([
     listProposals(session, { status: status || undefined, search: search || undefined, take: 50 }),
     proposalStats(session),
+    pendingProposalRequestCount(session),
   ]);
 
   const persist: Record<string, string> = {};
@@ -80,9 +85,13 @@ export default async function ProposalsPage({
         }
       />
 
+      <ProposalsNav isAdmin={isAdmin} requestCount={requestCount} />
+
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="In play" value={stats.inPlay} icon={FileText} tone="primary" href={tabHref("active")} />
-        <StatTile label="Awaiting finalisation" value={stats.draft} icon={FileClock} tone="default" href={tabHref("DRAFT")} />
+        {isAdmin && (
+          <StatTile label="Awaiting finalisation" value={stats.draft} icon={FileClock} tone="default" href={tabHref("DRAFT")} />
+        )}
         <StatTile
           label="Expiring soon"
           value={stats.expiring}
@@ -100,7 +109,7 @@ export default async function ProposalsPage({
       </div>
 
       <div className="mb-4 flex flex-wrap gap-1.5">
-        {TABS.map((t) => {
+        {TABS.filter((t) => isAdmin || !t.adminOnly).map((t) => {
           const active = (t.key === "" && !status) || status === t.key;
           return (
             <Link

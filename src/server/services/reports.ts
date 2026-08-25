@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Ctx } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { daysOverdue } from "@/lib/domain/milestone";
+import { proposalsWithOrders } from "@/lib/domain/proposal-pick";
 
 /** Receivables report (spec §7.3) — admin only. All projects × unpaid milestones. */
 export async function getReceivables(ctx: Ctx) {
@@ -119,7 +120,7 @@ export async function getReferenceAnalytics(ctx: Ctx) {
       leads: {
         select: {
           status: true,
-          proposal: { select: { status: true, order: { select: { projectValue: true } } } },
+          proposals: { select: { status: true, createdAt: true, order: { select: { projectValue: true } } } },
         },
       },
     },
@@ -127,11 +128,13 @@ export async function getReferenceAnalytics(ctx: Ctx) {
   return refs
     .map((r) => {
       const leads = r.leads.length;
-      const won = r.leads.filter((l) => l.proposal?.order).length;
-      const value = r.leads.reduce<Decimal>(
-        (a, l) => a.plus(l.proposal?.order?.projectValue ?? 0),
-        new Decimal(0),
-      );
+      // `won` and `value` must count the same unit or the two columns desync. A lead
+      // can now hold several quotes, so both count WON PROPOSALS (= orders, since
+      // Order.proposalId is @unique) rather than leads-that-have-an-order — which
+      // would under-count a reference that produced a project *and* its AMC.
+      const orders = r.leads.flatMap((l) => proposalsWithOrders(l.proposals));
+      const won = orders.length;
+      const value = orders.reduce<Decimal>((a, p) => a.plus(p.order.projectValue), new Decimal(0));
       return { id: r.id, name: r.name, leads, won, value: value.toFixed(2) };
     })
     .filter((r) => r.leads > 0)

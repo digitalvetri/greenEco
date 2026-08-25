@@ -41,11 +41,12 @@ async function main() {
   const v = p!.versions.find((x) => x.versionNo === p!.currentVersion)!;
   console.log("   BOQ lines:", v.boqItems.length, "grandTotal:", v.grandTotal.toString());
 
-  // EMPLOYEE must NOT see estimatedCost.
-  const pEmp = await getProposal(empCtx, conv.proposalId);
-  const vEmp = pEmp!.versions.find((x) => x.versionNo === pEmp!.currentVersion)!;
-  const empJson = JSON.stringify(vEmp);
-  console.log("4. EMPLOYEE sees estimatedCost?", empJson.includes("estimatedCost"));
+  // A proposal being drafted is office-only — an EMPLOYEE gets null, not a stripped
+  // object. (This check used to run here against the draft; the field-stripping half
+  // of it moved below, to after the proposal is confirmed and they can see it.)
+  const draftForEmp = await getProposal(empCtx, conv.proposalId);
+  console.log("4a. EMPLOYEE can see the DRAFT?", draftForEmp !== null, "(expected false)");
+  if (draftForEmp !== null) throw new Error("FAIL: employee could read an unconfirmed proposal");
 
   // Set estimatedCost (admin) below grandTotal so margin passes.
   const cost = Math.round(Number(v.grandTotal) * 0.7);
@@ -53,6 +54,16 @@ async function main() {
 
   const approve = await approveAndSend(ctx, conv.proposalId);
   console.log("5. Approve:", JSON.stringify(approve));
+
+  // Now that it's confirmed the EMPLOYEE can open it — and STILL must not see
+  // estimatedCost. This is the stronger form of the original assertion: it now runs
+  // against a proposal that actually HAS an estimatedCost stored on it.
+  const pEmp = await getProposal(empCtx, conv.proposalId);
+  if (!pEmp) throw new Error("FAIL: employee cannot see a confirmed proposal");
+  const vEmp = pEmp.versions.find((x) => x.versionNo === pEmp.currentVersion)!;
+  const empJson = JSON.stringify(vEmp);
+  console.log("4b. EMPLOYEE sees estimatedCost?", empJson.includes("estimatedCost"), "(expected false)");
+  if (empJson.includes("estimatedCost")) throw new Error("FAIL: estimatedCost leaked to EMPLOYEE");
 
   const won = await markWon(ctx, conv.proposalId);
   console.log("6. Won:", JSON.stringify(won));

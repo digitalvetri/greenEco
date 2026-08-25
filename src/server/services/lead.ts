@@ -7,6 +7,8 @@ import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { boqPreview, SEGMENT_TO_CATEGORY, deriveCapacityKLD } from "@/lib/constants";
 import { leadScore } from "@/lib/domain/lead-score";
+import { primaryProposal } from "@/lib/domain/proposal-pick";
+import { visibleProposalFilter } from "./proposal-visibility";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
 import { allocateNumber } from "./numbering";
@@ -98,13 +100,23 @@ export interface LeadFilters {
   sort?: "newest" | "oldest" | "name";
 }
 
-const leadInclude = {
-  contacts: true,
-  reference: true,
-  proposal: { select: { id: true, number: true, status: true } },
-  followUps: { orderBy: { datetime: "desc" } as const, take: 1 },
-  _count: { select: { followUps: true } },
-} satisfies Prisma.LeadInclude;
+/** Shared include for lead lists. A function of ctx (not a const) because the nested
+ *  `proposals` must honour the office-only gate — an employee must not see a lead's
+ *  unconfirmed drafts here any more than on the proposals list. */
+const leadInclude = (ctx: Ctx) =>
+  ({
+    contacts: true,
+    reference: true,
+    // A lead may now carry several proposals (one per type) — newest first so
+    // primaryProposal() and any "latest quote" display agree.
+    proposals: {
+      where: visibleProposalFilter(ctx),
+      select: { id: true, number: true, status: true, proposalType: true, createdAt: true },
+      orderBy: { createdAt: "desc" } as const,
+    },
+    followUps: { orderBy: { datetime: "desc" } as const, take: 1 },
+    _count: { select: { followUps: true } },
+  }) satisfies Prisma.LeadInclude;
 
 /**
  * Shared `where` builder for lead lists. Search and RBAC scoping both need `OR`
@@ -164,7 +176,7 @@ export async function listLeads(ctx: Ctx, filters: LeadFilters = {}) {
 
   const rows = await prisma.lead.findMany({
     where,
-    include: leadInclude,
+    include: leadInclude(ctx),
     orderBy: { updatedAt: "desc" },
     take: take + 1,
     ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
@@ -262,7 +274,7 @@ export async function listLeadCustomers(
   const customerNames = page.map((g) => g.customerName);
   const leads = await prisma.lead.findMany({
     where: { ...where, customerName: { in: customerNames } },
-    include: leadInclude,
+    include: leadInclude(ctx),
     orderBy: { updatedAt: "desc" },
   });
   const stripped = stripPricing(leads, ctx.role);
@@ -373,7 +385,7 @@ export async function getLeadCustomer(ctx: Ctx, id: string): Promise<LeadCustome
     where: { ...where, customerName: anchor.customerName },
     include: {
       followUps: { orderBy: { datetime: "desc" }, take: 1 },
-      proposal: { select: { number: true, status: true } },
+      proposals: { where: visibleProposalFilter(ctx), select: { number: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -407,8 +419,9 @@ export async function getLeadCustomer(ctx: Ctx, id: string): Promise<LeadCustome
         urgency: leadUrgency(l),
         nextFollowUpDate: l.followUps[0]?.nextDate?.toISOString() ?? null,
         estimatedValue: l.capacityKLD ? boqPreview(l.capacityKLD) : null,
-        proposalNumber: l.proposal?.number ?? null,
-        proposalStatus: l.proposal?.status ?? null,
+        proposalNumber: primaryProposal(l.proposals)?.number ?? null,
+        proposalStatus: primaryProposal(l.proposals)?.status ?? null,
+        proposalCount: l.proposals.length,
       };
     }),
   };
@@ -547,7 +560,11 @@ export async function getLead(ctx: Ctx, id: string) {
     include: {
       contacts: true,
       reference: true,
-      proposal: { select: { id: true, number: true, status: true } },
+      proposals: {
+        where: visibleProposalFilter(ctx),
+        select: { id: true, number: true, status: true, proposalType: true, technology: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      },
       followUps: { orderBy: { datetime: "desc" } },
       documents: { orderBy: { createdAt: "desc" } },
     },
@@ -942,7 +959,7 @@ export async function leadActivity(ctx: Ctx, leadId: string): Promise<LeadEvent[
     include: {
       followUps: { orderBy: { datetime: "desc" } },
       communications: { orderBy: { createdAt: "desc" } },
-      proposal: { select: { id: true, number: true, createdAt: true } },
+      proposals: { where: visibleProposalFilter(ctx), select: { id: true, number: true, proposalType: true, createdAt: true }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!lead) return null;
@@ -1003,12 +1020,14 @@ export async function leadActivity(ctx: Ctx, leadId: string): Promise<LeadEvent[
     }
   }
 
-  if (lead.proposal) {
+  // One event per proposal — a lead can be quoted several times (one per type),
+  // and the timeline should show each, not just the first/only one.
+  for (const p of lead.proposals) {
     events.push({
-      at: lead.proposal.createdAt,
+      at: p.createdAt,
       kind: "converted",
-      title: "Converted to proposal",
-      detail: lead.proposal.number,
+      title: p.proposalType ? `${p.proposalType} created` : "Converted to proposal",
+      detail: p.number,
     });
   }
 
@@ -1171,7 +1190,9 @@ export async function leadAnalytics(ctx: Ctx): Promise<LeadAnalytics> {
 }
 
 /** Fetch a lead the caller may act on, or throw (collapses missing + no-access). */
-async function accessibleLead(ctx: Ctx, leadId: string) {
+/** Tenant + ownership check for a lead. Exported so other services (proposal-request)
+ *  gate on the EXACT same predicate rather than re-deriving it. */
+export async function accessibleLead(ctx: Ctx, leadId: string) {
   const lead = await prisma.lead.findFirst({
     where: { id: leadId, companyId: ctx.companyId, deletedAt: null },
   });
@@ -1424,14 +1445,39 @@ export async function deleteLeadContact(ctx: Ctx, contactId: string) {
   return { ok: true };
 }
 
-export async function convertToProposal(ctx: Ctx, leadId: string) {
+export interface ConvertToProposalOptions {
+  /** Which document format the admin will produce — see PROPOSAL_TYPES. */
+  proposalType?: string;
+  /** MBBR | SBR | ASP | MBR — Project Proposal only; overrides the lead's sizing. */
+  technology?: string;
+  plantType?: string;
+  /** Links the created proposal back to the employee request it fulfils. */
+  requestId?: string;
+}
+
+/**
+ * Create a proposal for a lead. A lead may now carry SEVERAL proposals — one per
+ * proposal type — so this no longer short-circuits on "the lead already has one",
+ * and no longer refuses a lead already in CONVERTED status (that status now means
+ * "has been quoted at least once", not "is closed to further quoting"). A *revision*
+ * is still a new ProposalVersion, never a second Proposal row.
+ *
+ * Guard kept: the same type can't be quoted twice for one lead — that's almost
+ * always a double-click or a duplicate request, and the existing proposal is
+ * returned instead of minting a second number. Enforced here rather than by a DB
+ * unique, because `proposalType` is nullable and Postgres allows multiple NULLs
+ * in a composite unique (so the constraint would not actually hold).
+ */
+export async function convertToProposal(ctx: Ctx, leadId: string, opts: ConvertToProposalOptions = {}) {
   const lead = await prisma.lead.findFirst({
     where: { id: leadId, companyId: ctx.companyId, deletedAt: null },
-    include: { proposal: true },
+    include: { proposals: { select: { id: true, number: true, proposalType: true } } },
   });
   if (!lead) throw new Error("Lead not found");
-  if (lead.proposal) return { proposalId: lead.proposal.id, already: true };
-  if (lead.status === "CONVERTED") throw new Error("Lead already converted");
+
+  const proposalType = opts.proposalType ?? "Project Proposal";
+  const duplicate = lead.proposals.find((p) => (p.proposalType ?? "Project Proposal") === proposalType);
+  if (duplicate) return { proposalId: duplicate.id, number: duplicate.number, already: true };
 
   const year = new Date().getFullYear();
   const { standardTermsTemplate } = await getCompanySettings(ctx.companyId);
@@ -1444,10 +1490,12 @@ export async function convertToProposal(ctx: Ctx, leadId: string) {
         leadId: lead.id,
         projectName: lead.customerName,
         siteAddress: lead.address,
+        proposalType,
         // Carry the lead's structured sizing into the proposal; coalesce for
         // pre-P2 leads (Proposal.plantType/technology/capacityKLD are NOT nullable).
-        plantType: lead.plantType ?? "STP",
-        technology: lead.technology ?? "MBBR",
+        // An explicit choice on the request/convert form wins over the lead's.
+        plantType: opts.plantType ?? lead.plantType ?? "STP",
+        technology: opts.technology ?? lead.technology ?? "MBBR",
         capacityKLD: lead.capacityKLD ?? 0,
         capacityValue: lead.capacityValue,
         capacityUnit: lead.capacityUnit ?? "KLD",
@@ -1469,9 +1517,17 @@ export async function convertToProposal(ctx: Ctx, leadId: string) {
       },
     });
     await tx.lead.update({ where: { id: lead.id }, data: { status: "CONVERTED" } });
+    // Close the loop on the employee's request, inside the same transaction so a
+    // request can never be marked FULFILLED against a proposal that didn't commit.
+    if (opts.requestId) {
+      await tx.proposalRequest.updateMany({
+        where: { id: opts.requestId, companyId: ctx.companyId },
+        data: { status: "FULFILLED", proposalId: proposal.id, reviewedById: ctx.userId, reviewedAt: new Date() },
+      });
+    }
     await logAudit(
       ctx,
-      { action: "CREATE", entity: "Proposal", entityId: proposal.id, after: { number } },
+      { action: "CREATE", entity: "Proposal", entityId: proposal.id, after: { number, proposalType } },
       tx,
     );
     return { proposalId: proposal.id, number, already: false };

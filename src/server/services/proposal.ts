@@ -13,6 +13,7 @@ import { generateProposalDraft, type AiProposalInput, type AiProposalDraft } fro
 import { streamProposalDraft } from "@/lib/ai-stream";
 import { DEFAULT_STAGES, deriveCapacityKLD } from "@/lib/constants";
 import { proposalExpiry } from "@/lib/domain/proposal-aging";
+import { visibleProposalWhere, canSeeProposal } from "./proposal-visibility";
 import { formatINR } from "@/lib/money";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { sendEmail } from "@/lib/email";
@@ -47,6 +48,11 @@ export async function getProposal(ctx: Ctx, id: string) {
     },
   });
   if (!proposal) return null;
+  // An unconfirmed (DRAFT) proposal is office-only. Collapsed to the same `null` a
+  // missing/cross-tenant id returns, so a direct-link probe can't tell "being drafted"
+  // from "doesn't exist". This also gates /print/proposal/[id] and /api/pdf, which
+  // both resolve the document through here.
+  if (!canSeeProposal(ctx, proposal)) return null;
   return stripPricing(proposal, ctx.role);
 }
 
@@ -204,6 +210,9 @@ export async function proposalActivity(ctx: Ctx, id: string): Promise<ProposalEv
     },
   });
   if (!p) return null;
+  // Same office-only gate as getProposal — the activity feed carries the version
+  // price trail, so it must not become a side channel onto an unconfirmed draft.
+  if (!canSeeProposal(ctx, p)) return null;
 
   const users = await prisma.user.findMany({ where: { companyId: ctx.companyId }, select: { id: true, name: true } });
   const nameOf = new Map(users.map((u) => [u.id, u.name]));
@@ -670,6 +679,15 @@ export async function approveAndSend(ctx: Ctx, proposalId: string, overrideNote?
       tx,
     );
   });
+
+  // Confirming is also what releases the proposal to the team (see
+  // proposal-visibility.ts), so this is where the employee who asked for it finds
+  // out. Best-effort + after the transaction: a notification must never roll back
+  // an approval that already committed.
+  if (proposal.status === "DRAFT") {
+    const { notifyRequesterOfConfirmedProposal } = await import("./proposal-request");
+    await notifyRequesterOfConfirmedProposal(ctx, proposalId, proposal.number).catch(() => {});
+  }
   return { sent: true };
 }
 
@@ -835,6 +853,7 @@ export async function listProposals(ctx: Ctx, filters: ProposalFilters = {}) {
 
   const where: Prisma.ProposalWhereInput = {
     companyId: ctx.companyId,
+    ...visibleProposalWhere(ctx),
     ...(expiredView || activeView
       ? { status: { in: ["SENT", "UNDER_NEGOTIATION"] } }
       : revisedView
@@ -911,7 +930,7 @@ const PROPOSAL_FUNNEL = ["DRAFT", "SENT", "UNDER_NEGOTIATION", "WON", "LOST"];
  */
 export async function proposalAnalytics(ctx: Ctx): Promise<ProposalAnalytics> {
   const proposals = await prisma.proposal.findMany({
-    where: { companyId: ctx.companyId },
+    where: { companyId: ctx.companyId, ...visibleProposalWhere(ctx) },
     select: {
       status: true,
       lostReason: true,
@@ -992,7 +1011,11 @@ export async function proposalAnalytics(ctx: Ctx): Promise<ProposalAnalytics> {
 /** Pipeline KPIs for the proposals header. Pipeline ₹ is a sell-side total (visible to all). */
 export async function proposalStats(ctx: Ctx) {
   const [draft, won, live] = await Promise.all([
-    prisma.proposal.count({ where: { companyId: ctx.companyId, status: "DRAFT" } }),
+    // Drafts are office-only, so an employee's "awaiting finalisation" tile is always
+    // 0 (and the page hides the tile entirely) rather than teasing a count they can't open.
+    ctx.role === "ADMIN"
+      ? prisma.proposal.count({ where: { companyId: ctx.companyId, status: "DRAFT" } })
+      : Promise.resolve(0),
     prisma.proposal.count({ where: { companyId: ctx.companyId, status: "WON" } }),
     prisma.proposal.findMany({
       where: { companyId: ctx.companyId, status: { in: ["SENT", "UNDER_NEGOTIATION"] } },
