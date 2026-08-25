@@ -60,3 +60,34 @@ export function proposalsWithOrders<T extends PickableProposal & { order: unknow
     (p): p is T & { order: NonNullable<T["order"]> } => p.order != null,
   );
 }
+
+/**
+ * What one won proposal was actually worth, whichever module it landed in.
+ *
+ * A win no longer always produces an Order: an AMC Proposal produces a ServiceContract
+ * and a Service Proposal produces a ServiceTicket. Counting only orders would report a
+ * customer with a ₹5L plant and a ₹1L annual AMC as worth ₹5L.
+ *
+ * Exactly one of the three is ever set (each link is `@unique` on the proposal), so
+ * these can't double-count. Returns 0 for a proposal that hasn't been won.
+ *
+ * ⚠️ These are WON values, not invoiced ones. Receivables, GST and collection figures
+ * read Invoices and are deliberately untouched by this — conflating "sold" with
+ * "billed" would corrupt numbers used for tax filing.
+ */
+export interface RealisedProposal {
+  order?: { projectValue: unknown } | null;
+  contract?: { annualValue: unknown } | null;
+  ticket?: { value: unknown } | null;
+}
+
+export function realisedValue(p: RealisedProposal): number {
+  const raw = p.order?.projectValue ?? p.contract?.annualValue ?? p.ticket?.value ?? 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Won proposals that produced something with a value — an order, a contract or a job. */
+export function realisedProposals<T extends PickableProposal & RealisedProposal>(proposals: T[]): T[] {
+  return orderedProposals(proposals).filter((p) => p.order != null || p.contract != null || p.ticket != null);
+}

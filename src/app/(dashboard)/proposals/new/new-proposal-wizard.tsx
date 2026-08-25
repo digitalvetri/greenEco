@@ -20,7 +20,13 @@ import {
   projectReportTemplate,
 } from "@/lib/project-report-templates";
 import { PROJECT_REPORT_COST_BUCKETS, PROJECT_REPORT_PLANT_TYPES } from "@/lib/project-report-boilerplate";
-import { computeCapacity, computeLoadTotals } from "@/lib/domain/proposal-document";
+import {
+  computeCapacity,
+  computeLoadTotals,
+  DEFAULT_AMC_TERM_MONTHS,
+  DEFAULT_AMC_FREQUENCY,
+  DEFAULT_AMC_VISITS_PER_YEAR,
+} from "@/lib/domain/proposal-document";
 import { createProposalFromWizardAction } from "./actions";
 
 export interface WizardLead {
@@ -103,6 +109,24 @@ export function NewProposalWizard({
     PROJECT_REPORT_COST_BUCKETS.map((b) => ({ item: b, amount: "" })),
   );
   const [summary, setSummary] = useState(requestNotes ?? "");
+  // AMC terms — these build the actual ServiceContract on Won, so they're not
+  // decorative: term and visits/year determine the maintenance visit schedule.
+  const isAmc = proposalType === "AMC Proposal";
+  const isService = proposalType === "Service Proposal";
+  const [amc, setAmc] = useState({
+    termMonths: String(DEFAULT_AMC_TERM_MONTHS),
+    frequency: DEFAULT_AMC_FREQUENCY as "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "YEARLY",
+    visitsPerYear: String(DEFAULT_AMC_VISITS_PER_YEAR),
+    mechanical: "",
+    electrical: "",
+    chemical: "",
+    consumablesIncluded: "",
+    exclusions: "",
+  });
+  const [service, setService] = useState({
+    jobDescription: "",
+    priority: "MEDIUM" as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  });
 
   const subtotal = costLines.reduce((a, l) => a + (Number(l.amount) || 0), 0);
   const gst = Math.round(subtotal * GST_RATE) / 100;
@@ -145,7 +169,12 @@ export function NewProposalWizard({
   const canAdvance =
     step === 0 ? !!leadId && !alreadyQuoted : step === 1 ? true : step === 2 ? true : true;
 
-  const STEPS = ["Enquiry & format", isProjectReport ? "Design basis" : "Details", "Pricing", "Preview"];
+  const STEPS = [
+    "Enquiry & format",
+    isProjectReport ? "Design basis" : isAmc ? "Contract terms" : "Details",
+    "Pricing",
+    "Preview",
+  ];
 
   function submit() {
     if (!lead) return;
@@ -165,6 +194,23 @@ export function NewProposalWizard({
               }
             : undefined,
           summary: !isProjectReport && !isBoq ? summary.trim() || undefined : undefined,
+          amc: isAmc
+            ? {
+                termMonths: Number(amc.termMonths) || undefined,
+                frequency: amc.frequency,
+                visitsPerYear: Number(amc.visitsPerYear) || undefined,
+                scope: {
+                  mechanical: amc.mechanical.trim() || undefined,
+                  electrical: amc.electrical.trim() || undefined,
+                  chemical: amc.chemical.trim() || undefined,
+                  consumablesIncluded: amc.consumablesIncluded.trim() || undefined,
+                  exclusions: amc.exclusions.trim() || undefined,
+                },
+              }
+            : undefined,
+          service: isService
+            ? { jobDescription: service.jobDescription.trim() || undefined, priority: service.priority }
+            : undefined,
           costLines: costLines
             .filter((l) => l.item.trim() && Number(l.amount) > 0)
             .map((l) => ({ item: l.item.trim(), amount: Number(l.amount) })),
@@ -337,6 +383,100 @@ export function NewProposalWizard({
                     <CalcRow label="Power supply required" value={`${loadPreview.requiredHp} HP ≈ ${loadPreview.supplyKw} kW`} bold />
                   </div>
                 )}
+              </>
+            ) : isAmc ? (
+              <>
+                <p className="text-sm text-muted">
+                  These build the actual maintenance contract when the proposal is won — the term and
+                  visits per year generate its visit schedule.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label="Contract term" hint="Months">
+                    <Input
+                      type="number"
+                      value={amc.termMonths}
+                      onChange={(e) => setAmc({ ...amc, termMonths: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Visit frequency">
+                    <Select
+                      value={amc.frequency}
+                      onChange={(e) => {
+                        const frequency = e.target.value as typeof amc.frequency;
+                        // Keep visits/year consistent with the frequency chosen, but let
+                        // it be overridden — some contracts buy extra visits.
+                        const perYear = { MONTHLY: 12, QUARTERLY: 4, HALF_YEARLY: 2, YEARLY: 1 }[frequency];
+                        setAmc({ ...amc, frequency, visitsPerYear: String(perYear) });
+                      }}
+                    >
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="QUARTERLY">Quarterly</option>
+                      <option value="HALF_YEARLY">Half-yearly</option>
+                      <option value="YEARLY">Yearly</option>
+                    </Select>
+                  </Field>
+                  <Field label="Visits per year">
+                    <Input
+                      type="number"
+                      value={amc.visitsPerYear}
+                      onChange={(e) => setAmc({ ...amc, visitsPerYear: e.target.value })}
+                    />
+                  </Field>
+                </div>
+                <div className="rounded-lg bg-surface px-3 py-2 text-xs text-muted">
+                  Winning this creates an AMC contract with{" "}
+                  <strong>
+                    {Math.max(
+                      1,
+                      Math.round(((Number(amc.termMonths) || 12) / 12) * (Number(amc.visitsPerYear) || 4)),
+                    )}
+                  </strong>{" "}
+                  scheduled maintenance visits.
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(
+                    [
+                      ["mechanical", "Mechanical scope"],
+                      ["electrical", "Electrical scope"],
+                      ["chemical", "Chemical / consumables"],
+                      ["consumablesIncluded", "Consumables included"],
+                      ["exclusions", "Exclusions"],
+                    ] as const
+                  ).map(([k, label]) => (
+                    <Field key={k} label={label}>
+                      <Textarea
+                        className="min-h-16 text-sm"
+                        value={amc[k]}
+                        onChange={(e) => setAmc({ ...amc, [k]: e.target.value })}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              </>
+            ) : isService ? (
+              <>
+                <p className="text-sm text-muted">
+                  Winning this books the job in the Service module, carrying its quoted value.
+                </p>
+                <Field label="What is the job?" hint="Becomes the service job's description.">
+                  <Textarea
+                    className="min-h-28"
+                    value={service.jobDescription}
+                    onChange={(e) => setService({ ...service, jobDescription: e.target.value })}
+                    placeholder="e.g. replace the aeration blower and re-commission the plant"
+                  />
+                </Field>
+                <Field label="Priority" hint="Sets the response SLA once the job is booked.">
+                  <Select
+                    value={service.priority}
+                    onChange={(e) => setService({ ...service, priority: e.target.value as typeof service.priority })}
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="CRITICAL">Critical</option>
+                  </Select>
+                </Field>
               </>
             ) : isBoq ? (
               <p className="text-sm text-muted">

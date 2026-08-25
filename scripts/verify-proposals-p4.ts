@@ -2,7 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { DEV_ADMIN_ID } from "@/lib/env";
 import { createLead, convertToProposal } from "@/server/services/lead";
-import { saveVersion, approveAndSend, markWon, getProposal } from "@/server/services/proposal";
+import { saveVersion, approveAndSend, markWon, expectOrder, getProposal } from "@/server/services/proposal";
 
 const uniquePhone = () => "9" + String(Date.now()).slice(-9);
 
@@ -35,7 +35,7 @@ async function main() {
 
   // approve → won → order milestones should derive from the terms
   await approveAndSend(A, pid);
-  const wonRes = await markWon(A, pid);
+  const wonRes = expectOrder(await markWon(A, pid));
   const order = await prisma.order.findFirst({ where: { id: wonRes.orderId ?? undefined }, include: { milestones: true } })
     ?? await prisma.order.findFirst({ where: { companyId: A.companyId }, orderBy: { createdAt: "desc" }, include: { milestones: true } });
   check("Won created an order", !!order);

@@ -3,7 +3,7 @@ import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import type { Ctx } from "@/lib/rbac";
 import { stripPricing } from "@/lib/rbac";
-import { primaryProposal, proposalsWithOrders } from "@/lib/domain/proposal-pick";
+import { primaryProposal, realisedProposals, realisedValue } from "@/lib/domain/proposal-pick";
 import { visibleProposalFilter } from "./proposal-visibility";
 
 /**
@@ -393,22 +393,32 @@ export async function clientAnalytics(ctx: Ctx): Promise<ClientAnalytics> {
     select: {
       customerName: true,
       phone: true,
-      proposals: { where: visibleProposalFilter(ctx), select: { status: true, createdAt: true, order: { select: { status: true, projectValue: true } } } },
+      proposals: {
+        where: visibleProposalFilter(ctx),
+        select: {
+          status: true,
+          createdAt: true,
+          order: { select: { status: true, projectValue: true } },
+          // A win can land in any of three modules — see realisedValue().
+          contract: { select: { status: true, annualValue: true } },
+          ticket: { select: { status: true, value: true } },
+        },
+      },
     },
   });
   const byName = new Map<string, { phone: string; projects: number; value: Decimal }>();
   let totalLifetimeValue = new Decimal(0);
   for (const l of leads) {
     const g = byName.get(l.customerName) ?? { phone: l.phone, projects: 0, value: new Decimal(0) };
-    // Iterate EVERY won proposal, never proposals[0] — a lead can carry two won
-    // quotes (e.g. a project and its AMC), each with its own Order. Because
-    // Order.proposalId is @unique, one proposal is exactly one order, so summing
-    // per-proposal cannot double-count. `projects` counts orders (not leads) so it
-    // stays consistent with the `value` shown beside it in topClients.
-    for (const p of proposalsWithOrders(l.proposals)) {
+    // Iterate EVERY won proposal, never proposals[0] — a lead can carry several won
+    // quotes, each landing in a different module. Each link (order/contract/ticket) is
+    // @unique on the proposal, so summing per-proposal cannot double-count.
+    // `projects` counts realised wins so it stays consistent with the `value` beside it.
+    for (const p of realisedProposals(l.proposals)) {
+      const v = new Decimal(realisedValue(p));
       g.projects += 1;
-      g.value = g.value.plus(new Decimal(p.order.projectValue));
-      totalLifetimeValue = totalLifetimeValue.plus(new Decimal(p.order.projectValue));
+      g.value = g.value.plus(v);
+      totalLifetimeValue = totalLifetimeValue.plus(v);
     }
     byName.set(l.customerName, g);
   }
@@ -435,16 +445,28 @@ export async function clientStats(ctx: Ctx): Promise<ClientStats> {
   const leads = await prisma.lead.findMany({
     where: clientWhere(ctx),
     select: {
-      proposals: { where: visibleProposalFilter(ctx), select: { status: true, createdAt: true, order: { select: { status: true, projectValue: true } } } },
+      proposals: {
+        where: visibleProposalFilter(ctx),
+        select: {
+          status: true,
+          createdAt: true,
+          order: { select: { status: true, projectValue: true } },
+          // A win can land in any of three modules — see realisedValue().
+          contract: { select: { status: true, annualValue: true } },
+          ticket: { select: { status: true, value: true } },
+        },
+      },
     },
   });
   let activeProjects = 0;
   let lifetimeValue = new Decimal(0);
   for (const l of leads) {
-    // Same rule as clientAnalytics — sum every won proposal's order, never just one.
-    for (const p of proposalsWithOrders(l.proposals)) {
-      lifetimeValue = lifetimeValue.plus(new Decimal(p.order.projectValue));
-      if (p.order.status === "ACTIVE") activeProjects += 1;
+    // Same rule as clientAnalytics — every won proposal, whichever module it landed in.
+    for (const p of realisedProposals(l.proposals)) {
+      lifetimeValue = lifetimeValue.plus(new Decimal(realisedValue(p)));
+      // "Active projects" stays projects only: an AMC has its own live-contract count
+      // on the Service dashboard, and folding it in here would double-report it.
+      if (p.order?.status === "ACTIVE") activeProjects += 1;
     }
   }
   return { totalClients: leads.length, activeProjects, lifetimeValue: Math.round(lifetimeValue.toNumber()) };

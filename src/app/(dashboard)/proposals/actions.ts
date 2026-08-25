@@ -61,7 +61,9 @@ export async function wonAction(id: string) {
   const s = await getSession();
   const res = await markWon(s, id);
   revalidatePath(`/proposals/${id}`);
-  revalidatePath("/projects");
+  // What a win creates depends on the proposal type, so bust whichever module it
+  // landed in — an AMC contract never appears under /projects.
+  revalidatePath(res.kind === "ORDER" ? "/projects" : "/service");
   return res;
 }
 

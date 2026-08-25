@@ -87,18 +87,63 @@ export const boqProposalDataSchema = z.object({
 export type BoqProposalData = z.infer<typeof boqProposalDataSchema>;
 
 /**
- * Service / AMC proposals. The client has NOT supplied sample formats for these two,
- * so their document layout is deliberately not designed. The schema accepts a free-text
- * scope so the type is usable end-to-end today, and gains real fields when the formats
- * arrive — an additive change, not a refactor.
+ * AMC Proposal. The client has NOT supplied a sample document layout for this type, so
+ * the printed format is still the generic one — but winning an AMC proposal now creates
+ * a real ServiceContract, and these are the terms that contract is built from. Without
+ * them there'd be nothing to derive a term or a visit schedule from.
  */
+export const amcProposalDataSchema = z.object({
+  kind: z.literal("AMC").optional(),
+  summary: z.string().trim().max(8000).optional(),
+  /** Contract length. 12 months is the industry default and what the samples imply. */
+  termMonths: z.number().int().min(1).max(120).optional(),
+  frequency: z.enum(["MONTHLY", "QUARTERLY", "HALF_YEARLY", "YEARLY"]).optional(),
+  visitsPerYear: z.number().int().min(1).max(52).optional(),
+  /** Mirrors ServiceContract.scope's shape so it copies across without translation. */
+  scope: z
+    .object({
+      mechanical: z.string().trim().max(2000).optional(),
+      electrical: z.string().trim().max(2000).optional(),
+      chemical: z.string().trim().max(2000).optional(),
+      consumablesIncluded: z.string().trim().max(2000).optional(),
+      exclusions: z.string().trim().max(2000).optional(),
+    })
+    .optional(),
+});
+export type AmcProposalData = z.infer<typeof amcProposalDataSchema>;
+
+/**
+ * Service Proposal — a one-off job. Winning one creates a ServiceTicket, so these are
+ * the fields that ticket needs.
+ */
+export const serviceProposalDataSchema = z.object({
+  kind: z.literal("SERVICE").optional(),
+  summary: z.string().trim().max(8000).optional(),
+  /** Becomes the ticket's description. */
+  jobDescription: z.string().trim().max(8000).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
+});
+export type ServiceProposalData = z.infer<typeof serviceProposalDataSchema>;
+
+/** Anything with no type-specific fields yet ("Others", or a pre-types proposal). */
 export const genericProposalDataSchema = z.object({
   kind: z.literal("GENERIC").optional(),
   summary: z.string().trim().max(8000).optional(),
 });
 export type GenericProposalData = z.infer<typeof genericProposalDataSchema>;
 
-export type ProposalDocumentData = ProjectReportData | BoqProposalData | GenericProposalData;
+export type ProposalDocumentData =
+  | ProjectReportData
+  | BoqProposalData
+  | AmcProposalData
+  | ServiceProposalData
+  | GenericProposalData;
+
+/** Defaults used when an AMC proposal was won without its terms filled in — a
+ *  one-year quarterly contract, the most common arrangement. */
+export const DEFAULT_AMC_TERM_MONTHS = 12;
+export const DEFAULT_AMC_FREQUENCY = "QUARTERLY" as const;
+export const DEFAULT_AMC_VISITS_PER_YEAR = 4;
 
 /** Which schema governs a given proposal type. */
 export function schemaForType(proposalType: string | null | undefined) {
@@ -107,6 +152,10 @@ export function schemaForType(proposalType: string | null | undefined) {
       return boqProposalDataSchema;
     case "Project Proposal":
       return projectReportDataSchema;
+    case "AMC Proposal":
+      return amcProposalDataSchema;
+    case "Service Proposal":
+      return serviceProposalDataSchema;
     default:
       return genericProposalDataSchema;
   }
@@ -132,6 +181,16 @@ export function asProjectReportData(data: unknown): ProjectReportData {
 
 export function asBoqProposalData(data: unknown): BoqProposalData {
   const r = boqProposalDataSchema.safeParse(data ?? {});
+  return r.success ? r.data : {};
+}
+
+export function asAmcProposalData(data: unknown): AmcProposalData {
+  const r = amcProposalDataSchema.safeParse(data ?? {});
+  return r.success ? r.data : {};
+}
+
+export function asServiceProposalData(data: unknown): ServiceProposalData {
+  const r = serviceProposalDataSchema.safeParse(data ?? {});
   return r.success ? r.data : {};
 }
 

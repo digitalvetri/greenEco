@@ -401,6 +401,15 @@ export function ProposalEditor({
     }
   }
 
+  // What "Mark Won" actually creates, named on the button so an admin isn't told
+  // "create Order" when winning an AMC produces a service contract.
+  const wonLabel =
+    view.proposalType === "AMC Proposal"
+      ? "Mark Won → create AMC contract"
+      : view.proposalType === "Service Proposal"
+        ? "Mark Won → create service job"
+        : "Mark Won → create Order";
+
   const statusVariant =
     view.status === "WON" ? "ok" : view.status === "LOST" ? "danger" : "primary";
 
@@ -1470,9 +1479,29 @@ export function ProposalEditor({
               <Button
                 variant="subtle"
                 disabled={pending}
-                onClick={() => run(() => wonAction(view.id), "Won — order created.")}
+                onClick={() =>
+                  // A win produces different things per type, so the button says what
+                  // it will actually do and the toast takes the user there.
+                  startTransition(async () => {
+                    try {
+                      const res = await wonAction(view.id);
+                      if (res.kind === "CONTRACT") {
+                        toast(`Won — AMC ${res.contractNo} created with ${res.visits} scheduled visits.`);
+                        router.push("/service");
+                      } else if (res.kind === "TICKET") {
+                        toast(`Won — service job ${res.ticketNo} created.`);
+                        router.push("/service");
+                      } else {
+                        toast("Won — project created.");
+                        router.push(`/projects/${res.orderId}`);
+                      }
+                    } catch (e) {
+                      toast(e instanceof Error ? e.message : "Could not mark it won", "error");
+                    }
+                  })
+                }
               >
-                Mark Won → create Order
+                {wonLabel}
               </Button>
             )}
           </CardContent>

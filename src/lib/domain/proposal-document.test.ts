@@ -85,9 +85,51 @@ describe("computeLoadTotals", () => {
 
 describe("per-type document schemas", () => {
   it("routes each proposal type to its own schema", () => {
-    expect(schemaForType("Project Proposal")).not.toBe(schemaForType("BOQ Proposal"));
-    // Types with no sample document share the generic schema until formats arrive.
-    expect(schemaForType("AMC Proposal")).toBe(schemaForType("Service Proposal"));
+    // All four are now distinct. AMC and Service used to share the generic schema, but
+    // winning one creates a real ServiceContract / ServiceTicket, so each needs the
+    // fields that record is built from.
+    const types = ["Project Proposal", "BOQ Proposal", "AMC Proposal", "Service Proposal"];
+    const schemas = types.map(schemaForType);
+    expect(new Set(schemas).size).toBe(4);
+    // An unknown type still falls back to the generic schema rather than throwing.
+    expect(schemaForType("Others")).toBe(schemaForType(undefined));
+  });
+
+  it("keeps the AMC terms a contract is built from", () => {
+    const parsed = parseDocumentData("AMC Proposal", {
+      termMonths: 24,
+      frequency: "MONTHLY",
+      visitsPerYear: 12,
+      scope: { mechanical: "Blower service", exclusions: "Civil repairs" },
+    }) as Record<string, unknown>;
+    expect(parsed.termMonths).toBe(24);
+    expect(parsed.visitsPerYear).toBe(12);
+    expect((parsed.scope as Record<string, string>).exclusions).toBe("Civil repairs");
+  });
+
+  it("rejects an AMC term that could not produce a sane visit schedule", () => {
+    expect(() => parseDocumentData("AMC Proposal", { termMonths: 0 })).toThrow();
+    expect(() => parseDocumentData("AMC Proposal", { visitsPerYear: 999 })).toThrow();
+    expect(() => parseDocumentData("AMC Proposal", { frequency: "FORTNIGHTLY" })).toThrow();
+  });
+
+  it("keeps the Service job fields a ticket is built from", () => {
+    const parsed = parseDocumentData("Service Proposal", {
+      jobDescription: "Replace the aeration blower",
+      priority: "HIGH",
+    }) as Record<string, unknown>;
+    expect(parsed.jobDescription).toBe("Replace the aeration blower");
+    expect(parsed.priority).toBe("HIGH");
+  });
+
+  it("does not let one type's fields land on another", () => {
+    // The wizard sends whichever block applies; saveVersion validates against THIS
+    // proposal's schema, so a stray AMC term can't end up on a service job.
+    const onService = parseDocumentData("Service Proposal", {
+      jobDescription: "Fix pump",
+      termMonths: 24,
+    }) as Record<string, unknown>;
+    expect("termMonths" in onService).toBe(false);
   });
 
   it("accepts an empty payload — every field is optional", () => {

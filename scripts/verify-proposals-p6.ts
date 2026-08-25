@@ -21,6 +21,7 @@ import {
   approveAndSend,
   saveVersion,
   markWon,
+  expectOrder,
   addProposalFollowUp,
   addProposalDocument,
 } from "@/server/services/proposal";
@@ -292,8 +293,8 @@ async function main() {
     });
     await approveAndSend(A, boq.proposalId);
 
-    const won1 = await markWon(A, proposalId);
-    const won2 = await markWon(A, boq.proposalId);
+    const won1 = expectOrder(await markWon(A, proposalId));
+    const won2 = expectOrder(await markWon(A, boq.proposalId));
     created.orderIds.push(won1.orderId, won2.orderId);
     check("both proposals on the same lead can be won", won1.orderId !== won2.orderId);
 

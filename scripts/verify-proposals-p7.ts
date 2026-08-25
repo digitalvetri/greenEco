@@ -10,7 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { DEV_ADMIN_ID } from "@/lib/env";
 import { createLead, convertToProposal } from "@/server/services/lead";
-import { getProposal, saveVersion, approveAndSend, markWon } from "@/server/services/proposal";
+import { getProposal, saveVersion, approveAndSend, markWon, expectOrder } from "@/server/services/proposal";
 import { getCompanySettings } from "@/server/services/company-settings";
 import { asProjectReportData, computeCapacity, computeLoadTotals } from "@/lib/domain/proposal-document";
 import { PROJECT_REPORT_TECHNOLOGIES } from "@/lib/project-report-templates";
@@ -161,7 +161,7 @@ async function main() {
     check(`grand total is ₹9,20,400 (got ${pricedV.grandTotal})`, Number(pricedV.grandTotal) === 920400);
 
     await approveAndSend(A, priced);
-    const won = await markWon(A, priced);
+    const won = expectOrder(await markWon(A, priced));
     orderIds.push(won.orderId);
     const order = await prisma.order.findUnique({
       where: { id: won.orderId },

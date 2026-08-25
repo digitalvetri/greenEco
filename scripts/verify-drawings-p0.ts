@@ -255,7 +255,17 @@ async function main() {
     // opens from a WhatsApp link. Requires a running dev server on APP_URL; skipped
     // cleanly when there isn't one, so the rest of the script still runs standalone.
     const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const reachable = await fetch(`${base}/api/healthz`).then((r) => r.ok).catch(() => false);
+    // Confirm we're talking to THIS app, not merely to something on that port. On this
+    // machine port 3000 belongs to a different application that answers /api/healthz
+    // with a redirect — pointed at it, these checks silently verified the wrong app.
+    // GreenEco's healthz returns a body carrying `checks.db` and `automations`.
+    const reachable = await fetch(`${base}/api/healthz`)
+      .then(async (r) => {
+        if (!r.ok) return false;
+        const body = (await r.json().catch(() => null)) as { checks?: unknown; automations?: unknown } | null;
+        return !!body && "checks" in body && "automations" in body;
+      })
+      .catch(() => false);
     // AUTH_DEV_BYPASS makes getSession() succeed with no cookie, which defeats the
     // gate by design — so a bypassed server CANNOT prove it. Probe a session-gated
     // API to find out which kind of server we're pointed at, and say so plainly
@@ -264,7 +274,7 @@ async function main() {
       ? await fetch(`${base}/api/proposals`).then((r) => r.ok).catch(() => false)
       : false;
     if (!reachable) {
-      console.log(`  – skipped file-gate checks (no server on ${base})`);
+      console.log(`  – skipped file-gate checks (no Green Ecocare server on ${base})`);
     } else if (bypassed) {
       // A bypassed server treats every request as signed in, so it can't prove the
       // REFUSAL — but it proves the other half, which matters just as much: a signed-in

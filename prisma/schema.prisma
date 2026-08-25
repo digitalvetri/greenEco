@@ -390,6 +390,9 @@ model Proposal {
   documents      ProposalDocument[]
   requests       ProposalRequest[]
   order          Order?
+  // A win lands in exactly one of these three, decided by proposalType (see markWon).
+  contract       ServiceContract? @relation("ProposalContract")
+  ticket         ServiceTicket?   @relation("ProposalTicket")
   createdById    String
   createdAt      DateTime          @default(now())
 
@@ -994,11 +997,21 @@ model ServiceContract {
   visitsPerYear Int              @default(4)
   scope         Json // {mechanical, electrical, chemical, consumablesIncluded, exclusions}
   status        ContractStatus   @default(ACTIVE)
+  /**
+   * The won AMC Proposal this contract came from, when it came from one. Contracts
+   * created by hand (or renewals) leave it null.
+   *
+   * Client lifetime value iterates a lead's proposals and takes each one's realised
+   * value — an Order's projectValue, a contract's annualValue, or a ticket's value —
+   * so this link is what lets AMC revenue count toward a customer's worth.
+   */
+  proposalId    String?          @unique
   renewedFromId String? // the prior contract this one renews (renewal chain)
   createdById   String
   createdAt     DateTime         @default(now())
 
   order          Order?             @relation(fields: [orderId], references: [id])
+  proposal       Proposal?          @relation("ProposalContract", fields: [proposalId], references: [id])
   visits         MaintenanceVisit[]
   tickets        ServiceTicket[]
   communications Communication[]
@@ -1008,6 +1021,7 @@ model ServiceContract {
   @@index([companyId, status])
   @@index([endDate])
   @@index([renewedFromId])
+  @@index([proposalId])
 }
 
 model MaintenanceVisit {
@@ -1046,14 +1060,25 @@ model ServiceTicket {
   assignedToId String?
   slaDueDate   DateTime?
   resolution   String?
+  /** The won Service Proposal this job came from, when it came from one. */
+  proposalId   String?        @unique
+  /**
+   * What the job is worth. Nullable — a ticket raised by a customer complaint has no
+   * price; one created from a won Service Proposal carries the quoted amount, so the
+   * revenue isn't lost the moment the deal is won.
+   * Sell-side, like BOQItem.rate — NOT an admin-only cost field.
+   */
+  value        Decimal?       @db.Decimal(14, 2)
   createdById  String
   createdAt    DateTime       @default(now())
   closedAt     DateTime?
 
   contract ServiceContract? @relation(fields: [contractId], references: [id])
+  proposal Proposal?         @relation("ProposalTicket", fields: [proposalId], references: [id])
 
   @@index([companyId, status])
   @@index([slaDueDate])
+  @@index([proposalId])
 }
 
 /// Tenant registry. companyId on every model refers to Company.id.

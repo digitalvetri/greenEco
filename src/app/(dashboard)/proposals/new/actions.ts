@@ -15,6 +15,15 @@ export interface WizardInput {
   requestId?: string;
   capacityCalc?: CapacityCalc;
   summary?: string;
+  /** AMC contract terms — these build the real ServiceContract when the proposal is won. */
+  amc?: {
+    termMonths?: number;
+    frequency?: "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "YEARLY";
+    visitsPerYear?: number;
+    scope?: Record<string, string | undefined>;
+  };
+  /** Service job details — these build the ServiceTicket when the proposal is won. */
+  service?: { jobDescription?: string; priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" };
   costLines: { item: string; amount: number }[];
 }
 
@@ -63,6 +72,10 @@ export async function createProposalFromWizardAction(input: WizardInput) {
       documentData: {
         ...(isProjectReport && input.capacityCalc ? { capacityCalc: input.capacityCalc } : {}),
         ...(input.summary ? { summary: input.summary } : {}),
+        // Each type's own fields. saveVersion validates against THIS proposal's schema
+        // and strips anything foreign, so sending the wrong shape can't corrupt it.
+        ...(input.amc ?? {}),
+        ...(input.service ?? {}),
       },
     });
   }
