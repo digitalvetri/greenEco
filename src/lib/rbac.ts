@@ -73,6 +73,62 @@ export function isAdmin(ctx: Ctx): boolean {
   return ctx.role === "ADMIN";
 }
 
+/* ------------------------------------------------------------------------- *
+ * PER-USER CAPABILITIES
+ *
+ * The first authorization signal in this app that is not derived from `role`
+ * alone. Before this, widening one employee's access meant promoting them to full
+ * ADMIN — which also hands over pricing, margins, budgets, POs, vendor prices,
+ * receipts, invoices, user management and settings. A capability grants exactly one
+ * thing.
+ *
+ * Rules, deliberately narrow:
+ *   • ADMIN implicitly holds every capability. `User.capabilities` is only ever
+ *     consulted for non-admins, so an admin can never be locked out of their own
+ *     workspace by an accidental empty array.
+ *   • A capability only ever ADDS permission. Nothing here can take away what a role
+ *     already allows, so no existing RBAC guarantee (least of all stripPricing) can
+ *     be weakened by editing this array.
+ *   • Unknown strings are inert — a capability removed from the allowlist in a future
+ *     release degrades to "not granted" instead of crashing on stale rows.
+ * ------------------------------------------------------------------------- */
+
+/** The allowlist. A value not in here is ignored, even if stored on a user. */
+export const CAPABILITIES = {
+  /** Raise drawing requests and upload/deliver drawings. Viewing drawings on a
+   *  project you're assigned to does NOT need this — site staff must still be able
+   *  to open the layout they are building from. */
+  DRAWINGS: "DRAWINGS",
+} as const;
+
+export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
+
+/** Human labels for the Settings → Users checkboxes. */
+export const CAPABILITY_LABELS: Record<Capability, { label: string; description: string }> = {
+  DRAWINGS: {
+    label: "Drawings",
+    description:
+      "Can request AutoCAD drawings and upload finished ones. Everyone can still view drawings on projects they're assigned to.",
+  },
+};
+
+/** Ctx carrying the grants. Optional so every existing Ctx literal still type-checks. */
+export interface CapabilityCtx extends Ctx {
+  capabilities?: string[] | null;
+}
+
+export function hasCapability(ctx: CapabilityCtx, capability: Capability): boolean {
+  if (ctx.role === "ADMIN") return true;
+  return (ctx.capabilities ?? []).includes(capability);
+}
+
+/** Drop anything not in the allowlist, and de-duplicate. Used on the write path. */
+export function sanitizeCapabilities(input: unknown): Capability[] {
+  const valid = new Set<string>(Object.values(CAPABILITIES));
+  if (!Array.isArray(input)) return [];
+  return [...new Set(input.filter((c): c is Capability => typeof c === "string" && valid.has(c)))];
+}
+
 /** decimal.js / Prisma.Decimal instances have toFixed — treat as leaves. */
 function isLeaf(v: unknown): boolean {
   if (v === null || typeof v !== "object") return true;

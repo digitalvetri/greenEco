@@ -136,6 +136,22 @@ model User {
   avatarUrl    String? // profile photo, via the same storage adapter as other uploads
   jobTitle     String? // display-only org-chart label (free text — admin can add new ones); NEVER read for authorization
   role         Role     @default(EMPLOYEE)
+  /**
+   * Per-user capability grants — the first authorization signal in this app that is
+   * NOT derived from `role` alone.
+   *
+   * Until now an admin could only widen an employee's access by promoting them to full
+   * ADMIN, which hands over pricing, margins, budgets, POs, vendor prices, receipts,
+   * invoices, user management and settings all at once. A capability grants exactly one
+   * thing instead. Admins implicitly hold every capability — this array is only ever
+   * consulted for non-admins (see hasCapability in lib/rbac.ts).
+   *
+   * Values come from the CAPABILITIES allowlist in lib/rbac.ts. Unknown strings are
+   * inert, so a removed capability degrades to "not granted" rather than crashing.
+   * Deliberately NOT a relation table: the repo's convention is bare id strings with no
+   * Prisma relation to User, and a String[] keeps the grant readable in one row.
+   */
+  capabilities String[] @default([])
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
@@ -197,6 +213,7 @@ model Lead {
   // *revision* is still a new ProposalVersion, never a second Proposal row.
   proposals        Proposal[]
   proposalRequests ProposalRequest[]
+  drawingRequests  DrawingRequest[]
   createdById String
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -511,6 +528,7 @@ model Order {
   team             TeamAssignment[]
   stages           Stage[]
   drawings         Drawing[]
+  drawingRequests  DrawingRequest[]
   milestones       PaymentMilestone[]
   documents        Document[]
   communications   Communication[]
@@ -571,7 +589,15 @@ model StagePhoto {
 
 model Drawing {
   id             String        @id @default(cuid())
-  orderId        String
+  /**
+   * Nullable since the Drawings module: a drawing can be delivered against a request
+   * that names no project (a generic layout, a template, a pre-order GA drawing).
+   * `companyId` therefore carries the tenant scope that used to come via `order`.
+   */
+  orderId        String?
+  companyId      String
+  /** The request this drawing was delivered against, when it came from one. */
+  requestId      String?
   title          String
   discipline     String // Structural | Piping | Electrical | Layout
   revision       String // A, B, C...
@@ -582,9 +608,73 @@ model Drawing {
   uploadedById   String
   createdAt      DateTime      @default(now())
 
-  order Order @relation(fields: [orderId], references: [id])
+  order   Order?          @relation(fields: [orderId], references: [id])
+  request DrawingRequest? @relation(fields: [requestId], references: [id])
 
   @@index([orderId, title])
+  @@index([companyId, title])
+  @@index([requestId])
+}
+
+/**
+ * DRAWING REQUESTS — "please draw this for me".
+ *
+ * Green Ecocare's own proposal commits to "civil drawings with all details within 10
+ * days from the date of the P.O.", so a drawing is a contractual deliverable with an
+ * SLA, not just a file. This model is what makes that commitment trackable: who asked,
+ * for what, by when, and whether it landed.
+ *
+ * `orderId` and `leadId` are BOTH optional and independent — a request can name a won
+ * project, an enquiry still being quoted (a GA drawing that helps close the deal), or
+ * neither (a generic/template drawing). Tenant scope is always `companyId`, never the
+ * relation.
+ */
+model DrawingRequest {
+  id            String               @id @default(cuid())
+  companyId     String
+  orderId       String? // a won project
+  leadId        String? // an enquiry still being quoted
+  title         String // what to draw — becomes the Drawing.title, so the revision chain keys off it
+  discipline    String // Structural | Piping | Electrical | Layout | ...
+  purpose       String? // what it's needed for
+  notes         String?
+  dueDate       DateTime? // defaults to +10 days, matching the proposal's own commitment
+  priority      String               @default("NORMAL") // LOW | NORMAL | HIGH
+  status        DrawingRequestStatus @default(OPEN)
+  /** Set on REJECTED/CHANGES_REQUESTED — the reason the requester sent it back. */
+  changeReason  String?
+  assignedToId  String? // who is drawing it
+  requestedById String
+  closedAt      DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  order    Order?    @relation(fields: [orderId], references: [id])
+  lead     Lead?     @relation(fields: [leadId], references: [id])
+  drawings Drawing[]
+
+  @@index([companyId, status])
+  @@index([companyId, requestedById])
+  @@index([companyId, assignedToId])
+  @@index([orderId])
+  @@index([leadId])
+}
+
+/**
+ * OPEN              — raised, nobody has picked it up
+ * IN_PROGRESS       — someone is drawing it
+ * DELIVERED         — a drawing has been uploaded, waiting on the requester
+ * CHANGES_REQUESTED — sent back with a reason; the next upload becomes the next revision
+ * COMPLETED         — the requester accepted it
+ * CANCELLED         — withdrawn
+ */
+enum DrawingRequestStatus {
+  OPEN
+  IN_PROGRESS
+  DELIVERED
+  CHANGES_REQUESTED
+  COMPLETED
+  CANCELLED
 }
 
 model PaymentMilestone {

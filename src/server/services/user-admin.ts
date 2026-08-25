@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
+import { sanitizeCapabilities } from "@/lib/rbac";
 import { logAudit, type AuditAction } from "@/lib/audit";
 import { hashPassword } from "@/lib/password";
 import type { Ctx } from "@/lib/rbac";
@@ -85,6 +86,10 @@ const updateUserSchema = z.object({
   email: z.string().email("Enter a valid email").nullable(),
   role: z.enum(["ADMIN", "EMPLOYEE"]),
   active: z.boolean(),
+  /** Validated by `sanitizeCapabilities` against the allowlist rather than by an
+   *  enum here, so removing a capability in a future release doesn't make every
+   *  existing user's edit form fail validation on a value it no longer knows. */
+  capabilities: z.array(z.string()).optional(),
 });
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
@@ -102,6 +107,9 @@ export async function adminUpdateUser(ctx: Ctx, targetUserId: string, input: Upd
   const parsed = updateUserSchema.safeParse(input);
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
   const { name, phone, email, role, active } = parsed.data;
+  // Sanitised against the allowlist, so an unknown/removed capability can never be
+  // stored. Capabilities only ADD permission and are ignored for admins entirely.
+  const capabilities = sanitizeCapabilities(input?.capabilities);
 
   const target = await prisma.user.findFirst({ where: { id: targetUserId, companyId: ctx.companyId } });
   if (!target) throw new Error("User not found");
@@ -117,7 +125,7 @@ export async function adminUpdateUser(ctx: Ctx, targetUserId: string, input: Upd
   try {
     await prisma.user.update({
       where: { id: targetUserId },
-      data: { name, phone, email: email ? email.toLowerCase() : null, role, active },
+      data: { name, phone, email: email ? email.toLowerCase() : null, role, active, capabilities },
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -129,8 +137,15 @@ export async function adminUpdateUser(ctx: Ctx, targetUserId: string, input: Upd
     action: "UPDATE",
     entity: "User",
     entityId: targetUserId,
-    before: { name: target.name, phone: target.phone, email: target.email, role: target.role, active: target.active },
-    after: { name, phone, email, role, active },
+    before: {
+      name: target.name,
+      phone: target.phone,
+      email: target.email,
+      role: target.role,
+      active: target.active,
+      capabilities: target.capabilities,
+    },
+    after: { name, phone, email, role, active, capabilities },
   });
   return { ok: true };
 }

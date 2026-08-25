@@ -18,6 +18,7 @@ export function Uploader({
   multiple = true,
   compress = true,
   className,
+  disabled = false,
 }: {
   onUploaded: (files: { url: string; name: string }[]) => void;
   accept?: string;
@@ -26,6 +27,9 @@ export function Uploader({
   multiple?: boolean;
   compress?: boolean;
   className?: string;
+  /** Blocks the picker entirely. Use when the surrounding form isn't ready — the file
+   *  is in storage the moment it's picked, so bailing out afterwards orphans it. */
+  disabled?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -45,7 +49,13 @@ export function Uploader({
         const fd = new FormData();
         fd.append("file", file, f.name);
         const res = await fetch("/api/uploads", { method: "POST", body: fd });
-        if (!res.ok) throw new Error("Upload failed");
+        if (!res.ok) {
+          // Surface the SERVER's reason. It was discarded in favour of a generic
+          // "Upload failed", so a user hitting the size ceiling or the file-type
+          // allowlist had no idea which — and no idea what to do about it.
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error ?? `Upload failed (${res.status})`);
+        }
         out.push(await res.json());
       }
       onUploaded(out);
@@ -62,9 +72,10 @@ export function Uploader({
       <button
         type="button"
         onClick={() => ref.current?.click()}
-        disabled={busy}
+        disabled={busy || disabled}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10",
+          disabled && "cursor-not-allowed opacity-50 hover:bg-card",
         )}
       >
         {busy ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}

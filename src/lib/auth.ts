@@ -19,6 +19,9 @@ import { SESSION_COOKIE, verifySessionToken } from "./session";
 export interface Session extends Ctx {
   name: string;
   avatarUrl: string | null;
+  /** Per-user capability grants (see lib/rbac.ts). Empty for admins — they hold every
+   *  capability implicitly, so `hasCapability` never consults this for them. */
+  capabilities: string[];
 }
 
 export class AuthError extends Error {
@@ -58,7 +61,14 @@ async function getDevSession(): Promise<Session> {
   if (uid) {
     const dbUser = await prisma.user.findUnique({ where: { id: uid } });
     if (dbUser && dbUser.active) {
-      return { userId: dbUser.id, role: dbUser.role, companyId: dbUser.companyId, name: dbUser.name, avatarUrl: dbUser.avatarUrl };
+      return {
+        userId: dbUser.id,
+        role: dbUser.role,
+        companyId: dbUser.companyId,
+        name: dbUser.name,
+        avatarUrl: dbUser.avatarUrl,
+        capabilities: dbUser.capabilities,
+      };
     }
     // Cookie valid but the user is gone/deactivated → not signed in.
     if (!env.authDevBypass) throw new AuthError("Session no longer valid", 401);
@@ -75,6 +85,7 @@ async function getDevSession(): Promise<Session> {
       companyId: dbUser?.companyId ?? env.companyId,
       name: dbUser?.name ?? (role === "ADMIN" ? "Dev Admin" : "Dev Employee"),
       avatarUrl: dbUser?.avatarUrl ?? null,
+      capabilities: dbUser?.capabilities ?? [],
     };
   }
 
@@ -100,6 +111,7 @@ async function getClerkSession(): Promise<Session> {
     companyId: dbUser.companyId,
     name: dbUser.name,
     avatarUrl: dbUser.avatarUrl,
+    capabilities: dbUser.capabilities,
   };
 }
 

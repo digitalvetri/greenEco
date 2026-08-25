@@ -27,7 +27,12 @@ const schema = z
     S3_BUCKET: z.string().optional(),
     /** Public base URL files are served from (CDN / R2 public bucket). */
     S3_PUBLIC_URL: z.string().optional(),
-    MAX_UPLOAD_MB: z.coerce.number().positive().default(10),
+    // 10 MB was fine for site photos and PDFs, but AutoCAD .dwg files routinely
+    // exceed it and the Drawings module makes them a first-class upload. 25 MB stays
+    // safely under next.config.ts's proxyClientMaxBodySize of 32 MB — raise BOTH if
+    // this ever needs to go higher, or the body is truncated before the app's own
+    // 413 can fire (the v5 lesson).
+    MAX_UPLOAD_MB: z.coerce.number().positive().default(25),
 
     DEFAULT_COMPANY_ID: z.string().default("green-ecocare"),
     COMPANY_GSTIN: z.string().default(""),

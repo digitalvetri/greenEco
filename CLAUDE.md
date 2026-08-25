@@ -41,6 +41,73 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v47 — Drawings module: AutoCAD request→deliver→revise loop + per-user capabilities
+
+Client asked for employees to request AutoCAD drawings for a project, receive them in the app, with
+admin able to both send and request, and access granted per employee from Settings → Users. Agreed
+scope: a **top-level Drawings module** in the sidebar, requests attachable to a project / an enquiry /
+nothing, request-changes reopening into a new revision, and **one** capability covering request+upload.
+**Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 141 unit (+15) ·
+`next build` clean · new `verify-drawings-p0` (41 checks, live DB, rows cleaned up) · proposals-p6/p7
++ sell + execute green (`verify-control` fails identically on unmodified `main` — stale live-DB test
+data, confirmed via `git stash`) · browser-driven in THREE access levels at 1440px + 390px, zero
+console errors.**
+
+- **Per-user capabilities — the first authorization signal in this app not derived from `role`.**
+  `User.capabilities String[]` + `hasCapability()`/`sanitizeCapabilities()` in `rbac.ts`, granted with
+  checkboxes in the existing Settings → Users edit dialog. Before this, widening one employee's access
+  meant promoting them to full ADMIN, which also hands over pricing, margins, budgets, POs, vendor
+  prices, receipts, invoices, user management and settings. Deliberately narrow: admins hold every
+  capability implicitly (so an empty array can never lock an admin out), a capability only ever ADDS
+  permission (unit-tested that `stripPricing` is untouched by any grant), and unknown values are inert
+  so a removed capability degrades to "not granted". The checkbox section is hidden for admins rather
+  than shown with no effect.
+- **`DrawingRequest` model + `services/drawing.ts`.** `orderId` and `leadId` are both nullable and
+  independent — a request can name a won project, an enquiry still being quoted, or neither. Due date
+  defaults to **+10 days**, which is not arbitrary: the company's own proposal document promises
+  "civil drawings with all details within 10 days from the date of the P.O." — so a drawing is a
+  contractual deliverable with an SLA, and overdue requests are surfaced as their own tab and KPI.
+- **Access is three-tiered, because "who may see a drawing" ≠ "who may produce one".** Raise/deliver
+  needs the capability; the request queue shows everything to holders and only-your-own to everyone
+  else; **viewing** a project drawing still uses `requireProjectAccess`, so site staff can open the
+  layout they're building from WITHOUT the grant. Standalone drawings (no project) need the capability,
+  since there's no team membership to check against.
+- **The revise loop reuses the existing engine.** `deliverDrawing` calls the pre-existing `addDrawing`,
+  so "request changes" → next upload is automatically Rev B and supersedes Rev A, with the change
+  reason attached — no second revision implementation to drift from the first.
+- **Five real defects fixed while in there**, all found by reading rather than reported:
+  1. **You could not upload a DWG as a drawing.** `.dwg`/`.dxf` were allowlisted in `storage.ts` and
+     had Content-Types in `api/files`, but the project drawing widget's `accept` string
+     (`"application/pdf,image/*"`) was the single thing blocking it.
+  2. **`MAX_UPLOAD_MB` 10 → 25.** Real CAD files exceed 10 MB. 25 stays under `next.config.ts`'s
+     `proxyClientMaxBodySize: "32mb"` — raise BOTH if it ever needs to go higher, or the body is
+     truncated before the app's own 413 can fire (the v5 lesson).
+  3. **`setDrawingApproval` had zero call sites** since Phase 2 — admin-guarded and audited, but
+     unreachable, so `FOR_APPROVAL`/`APPROVED` could never be set and every drawing read "DRAFT"
+     forever. Now wired to a control in the drawing library.
+  4. **Revision history was invisible.** The projects tab filters to `isCurrent`, so Rev A vanished the
+     moment Rev B landed. The library has a history toggle. Also fixed the revision bump: it was
+     `String.fromCharCode(prev + 1)`, turning revision Z into `[` — now A→…→Z→AA, unit-tested. And
+     revision chains now match titles **case-insensitively**: "GA Layout" and "GA layout" were starting
+     separate chains, silently producing two Rev A drawings of the same thing.
+  5. **Orphaned uploads.** The drawing widget left `multiple` on but used only `files[0]`, uploading
+     every selected file to storage and creating one row; and it returned early on an empty title
+     *after* the file was already stored. `Uploader` gained a `disabled` prop so the picker can't open
+     until the form is ready, and it now surfaces the **server's** error (size/type) instead of a
+     generic "Upload failed".
+- **Two mistakes I made and caught in the gate**, both previously-documented classes:
+  `Date.now()` in a server component's render (impure — `overdue` moved into the service), and a
+  `"use client"` component importing from a service that transitively pulls in `web-push`, which can't
+  be bundled for the browser (the v37 `share-links.ts` lesson) — the shared drawing constants moved to
+  `lib/constants.ts`.
+- **Migration is safe on a populated database.** Prisma generated `ADD COLUMN "companyId" TEXT NOT NULL`
+  on the existing `Drawing` table, which fails outright when rows exist. Rewritten by hand as add-
+  nullable → backfill from each drawing's order → `SET NOT NULL`, with a `DO $$` block that raises a
+  named error rather than letting the constraint abort opaquely. No drawing is read, moved or deleted.
+- **Not built** (flagged, not silently skipped): customer-facing drawing approval, and any change to
+  the deliberately auth-free `/api/files` serving — stored drawings remain public-but-unguessable, the
+  same as every other stored file, which is a decision for the client rather than one to make silently.
+
 ### v46 — Proposal print templates matching the client's real documents (Phase C of 3 — module complete)
 
 The final phase: `/print/proposal/[id]` now produces the client's actual document formats instead of a
@@ -1462,4 +1529,4 @@ team un-assign (`removeTeam`); `setDrawingApproval`/`assignTeam` now audited. **
 ### Verification scripts
 `npx tsx scripts/verify-sell.ts` · `verify-execute.ts` · `verify-control.ts` · `verify-amc.ts` ·
 `verify-pdf.ts` · `verify-leads-p0.ts` … `verify-leads-p8.ts` · `verify-proposals-p0.ts` …
-`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.
+`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-drawings-p0.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.

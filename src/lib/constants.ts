@@ -73,6 +73,30 @@ export const INDIAN_STATES = [
 ] as const;
 
 /** Proposal Type — capture-only for now; Won always creates a project Order regardless. */
+/**
+ * Drawing disciplines / priorities / SLA.
+ *
+ * Lives HERE, not in server/services/drawing.ts, because client components need them
+ * and that service transitively imports `web-push` (via automations/util → lib/push),
+ * which cannot be bundled into the browser. Exactly the v37 share-links.ts lesson.
+ */
+export const DRAWING_DISCIPLINES = [
+  "Layout",
+  "Civil",
+  "Structural",
+  "Piping",
+  "Electrical",
+  "Mechanical",
+  "P&ID",
+  "Other",
+] as const;
+
+export const DRAWING_PRIORITIES = ["LOW", "NORMAL", "HIGH"] as const;
+
+/** The proposal document's own promise: "civil drawings … within 10 days from the
+ *  date of the P.O. and advance." A drawing request defaults to that deadline. */
+export const DEFAULT_DRAWING_SLA_DAYS = 10;
+
 export const PROPOSAL_TYPES = [
   "Project Proposal",
   "BOQ Proposal",

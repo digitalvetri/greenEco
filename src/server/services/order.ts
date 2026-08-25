@@ -2,8 +2,8 @@ import { Prisma, type StageStatus } from "@prisma/client";
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import type { Ctx } from "@/lib/rbac";
-import { stripPricing } from "@/lib/rbac";
-import { requireAdmin, requireProjectAccess } from "@/lib/auth";
+import { stripPricing, hasCapability, CAPABILITIES, type CapabilityCtx } from "@/lib/rbac";
+import { requireAdmin, requireProjectAccess, AuthError } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { computeMilestoneStatus } from "@/lib/domain/milestone";
 import { computeOrderFinancials } from "@/lib/domain/order-financials";
@@ -598,19 +598,37 @@ export async function addStagePhoto(
  * marks the previous revision SUPERSEDED + isCurrent=false and bumps the letter.
  */
 export async function addDrawing(
-  ctx: Ctx,
-  orderId: string,
-  data: { title: string; discipline: string; fileUrl: string; changeNote?: string },
+  ctx: CapabilityCtx,
+  orderId: string | null,
+  data: { title: string; discipline: string; fileUrl: string; changeNote?: string; requestId?: string },
 ) {
-  await requireProjectAccess(ctx, orderId);
+  const title = data.title.trim();
+  if (!title) throw new Error("A drawing title is required");
+  // A project-scoped drawing keeps the existing team-access rule. A standalone one
+  // (delivered against a request that names no project) has no team to check against,
+  // so the DRAWINGS capability is what authorises it.
+  if (orderId) {
+    await requireProjectAccess(ctx, orderId);
+  } else if (!hasCapability(ctx, CAPABILITIES.DRAWINGS)) {
+    throw new AuthError("You don't have permission to upload drawings", 403);
+  }
+
   return prisma.$transaction(async (tx) => {
+    // Revision chains key off the title, so match case-INSENSITIVELY: "GA Layout" and
+    // "GA layout" were previously starting independent chains, silently producing two
+    // "Rev A" drawings of the same thing.
     const prev = await tx.drawing.findFirst({
-      where: { orderId, title: data.title, isCurrent: true },
+      where: {
+        companyId: ctx.companyId,
+        orderId,
+        title: { equals: title, mode: "insensitive" },
+        isCurrent: true,
+      },
       orderBy: { createdAt: "desc" },
     });
     let revision = "A";
     if (prev) {
-      revision = String.fromCharCode(prev.revision.charCodeAt(0) + 1);
+      revision = nextRevision(prev.revision);
       await tx.drawing.update({
         where: { id: prev.id },
         data: { isCurrent: false, approvalStatus: "SUPERSEDED" },
@@ -618,8 +636,12 @@ export async function addDrawing(
     }
     const d = await tx.drawing.create({
       data: {
+        companyId: ctx.companyId,
         orderId,
-        title: data.title,
+        requestId: data.requestId,
+        // Keep the FIRST revision's exact casing for the whole chain, so the title
+        // doesn't drift as different people re-upload it.
+        title: prev?.title ?? title,
         discipline: data.discipline,
         revision,
         fileUrl: data.fileUrl,
@@ -628,9 +650,30 @@ export async function addDrawing(
         isCurrent: true,
       },
     });
-    await logAudit(ctx, { action: "CREATE", entity: "Drawing", entityId: d.id, after: { revision } }, tx);
+    await logAudit(ctx, { action: "CREATE", entity: "Drawing", entityId: d.id, after: { revision, title: d.title } }, tx);
     return d;
   });
+}
+
+/**
+ * A → B → … → Z → AA → AB. The old implementation was
+ * `String.fromCharCode(prev.charCodeAt(0) + 1)`, which turns revision "Z" into "[".
+ * Unlikely but not impossible on a drawing that gets reworked many times, and a
+ * nonsense revision letter on an engineering document is worse than the fix is hard.
+ */
+export function nextRevision(prev: string): string {
+  const chars = (prev || "A").toUpperCase().split("");
+  let i = chars.length - 1;
+  while (i >= 0) {
+    if (chars[i] === "Z") {
+      chars[i] = "A";
+      i -= 1;
+    } else {
+      chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1);
+      return chars.join("");
+    }
+  }
+  return "A" + chars.join("");
 }
 
 export async function setDrawingApproval(
@@ -639,8 +682,10 @@ export async function setDrawingApproval(
   status: "DRAFT" | "FOR_APPROVAL" | "APPROVED",
 ) {
   requireAdmin(ctx);
+  // Scope on the drawing's own companyId — `order` is nullable now, so scoping through
+  // the relation would make every standalone drawing unreachable.
   const drawing = await prisma.drawing.findFirst({
-    where: { id: drawingId, order: { companyId: ctx.companyId } },
+    where: { id: drawingId, companyId: ctx.companyId },
   });
   if (!drawing) throw new Error("Drawing not found");
   const updated = await prisma.drawing.update({ where: { id: drawingId }, data: { approvalStatus: status } });

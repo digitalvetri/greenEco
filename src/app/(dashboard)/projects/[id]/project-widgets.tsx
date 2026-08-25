@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Uploader } from "@/components/mobile/uploader";
+import { DRAWING_DISCIPLINES } from "@/lib/constants";
 import { formatINR } from "@/lib/money";
 import { Decimal } from "decimal.js";
 import { toast } from "@/components/ui/toast";
@@ -182,20 +183,26 @@ export function DrawingUpload({ orderId }: { orderId: string }) {
       <div className="grid grid-cols-2 gap-2">
         <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Drawing title (re-upload = new rev)" aria-label="Drawing title" />
         <Select value={discipline} onChange={(e) => setDiscipline(e.target.value)} aria-label="Drawing discipline">
-          {["Structural", "Piping", "Electrical", "Layout"].map((d) => (
+          {DRAWING_DISCIPLINES.map((d) => (
             <option key={d}>{d}</option>
           ))}
         </Select>
       </div>
       <Uploader
         label="Upload drawing"
-        accept="application/pdf,image/*"
+        accept=".dwg,.dxf,application/pdf,image/*"
+        // One drawing per upload. The default `multiple` uploaded every selected file
+        // to storage but created a single Drawing row, silently orphaning the rest.
+        multiple={false}
         compress={false}
         onUploaded={(files) => {
-          if (!title) return;
+          // The title check has to happen BEFORE the picker opens, not here — by this
+          // point the file is already in storage, so returning early orphans it.
           run(() => addDrawingAction(orderId, { title, discipline, fileUrl: files[0].url }), () => setTitle(""));
         }}
+        disabled={!title.trim()}
       />
+      {!title.trim() && <span className="text-xs text-muted">Enter a title first.</span>}
       {pending && <span className="text-xs text-muted">Uploading…</span>}
     </div>
   );

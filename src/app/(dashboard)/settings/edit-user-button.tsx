@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
+import { CAPABILITY_LABELS, type Capability } from "@/lib/rbac";
 import { adminUpdateUserAction } from "./actions";
 
 /** Admin edits another user's core details — name/phone/email/role/active.
@@ -20,6 +21,7 @@ export function EditUserButton({
   email,
   role,
   active,
+  capabilities,
 }: {
   userId: string;
   name: string;
@@ -27,10 +29,11 @@ export function EditUserButton({
   email: string | null;
   role: Role;
   active: boolean;
+  capabilities: string[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name, phone, email: email ?? "", role, active });
+  const [form, setForm] = useState({ name, phone, email: email ?? "", role, active, capabilities });
   const [pending, start] = useTransition();
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -45,6 +48,7 @@ export function EditUserButton({
         email: form.email.trim() ? form.email.trim() : null,
         role: form.role,
         active: form.active,
+        capabilities: form.capabilities,
       });
       if (res.ok) {
         toast(res.message ?? "User updated");
@@ -85,6 +89,47 @@ export function EditUserButton({
               <option value="ADMIN">Admin</option>
             </Select>
           </Field>
+          {/* Extra permissions, granted one at a time. An admin already holds every
+              capability implicitly, so the section is hidden for them rather than
+              showing checkboxes that would have no effect. */}
+          {form.role !== "ADMIN" && (
+            <div className="rounded-lg border border-border p-3">
+              <div className="mb-1 text-sm font-medium">Extra access</div>
+              <p className="mb-2 text-xs text-muted">
+                Grant one thing at a time, instead of making them a full admin.
+              </p>
+              {(Object.keys(CAPABILITY_LABELS) as Capability[]).map((cap) => {
+                const on = form.capabilities.includes(cap);
+                return (
+                  <label key={cap} className="flex cursor-pointer items-start gap-2 py-1.5">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 size-4 shrink-0 accent-[var(--gc-primary,#0f7a4d)]"
+                      checked={on}
+                      onChange={(e) =>
+                        set(
+                          "capabilities",
+                          e.target.checked
+                            ? [...form.capabilities, cap]
+                            : form.capabilities.filter((c) => c !== cap),
+                        )
+                      }
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{CAPABILITY_LABELS[cap].label}</span>
+                      <span className="block text-xs text-muted">{CAPABILITY_LABELS[cap].description}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          {form.role === "ADMIN" && (
+            <p className="rounded-lg bg-surface px-3 py-2 text-xs text-muted">
+              Admins already have every permission, including drawings.
+            </p>
+          )}
+
           <Field label="Status" hint="Deactivating blocks sign-in immediately, without deleting their account or history.">
             <Select value={form.active ? "active" : "inactive"} onChange={(e) => set("active", e.target.value === "active")}>
               <option value="active">Active</option>

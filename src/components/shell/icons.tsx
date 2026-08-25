@@ -13,6 +13,7 @@ import {
   Settings,
   LifeBuoy,
   CalendarClock,
+  DraftingCompass,
   type LucideIcon,
 } from "lucide-react";
 import type { IconName } from "@/lib/nav";
@@ -27,6 +28,7 @@ const REGISTRY: Record<IconName, LucideIcon> = {
   clients: Contact,
   materials: Boxes,
   erection: Wrench,
+  drawings: DraftingCompass,
   invoices: Receipt,
   reports: BarChart3,
   settings: Settings,

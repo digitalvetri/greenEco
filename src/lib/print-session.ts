@@ -26,6 +26,10 @@ export async function getPrintSession(
         companyId: r.claims.companyId,
         name: "PDF Renderer",
         avatarUrl: null,
+        // The print token carries role + company, not capabilities. A renderer only
+        // ever READS one already-authorised document, so granting none is correct —
+        // and keeps the token from becoming a capability-escalation vector.
+        capabilities: [],
       };
     }
     // A token was supplied but is invalid/mismatched — fail closed with a clean

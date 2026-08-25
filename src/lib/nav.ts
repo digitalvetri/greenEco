@@ -16,6 +16,7 @@ export type IconName =
   | "clients"
   | "materials"
   | "erection"
+  | "drawings"
   | "invoices"
   | "reports"
   | "settings";
@@ -38,6 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/clients", label: "Clients", icon: "clients" },
   { href: "/materials", label: "Materials", icon: "materials" },
   { href: "/erection", label: "Erection", icon: "erection", mobile: true },
+  { href: "/drawings", label: "Drawings", icon: "drawings" },
   { href: "/invoices", label: "Invoices", icon: "invoices", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
   { href: "/settings", label: "Settings", icon: "settings", adminOnly: true },
@@ -50,7 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
 export const NAV_SECTIONS: { label: string | null; hrefs: string[] }[] = [
   { label: null, hrefs: ["/dashboard"] },
   { label: "Sales", hrefs: ["/leads", "/proposals", "/clients"] },
-  { label: "Operations", hrefs: ["/projects", "/service", "/materials", "/erection"] },
+  { label: "Operations", hrefs: ["/projects", "/service", "/materials", "/erection", "/drawings"] },
   { label: "Finance", hrefs: ["/invoices", "/reports"] },
   { label: "System", hrefs: ["/settings"] },
 ];

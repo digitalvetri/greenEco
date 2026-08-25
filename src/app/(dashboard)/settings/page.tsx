@@ -77,7 +77,7 @@ export default async function SettingsPage() {
                     <Badge variant={u.role === "ADMIN" ? "primary" : "default"}>{u.role}</Badge>
                   </div>
                   {u.id !== session.userId && (
-                    <EditUserButton userId={u.id} name={u.name} phone={u.phone} email={u.email} role={u.role} active={u.active} />
+                    <EditUserButton userId={u.id} name={u.name} phone={u.phone} email={u.email} role={u.role} active={u.active} capabilities={u.capabilities} />
                   )}
                   <ResetPasswordButton userId={u.id} name={u.name} />
                   {u.id !== session.userId && <DeleteUserButton userId={u.id} name={u.name} />}
