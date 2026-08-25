@@ -2,12 +2,27 @@ import { notFound } from "next/navigation";
 import { getPrintSession } from "@/lib/print-session";
 import { getProposal } from "@/server/services/proposal";
 import { getCompanySettings } from "@/server/services/company-settings";
-import { formatINR } from "@/lib/money";
 import { PrintShell } from "@/components/print/print-shell";
-import { td, th } from "@/components/print/print-styles";
+import { PrintActionButton } from "@/components/print/print-button";
+import { ProjectReportDocument } from "../project-report";
+import { BoqProposalDocument } from "../boq-proposal";
+import { GenericProposalDocument } from "../generic-proposal";
+import type { ProposalPrintData } from "../print-data";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Proposal PDF — dispatches on `proposalType` to the document format the client
+ * actually uses for that kind of quote.
+ *
+ * Auth, the office-only visibility gate and EMPLOYEE field-stripping all happen once
+ * here via `getProposal`; the templates below are pure presentation and receive an
+ * already-safe `ProposalPrintData`.
+ *
+ * Unknown/absent type falls through to the pre-Phase-C generic layout, so every
+ * proposal created before this work still prints — and Service/AMC print plainly
+ * rather than in a format invented for them.
+ */
 export default async function ProposalPrint({
   params,
   searchParams,
@@ -21,200 +36,78 @@ export default async function ProposalPrint({
   const p = await getProposal(session, id);
   if (!p) notFound();
   const company = await getCompanySettings(session.companyId);
-  const v = p.versions.find((x) => x.versionNo === p.currentVersion) ?? p.versions[0];
-  const scope = (v?.scopeOfWork ?? {}) as Record<string, string>;
-  const terms = (v?.paymentTerms ?? []) as Array<{ description: string; percent: number }>;
-  const technicalSpecs = (v?.technicalSpecs ?? []) as Array<{ section: string; item: string; spec: string; qty: string }>;
-  const electricalLoad = (v?.electricalLoad ?? []) as Array<{ description: string; hp: number }>;
-  // Legacy versions stored tcs as `[]` (pre-Phase-2); normalize to a string.
-  const tcs = typeof v?.terms === "string" ? v.terms : "";
+  const current = p.versions.find((x) => x.versionNo === p.currentVersion) ?? p.versions[0];
 
-  return (
-    <PrintShell title="PROPOSAL" docNo={`${p.number} · v${v?.versionNo ?? 1}`} company={company} watermark>
-      <section style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>{p.projectName}</div>
-        <div style={{ fontSize: 14, color: "#555" }}>{p.siteAddress}</div>
-        <div style={{ fontSize: 14, color: "#555" }}>
-          {p.plantType} · {p.technology} · {p.capacityKLD} KLD
+  const data: ProposalPrintData = {
+    p: {
+      number: p.number,
+      createdAt: p.createdAt,
+      projectName: p.projectName,
+      siteAddress: p.siteAddress,
+      plantType: p.plantType,
+      technology: p.technology,
+      capacityKLD: p.capacityKLD,
+      proposalType: p.proposalType,
+      customerName: p.lead?.customerName ?? p.projectName,
+      kindAttn: p.contactPerson
+        ? `${p.contactPerson.name}${p.contactPerson.designation ? ` (${p.contactPerson.designation})` : ""}`
+        : null,
+    },
+    v: current
+      ? {
+          versionNo: current.versionNo,
+          coverLetter: current.coverLetter,
+          technicalText: current.technicalText,
+          technologyExplainer: current.technologyExplainer,
+          pointsToNote: current.pointsToNote,
+          terms: current.terms,
+          scopeOfWork: current.scopeOfWork,
+          technicalSpecs: current.technicalSpecs,
+          electricalLoad: current.electricalLoad,
+          documentData: current.documentData,
+          heroImageUrl: current.heroImageUrl,
+          subtotal: current.subtotal.toString(),
+          gstAmount: current.gstAmount.toString(),
+          grandTotal: current.grandTotal.toString(),
+          paymentTerms: current.paymentTerms,
+          validityDays: current.validityDays,
+          boqItems: current.boqItems.map((b) => ({
+            id: b.id,
+            category: b.category,
+            item: b.item,
+            specification: b.specification,
+            unit: b.unit,
+            qty: b.qty.toString(),
+            rate: b.rate.toString(),
+            amount: b.amount.toString(),
+          })),
+        }
+      : null,
+    company,
+  };
+
+  // The Project Report and BOQ carry their own cover page with the full letterhead,
+  // so the generic branded header would duplicate it — those render bare.
+  const structured = p.proposalType === "Project Proposal" || p.proposalType === "BOQ Proposal";
+  if (structured) {
+    return (
+      <div data-print-shell>
+        <style>{`@media print { .no-print { display: none !important; } @page { margin: 16mm 14mm; } }`}</style>
+        <div className="no-print" style={{ marginBottom: 16, textAlign: "right" }}>
+          <PrintActionButton />
         </div>
-        {p.contactPerson && (
-          <div style={{ fontSize: 14, color: "#555", marginTop: 4 }}>
-            Kind Attn: {p.contactPerson.name}
-            {p.contactPerson.designation ? ` (${p.contactPerson.designation})` : ""}
-          </div>
+        {p.proposalType === "Project Proposal" ? (
+          <ProjectReportDocument {...data} />
+        ) : (
+          <BoqProposalDocument {...data} />
         )}
-      </section>
+      </div>
+    );
+  }
 
-      {v?.heroImageUrl && (
-        <section style={{ marginBottom: 16 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- rendered by headless Chromium into a PDF, not the Next image pipeline */}
-          <img
-            src={v.heroImageUrl}
-            alt=""
-            style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 8, display: "block" }}
-          />
-        </section>
-      )}
-
-      {v?.coverLetter && (
-        <section style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{v.coverLetter}</p>
-        </section>
-      )}
-
-      {v?.technicalText && (
-        <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Technical Write-up</h3>
-          <p style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{v.technicalText}</p>
-        </section>
-      )}
-
-      {v?.technologyExplainer && (
-        <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>About {p.technology}</h3>
-          <p style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{v.technologyExplainer}</p>
-        </section>
-      )}
-
-      {Object.keys(scope).length > 0 && (
-        <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Scope of Work</h3>
-          <ul style={{ fontSize: 14, lineHeight: 1.5 }}>
-            {Object.entries(scope).map(([k, val]) => (
-              <li key={k}>
-                <strong style={{ textTransform: "capitalize" }}>{k}:</strong> {val}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {technicalSpecs.length > 0 && (
-        <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Technical Specifications</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={th}>Section</th>
-                <th style={th}>Item</th>
-                <th style={th}>Specification</th>
-                <th style={{ ...th, textAlign: "right" }}>Qty</th>
-              </tr>
-            </thead>
-            <tbody>
-              {technicalSpecs.map((r, i) => (
-                <tr key={i}>
-                  <td style={td}>{r.section}</td>
-                  <td style={td}>{r.item}</td>
-                  <td style={td}>{r.spec}</td>
-                  <td style={{ ...td, textAlign: "right" }}>{r.qty}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      {electricalLoad.length > 0 && (
-        <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Electrical Load Summary</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={th}>Description</th>
-                <th style={{ ...th, textAlign: "right" }}>HP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {electricalLoad.map((r, i) => (
-                <tr key={i}>
-                  <td style={td}>{r.description}</td>
-                  <td style={{ ...td, textAlign: "right" }}>{r.hp}</td>
-                </tr>
-              ))}
-              <tr>
-                <td style={{ ...td, fontWeight: 700 }}>Total connected load</td>
-                <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>
-                  {electricalLoad.reduce((a, l) => a + (Number(l.hp) || 0), 0)} HP
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      <section style={{ marginBottom: 16 }}>
-        <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Bill of Quantities</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Item</th>
-              <th style={th}>Unit</th>
-              <th style={{ ...th, textAlign: "right" }}>Qty</th>
-              <th style={{ ...th, textAlign: "right" }}>Rate</th>
-              <th style={{ ...th, textAlign: "right" }}>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {v?.boqItems.map((b) => (
-              <tr key={b.id}>
-                <td style={td}>{b.item}</td>
-                <td style={td}>{b.unit}</td>
-                <td style={{ ...td, textAlign: "right" }}>{b.qty.toString()}</td>
-                <td style={{ ...td, textAlign: "right" }}>{formatINR(b.rate.toString())}</td>
-                <td style={{ ...td, textAlign: "right" }}>{formatINR(b.amount.toString())}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {v && (
-          <div style={{ marginTop: 10, marginLeft: "auto", width: 260, fontSize: 14 }}>
-            <Line label="Subtotal" value={formatINR(v.subtotal.toString())} />
-            <Line label="GST @ 18%" value={formatINR(v.gstAmount.toString())} />
-            <Line label="Grand Total" value={formatINR(v.grandTotal.toString())} bold />
-          </div>
-        )}
-      </section>
-
-      {terms.length > 0 && (
-        <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Payment Terms</h3>
-          <ol style={{ fontSize: 14, lineHeight: 1.6 }}>
-            {terms.map((t, i) => (
-              <li key={i}>
-                {t.percent}% — {t.description}
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-
-      {v?.pointsToNote && (
-        <section style={{ marginBottom: 16 }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Points to Note</h3>
-          <ul style={{ fontSize: 14, lineHeight: 1.6 }}>
-            {v.pointsToNote.split("\n").filter(Boolean).map((line, i) => (
-              <li key={i}>{line.replace(/^[-•]\s*/, "")}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {tcs && (
-        <section style={{ marginBottom: 16, pageBreakBefore: "always" }}>
-          <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Terms &amp; Conditions</h3>
-          <p style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{tcs}</p>
-        </section>
-      )}
-    </PrintShell>
-  );
-}
-
-function Line({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: bold ? 700 : 400, padding: "3px 0", borderTop: bold ? "1px solid #0f7a4d" : "none" }}>
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
+    <PrintShell title="PROPOSAL" docNo={`${p.number} · v${current?.versionNo ?? 1}`} company={company} watermark>
+      <GenericProposalDocument {...data} />
+    </PrintShell>
   );
 }

@@ -41,6 +41,54 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v46 — Proposal print templates matching the client's real documents (Phase C of 3 — module complete)
+
+The final phase: `/print/proposal/[id]` now produces the client's actual document formats instead of a
+generic layout. **Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 126 unit · `next build`
+clean · new `verify-proposals-p8` (66 checks against the REAL rendered PDFs) · p7 (74) + p6 (65) +
+sell + clients-p0 green · every page visually compared against the source PDFs in `~/Downloads/STP`.**
+
+- **Dispatcher on `proposalType`**, with the pre-Phase-C layout kept as `generic-proposal.tsx` for
+  proposals created before types existed, for "Others", and for **Service/AMC — whose real formats the
+  client still hasn't supplied, so they print plainly rather than in a layout invented for them**.
+  Auth, the office-only gate and EMPLOYEE stripping all resolve once in `page.tsx` via `getProposal`;
+  the three templates are pure presentation over a shared `ProposalPrintData`.
+- **Project Report** (`project-report.tsx`) — the full 15-section document: cover page (Ref/Date,
+  capacity-bearing title, Submitted To + Kind Attn, Submitted By letterhead) → Greetings + signatory →
+  TOC → Introduction → plant description → §6 Process Design (capacity calculation, inlet/outlet
+  tables, four-technology comparison + the recommendation, **process-flow chart**, per-unit details) →
+  §7 Civil → §8 MEP (equipment table + specification sheet) → §9 Electrical Load → §10 Financial
+  (four-line quotation, amount in words, GST, Taxes & Duties, Payment Terms) → §11–§14 → §15 Recent
+  Projects. Verified against the sample's own worked figures: 22,500 + 7,500 = 30,000 LPD ≈ 30 KLD,
+  ₹7,80,000 + ₹1,40,400 = ₹9,20,400 in both digits and words, and SBR's 11.6 / 1.16 / 12.76 → 13 HP →
+  10 kW load chain.
+- **Process-flow chart renders** — plain CSS boxes + ▼ arrows with the two side branches (sludge
+  digester left, chlorine dosing right), driven by the per-technology node list. No SVG layout maths,
+  and it degrades correctly in the browser's own print preview.
+- **BOQ Proposal** (`boq-proposal.tsx`) — same cover page, then the machinery estimate: all-caps title,
+  "MECHANICAL, ELECTRICAL AND PLUMBING MATERIAL DETAILS", and an **S.NO | DESCRIPTION | QTY | AMOUNT
+  table with NO rate column** (their sample quotes a lump sum per line; printing a unit rate would show
+  a number their customers never see — the rate still exists on BOQItem and drives the totals).
+  Quantities pluralise like the sample ("2 SETS", "3 KGS"); rows avoid page breaks so a long
+  supply-and-installation spec isn't split.
+- **Running header/footer** — "Green Ecocare Private Limited" top-right and "Page | N" bottom-right on
+  every page, via Playwright's `headerTemplate`/`footerTemplate`, **opt-in per document** (`PdfDoc.
+  runningHeader`) so the existing single-page invoice/PO/closeout PDFs are untouched. Chromium renders
+  these in an isolated context with no page CSS, so the styles are inline and the value is HTML-escaped.
+  ⚠️ They appear in the **generated** PDF only, never in the browser's own Print preview.
+- **Table of Contents is a static section list, no page numbers** — HTML→PDF can't resolve real ones.
+  (The client's own TOC is wrong anyway: it lists Recent Projects on p.22 of a 16-page document.)
+- **Bug found by rendering, not by types**: `getProposal` ordered BOQ lines `by category asc`, which
+  scrambled a BOQ Proposal's line sequence and made its printed S.No meaningless against what the admin
+  typed. Now ordered `by id asc` — `saveVersion` recreates every row in editor order and Prisma's
+  `cuid()` sorts lexicographically by creation time, so id-order IS entry-order. Asserted in p8.
+- **The Phase-B precedence rule proven on paper**: the generated Project Report contains "Taxes &
+  Duties" and "Points to be Noted" exactly once each, and the generic T&Cs page is correctly suppressed
+  because its content now lives in §10.2–§14.
+- **Running p8 needs a dev server** on `NEXT_PUBLIC_APP_URL` (the renderer navigates to `/print/*` over
+  HTTP) plus `pdftotext`. On this machine port 3000 belongs to another app, so:
+  `NEXT_PUBLIC_APP_URL=http://localhost:3005 npx tsx scripts/verify-proposals-p8.ts`.
+
 ### v45 — Type-aware proposal documents: template layer, wizard, editable sections (Phase B of 3)
 
 Phase A gave employees a way to *request* a proposal by type; Phase B gives the admin the type-aware
@@ -1390,4 +1438,4 @@ team un-assign (`removeTeam`); `setDrawingApproval`/`assignTeam` now audited. **
 ### Verification scripts
 `npx tsx scripts/verify-sell.ts` · `verify-execute.ts` · `verify-control.ts` · `verify-amc.ts` ·
 `verify-pdf.ts` · `verify-leads-p0.ts` … `verify-leads-p8.ts` · `verify-proposals-p0.ts` …
-`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.
+`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.

@@ -42,7 +42,12 @@ export async function getProposal(ctx: Ctx, id: string) {
       order: { select: { id: true, orderNo: true } },
       versions: {
         orderBy: { versionNo: "desc" },
-        include: { boqItems: { orderBy: { category: "asc" } } },
+        // Ordered by id, NOT category. saveVersion deletes and recreates every BOQ row
+        // in the order the editor sent them, and Prisma's cuid() sorts lexicographically
+        // by creation time — so id-asc IS the order the admin typed. Sorting by category
+        // scrambled that: a BOQ Proposal's line sequence is the estimate's own running
+        // order and its printed S.No has to match what was entered.
+        include: { boqItems: { orderBy: { id: "asc" } } },
       },
       followUps: { orderBy: { datetime: "desc" } },
       documents: { orderBy: { createdAt: "desc" } },

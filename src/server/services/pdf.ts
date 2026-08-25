@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { renderDocPdf } from "@/lib/pdf";
 import { putObject } from "@/lib/storage";
+import { getCompanySettings } from "./company-settings";
 
 /**
  * Generate a real, durable PDF for a document and persist it (Phase 1).
@@ -23,6 +24,8 @@ export type PdfDocType = "invoice" | "proposal" | "closeout" | "po" | "payment-s
 interface Resolved {
   printPath: string;
   storageKey: string;
+  /** Set for multi-page documents that need a running header + "Page | N" footer. */
+  runningHeader?: string;
   /** Persist the durable URL back onto the source record, if it has a field. */
   persist?: (url: string) => Promise<void>;
 }
@@ -57,12 +60,17 @@ async function resolve(ctx: Ctx, docType: PdfDocType, docId: string): Promise<Re
     case "proposal": {
       const p = await prisma.proposal.findFirst({
         where: { id: docId, companyId: ctx.companyId },
-        select: { id: true, currentVersion: true },
+        select: { id: true, currentVersion: true, proposalType: true },
       });
       if (!p) throw new Error("Proposal not found");
+      // Only the two structured formats run to many pages and carry the client's
+      // running letterhead; the generic layout keeps the existing single-doc styling.
+      const structured = p.proposalType === "Project Proposal" || p.proposalType === "BOQ Proposal";
+      const company = structured ? await getCompanySettings(ctx.companyId) : null;
       return {
         printPath: `/print/proposal/${docId}`,
         storageKey: randomKey("proposal", `${docId}-v${p.currentVersion}`),
+        runningHeader: company?.name,
         persist: async (url) => {
           await prisma.proposalVersion.updateMany({
             where: { proposalId: p.id, versionNo: p.currentVersion },
@@ -119,10 +127,10 @@ export async function generatePdf(
   docId: string,
 ): Promise<{ url: string; bytes: number }> {
   requireAdmin(ctx);
-  const { printPath, storageKey, persist } = await resolve(ctx, docType, docId);
+  const { printPath, storageKey, persist, runningHeader } = await resolve(ctx, docType, docId);
 
   const bytes = await renderDocPdf(
-    { docType, docId, printPath },
+    { docType, docId, printPath, runningHeader },
     { userId: ctx.userId, role: ctx.role, companyId: ctx.companyId },
   );
 
