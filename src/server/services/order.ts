@@ -604,11 +604,23 @@ export async function addDrawing(
 ) {
   const title = data.title.trim();
   if (!title) throw new Error("A drawing title is required");
-  // A project-scoped drawing keeps the existing team-access rule. A standalone one
-  // (delivered against a request that names no project) has no team to check against,
-  // so the DRAWINGS capability is what authorises it.
+  // PRODUCING a drawing and CONSUMING one are different permissions. A draughtsman
+  // holds the DRAWINGS capability and serves every project without being on any
+  // project's team — so the capability authorises the upload on its own. Without
+  // this, delivering against a request that names a project 403s, which is the
+  // viewing gate wrongly applied to the producing path. Everyone else still needs
+  // to be on the team; admins hold every capability implicitly.
   if (orderId) {
-    await requireProjectAccess(ctx, orderId);
+    // requireProjectAccess returns early for an ADMIN and never checks the company,
+    // so tenant-check the order explicitly before either branch takes over.
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, companyId: ctx.companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!order) throw new AuthError("No access to this project", 403);
+    if (!hasCapability(ctx, CAPABILITIES.DRAWINGS)) {
+      await requireProjectAccess(ctx, orderId);
+    }
   } else if (!hasCapability(ctx, CAPABILITIES.DRAWINGS)) {
     throw new AuthError("You don't have permission to upload drawings", 403);
   }

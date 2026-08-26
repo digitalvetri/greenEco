@@ -214,6 +214,51 @@ async function main() {
     drawingIds.push(c2.drawing.id);
     check("a re-delivery of the same title continues the chain (Rev B, not a second Rev A)", c2.drawing.revision === "B");
 
+    // ---------- Delivering to a PROJECT the draughtsman is not on ----------
+    // The real shape of the job: a CAD draughtsman serves every project and is on no
+    // project's team. Every delivery above named an ENQUIRY (orderId === null), so
+    // this branch was never entered and the module shipped 403ing exactly this flow —
+    // the *viewing* gate applied to the *producing* path.
+    const foreignOrder = await prisma.order.findFirst({
+      where: {
+        companyId: admin.companyId,
+        deletedAt: null,
+        team: { none: { userId: employee.id } },
+      },
+      select: { id: true, orderNo: true },
+    });
+    if (!foreignOrder) {
+      console.log("  – skipped project-delivery check (employee is on every project in this DB)");
+    } else {
+      // Assert the premise, or the checks below could pass for the wrong reason.
+      const onTeam = await prisma.teamAssignment.findUnique({
+        where: { orderId_userId: { orderId: foreignOrder.id, userId: employee.id } },
+      });
+      check(`the draughtsman is NOT on ${foreignOrder.orderNo}'s team`, onTeam === null);
+
+      const projReq = await createDrawingRequest(A, {
+        title: `Foundation plan ${Date.now()}`,
+        discipline: "Civil",
+        orderId: foreignOrder.id,
+      });
+      requestIds.push(projReq.id);
+      check("a request can name a project", projReq.orderId === foreignOrder.id);
+
+      const pd = await deliverDrawing(E_YES, projReq.id, { fileUrl: "/secure/foundation-rev-a.dwg" });
+      drawingIds.push(pd.drawing.id);
+      check("the grant alone authorises delivering to a project he is not assigned to", pd.drawing.revision === "A");
+      check("…and the drawing lands ON that project", pd.drawing.orderId === foreignOrder.id);
+      check("…so it is visible in the project's own drawing list",
+        (await prisma.drawing.count({ where: { orderId: foreignOrder.id, id: pd.drawing.id } })) === 1);
+      check("…and its revision history opens for him too", (await drawingRevisions(E_YES, pd.drawing.id))?.length === 1);
+
+      // The paired negative: the grant is what authorises this, not merely being an employee.
+      await blocked("without the grant, an off-team employee still cannot upload to that project", () =>
+        deliverDrawing(E_NO, projReq.id, { fileUrl: "/secure/nope.dwg" }),
+      );
+      await blocked("…nor open its revision history", () => drawingRevisions(E_NO, pd.drawing.id));
+    }
+
     // ---------- Cancel / reopen ----------
     const cancelReq = await createDrawingRequest(E_YES, { title: "No longer needed", discipline: "Piping" });
     requestIds.push(cancelReq.id);

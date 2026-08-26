@@ -41,6 +41,39 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v49 — A draughtsman could not deliver a drawing to a project (the producing path used the viewing gate)
+
+Client: a specific employee should see the requested drawings, draw them, and upload them "to the
+respected project". The module already did all of that — **except the upload itself 403'd.**
+**Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 145 unit · `next build` clean ·
+`verify-drawings-p0` now 49 checks (+8) · `verify-won-routing` 31 green · failure reproduced on the
+un-fixed code before claiming the fix.**
+
+- **`deliverDrawing` → `addDrawing(ctx, req.orderId, …)` → `requireProjectAccess`.** A CAD
+  draughtsman holds the DRAWINGS capability and serves EVERY project without being on any project's
+  team, so a request naming a project threw `AuthError: No access to this project` on upload. That
+  is the *viewing* gate applied to the *producing* path, contradicting v47's own documented rule.
+  `addDrawing` now accepts the capability as authorisation for a project upload; everyone else still
+  needs team membership. It also **tenant-checks the order explicitly** — `requireProjectAccess`
+  returns early for an ADMIN and never checks `companyId`, so the previous code had no company check
+  on that branch at all.
+- **The failure was worst at the UI**: the requests list shows the Uploader to any capability holder,
+  so the file was written to storage and *then* the action threw — an orphaned upload, the class v47
+  fixed elsewhere.
+- **`drawingRevisions` had the same inconsistency**: `listDrawings` already shows a holder every
+  project's drawings, then the history button on those rows 403'd. Now scoped identically.
+- **Why it shipped**: `verify-drawings-p0`'s deliveries all named an *enquiry* (`orderId === null`),
+  so the branch was never entered — the test passed vacuously. The new block asserts the premise
+  first (**no `TeamAssignment` row** for that order), then delivers, then keeps the paired negative:
+  without the grant an off-team employee still cannot upload or read history. Verified by stashing
+  the two fixes and re-running — `AuthError: No access to this project`, as predicted.
+- **Second caller of `addDrawing` is loosened too, deliberately**: the project page's drawing widget
+  (`projects/actions.ts` `addDrawingAction`). A capability holder can now upload to any project from
+  the project page, not only via a request. That is the intent of the grant, not a side effect.
+- **No schema change, no migration.** Operator step only: grant **Drawings** to the user in
+  Settings → Users (create the login there first if they don't have one — `createUser` takes no
+  capabilities, so it's create, then edit and tick).
+
 ### v48 — Winning a proposal routes to the right module (AMC → contract, Service → job)
 
 Client: "the project should go to AMC section if we say it as Services it should go to Service module."

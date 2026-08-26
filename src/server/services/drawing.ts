@@ -541,11 +541,16 @@ export async function drawingRevisions(ctx: CapabilityCtx, drawingId: string) {
     select: { title: true, orderId: true },
   });
   if (!anchor) return null;
-  if (anchor.orderId) {
-    const { requireProjectAccess } = await import("@/lib/auth");
-    await requireProjectAccess(ctx, anchor.orderId);
-  } else {
-    requireDrawings(ctx);
+  // Scope mirrors listDrawings exactly: a holder already sees every drawing in the
+  // company, so gating the history on team membership left half the library's rows
+  // with a history button that 403s.
+  if (!hasCapability(ctx, CAPABILITIES.DRAWINGS)) {
+    if (anchor.orderId) {
+      const { requireProjectAccess } = await import("@/lib/auth");
+      await requireProjectAccess(ctx, anchor.orderId);
+    } else {
+      requireDrawings(ctx);
+    }
   }
   return prisma.drawing.findMany({
     where: {
