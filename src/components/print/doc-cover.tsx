@@ -61,7 +61,8 @@ export function DocCover({
 
       <div style={{ textAlign: "center", marginBottom: 36 }}>
         <div style={label}>Submitted To</div>
-        <div style={{ fontSize: 14, fontWeight: 700 }}>{customerName}</div>
+        {/* Their cover puts a comma after the name, with the address beneath it. */}
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{customerName},</div>
         {customerAddress && (
           <div style={{ fontSize: 12.5, whiteSpace: "pre-wrap", marginTop: 2 }}>{customerAddress}</div>
         )}
@@ -72,14 +73,14 @@ export function DocCover({
         <div style={label}>Submitted By</div>
         {/* eslint-disable-next-line @next/next/no-img-element -- rendered by headless Chromium into a PDF, not the Next image pipeline */}
         <img src="/brand/logo-mark.png" alt="" width={54} height={54} style={{ marginBottom: 6 }} />
-        <div style={{ fontSize: 14, fontWeight: 700, color: BRAND }}>{company.name}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: BRAND }}>{company.name},</div>
         {company.address && (
           <div style={{ fontSize: 12.5, whiteSpace: "pre-wrap", marginTop: 2 }}>{company.address}</div>
         )}
         {company.phone && <div style={{ fontSize: 12.5 }}>Mob: {company.phone}</div>}
         {company.email && <div style={{ fontSize: 12.5 }}>Email: {company.email}</div>}
         {company.branches.length > 0 && (
-          <div style={{ fontSize: 12.5, marginTop: 4 }}>Branch Office: {company.branches.join(", ")}.</div>
+          <div style={{ fontSize: 12.5, marginTop: 4 }}>Branch Office: {joinBranches(company.branches)}.</div>
         )}
       </div>
     </section>
@@ -117,4 +118,19 @@ export function DocSignature({
       <div>{signatoryTitle}</div>
     </div>
   );
+}
+
+/** "Bangalore, Chennai, Cochin & Hyderabad" — their cover ampersands the last one
+ *  rather than printing a fourth comma. */
+function joinBranches(branches: string[]): string {
+  if (branches.length <= 1) return branches.join("");
+  return `${branches.slice(0, -1).join(", ")} & ${branches[branches.length - 1]}`;
+}
+
+/** Ends a sentence with exactly one full stop — a site address that already ends in
+ *  one was producing "…at Vadavalli Post.." on the cover title. */
+export function endStop(text: string): string {
+  const t = (text ?? "").trim();
+  if (!t) return "";
+  return /[.!?]$/.test(t) ? t : `${t}.`;
 }

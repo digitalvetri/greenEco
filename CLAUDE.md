@@ -41,6 +41,40 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v55 — Cover and contents page reproduced line-for-line, once real company details existed
+
+The client filled in Settings → Company details, which made a further set of deltas visible for the
+first time: with the address, phone and branches populated, the cover could finally be diffed against
+theirs as a whole block. **Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 152 unit ·
+`next build` clean · p8 (94) · p10 (38) · p6/p7/p9 + won-routing + sell + followups + drawings +
+verify-pdf green · verified by loading THEIR company values into the local row, regenerating, and
+diffing the cover line by line — then restoring the row.**
+
+- **Diffed with their own data, the cover reduced to two differences**, both explainable: `Kind Attn`
+  (absent only because the test lead had no contact person) and the Greetings heading. Everything
+  else now matches character-for-character.
+- **Trailing commas** — their cover reads `Company Name,` and `Green Ecocare Private Limited,`.
+- **`joinBranches()`** — theirs ampersands the last branch: "Bangalore, Chennai, Cochin **&**
+  Hyderabad". A plain `join(", ")` printed a fourth comma.
+- **`tradingName()`** — their §2 heading is "Greetings from Green **Ecocare**", never "…Private
+  Limited". The cover and the running letterhead keep the registered name; only the greeting and the
+  sign-off drop the suffix, so the transform is applied there and nowhere else.
+- **`endStop()`** — a site address ending in a full stop produced "…at Vadavalli Post.**.**" in the
+  cover title. Now exactly one stop, whatever the address ends with.
+- **Cover title capacity prints bare** — theirs reads "Capacity 30000 liters per day" with no
+  thousands separator, even though §6.1 uses them. Both now match their respective places.
+- **Sub-headings take a trailing colon** (13 of them: 6.1–6.7, 8.1, 8.2, 10.1–10.3, 13.1), matching
+  the top-level ones done in v53.
+- **The contents page matches theirs**: entries numbered "1." with a period, §5 and §6 carry their
+  TOC's own generic labels ("Plant / Product Details", "Design of Plant / Product") which differ from
+  the body headings in their document too, and §15 uses its full name. Quotation lines are numbered
+  "1." likewise. **Page numbers in the TOC remain deliberately absent** — HTML→PDF cannot resolve
+  them, and their own contents page is wrong anyway (it lists Recent Projects on p.22 of a 16-page
+  document).
+- **Remaining differences are theirs, not ours**: their §8.2 line 10 reads "dosing pump" where the
+  template says "dosing pump & dosing tank", and their electrical-load line prints 8.2027 kW where we
+  round to 8.2 — the ≈ 8.5 kW supply figure, which is what actually matters, is identical.
+
 ### v54 — The last two gaps closed: clean cover page, and the address that was never printing
 
 The two items v53 could not close. **Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) ·

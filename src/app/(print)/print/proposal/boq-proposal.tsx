@@ -5,7 +5,7 @@ import {
   documentRefNo,
 } from "@/lib/project-report-boilerplate";
 import { DocSection, DocProse, docCell, docHeadCell, docP, avoidBreak } from "@/components/print/doc-primitives";
-import { DocCover, DocSignature } from "@/components/print/doc-cover";
+import { DocCover, DocSignature, endStop } from "@/components/print/doc-cover";
 import type { ProposalPrintData } from "./print-data";
 
 /**
@@ -44,7 +44,7 @@ export function BoqProposalDocument({ p, v, company }: ProposalPrintData) {
       <DocCover
         refNo={documentRefNo(p.number, p.proposalType, p.plantType)}
         date={p.createdAt}
-        title={`Proposal for the ${p.plantType} machineries estimate for ${p.projectName} at ${p.siteAddress}.`}
+        title={`Proposal for the ${p.plantType} machineries estimate for ${p.projectName} at ${endStop(p.siteAddress)}`}
         company={company}
         customerName={p.customerName}
         customerAddress={p.siteAddress}

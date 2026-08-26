@@ -21,7 +21,7 @@ import {
   pageBreak,
   BRAND,
 } from "@/components/print/doc-primitives";
-import { DocCover, DocSignature } from "@/components/print/doc-cover";
+import { DocCover, DocSignature, endStop } from "@/components/print/doc-cover";
 import type { ProposalPrintData } from "./print-data";
 
 /**
@@ -81,8 +81,8 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
     "Greetings",
     "Table of Contents",
     "Introduction",
-    `${plantName} — Plant Details`,
-    "Process Design of the Plant",
+    "Plant / Product Details",
+    "Design of Plant / Product",
     "Civil Design",
     "MEP Design",
     "Electrical Load Calculation",
@@ -91,7 +91,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
     "Warranty Details",
     "Scope of Work by Green Ecocare",
     "Scope of Work for the Client",
-    "Our Recent Completed Projects",
+    "Our Recent Completed Plants in the Projects",
   ];
 
   return (
@@ -99,7 +99,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
       <DocCover
         refNo={documentRefNo(p.number, p.proposalType, p.plantType)}
         date={p.createdAt}
-        title={`Proposal for the ${plantName} (Capacity ${lpd ? lpd.toLocaleString("en-IN") : "—"} liters per day) for ${p.projectName} at ${p.siteAddress}.`}
+        title={`Proposal for the ${plantName} (Capacity ${lpd || "—"} liters per day) for ${p.projectName} at ${endStop(p.siteAddress)}`}
         company={company}
         customerName={p.customerName}
         customerAddress={p.siteAddress}
@@ -109,7 +109,11 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
       {/* ---- Greetings / cover letter ---- */}
       {v?.coverLetter && (
         <section style={{ ...pageBreak, pageBreakAfter: "always" }}>
-          <h2 style={{ color: BRAND, fontSize: 16, marginBottom: 12 }}>Greetings from {company.name}</h2>
+          {/* Their heading uses the trading name, not the registered one:
+              "Greetings from Green Ecocare", never "…Private Limited". */}
+          <h2 style={{ color: BRAND, fontSize: 16, marginBottom: 12 }}>
+            Greetings from {tradingName(company.name)}
+          </h2>
           <DocProse text={v.coverLetter} />
           <DocSignature
             company={company}
@@ -139,7 +143,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
           <tbody>
             {sections.map((s, i) => (
               <tr key={s}>
-                <td style={{ ...docCell, width: 44, textAlign: "center" }}>{i + 1}</td>
+                <td style={{ ...docCell, width: 44, textAlign: "center" }}>{i + 1}.</td>
                 <td style={docCell}>{s}</td>
               </tr>
             ))}
@@ -162,7 +166,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
       <DocSection no={6} title="Process Design of the Plant">
         {(doc.capacityCalc?.people || capacity.designCapacityLPD > 0) && (
           <div style={avoidBreak}>
-            <div style={docH3}>6.1 Plant Capacity Calculation</div>
+            <div style={docH3}>6.1 Plant Capacity Calculation:</div>
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
               <tbody>
                 {doc.capacityCalc?.people ? (
@@ -187,12 +191,12 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
 
         {(doc.inletParameters?.length || doc.outletParameters?.length) && (
           <div style={{ ...avoidBreak, marginBottom: 10 }}>
-            <ParameterTable heading="6.2 The Expected Inlet Parameters" rows={doc.inletParameters ?? []} />
-            <ParameterTable heading="6.3 The Anticipated Final Water Quality" rows={doc.outletParameters ?? []} />
+            <ParameterTable heading="6.2 The Expected Inlet Parameters:" rows={doc.inletParameters ?? []} />
+            <ParameterTable heading="6.3 The Anticipated Final Water Quality:" rows={doc.outletParameters ?? []} />
           </div>
         )}
 
-        <div style={docH3}>6.4 Choosing the Process by Given Data</div>
+        <div style={docH3}>6.4 Choosing the Process by Given Data:</div>
         <p style={docP}>
           {plantName}s treat {p.plantType === "WTP" ? "raw water" : "domestic and industrial sewage"} to
           make it {p.plantType === "WTP" ? "fit for its intended use" : "reusable or safe for discharge"}.
@@ -229,7 +233,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
 
         {(doc.processUnits?.length ?? 0) > 0 && (
           <div>
-            <div style={docH3}>6.6 Details of Process</div>
+            <div style={docH3}>6.6 Details of Process:</div>
             {(doc.processUnits ?? []).map((u, i) => (
               <div key={i} style={{ marginBottom: 8 }}>
                 <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 2 }}>{u.unit}:</div>
@@ -241,7 +245,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
         {/* The AI "Technical Write-up" the editor exposes — printed, not orphaned. */}
         {v?.technicalText && (
           <div>
-            <div style={docH3}>6.7 Design Notes</div>
+            <div style={docH3}>6.7 Design Notes:</div>
             <DocProse text={v.technicalText} />
           </div>
         )}
@@ -257,7 +261,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
 
         {(doc.equipment?.length ?? 0) > 0 && (
           <div style={avoidBreak}>
-            <div style={docH3}>8.1 Machinery and Equipment used for the Plant</div>
+            <div style={docH3}>8.1 Machinery and Equipment used for the Plant:</div>
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
               <thead>
                 <tr>
@@ -283,7 +287,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
             table and no documentData.materialSpecs. Print that rather than nothing. */}
         {(doc.materialSpecs?.length ?? 0) === 0 && legacySpecs.length > 0 && (
           <div style={avoidBreak}>
-            <div style={docH3}>8.2 Specifications of the Equipment</div>
+            <div style={docH3}>8.2 Specifications of the Equipment:</div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
@@ -309,7 +313,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
 
         {(doc.materialSpecs?.length ?? 0) > 0 && (
           <div>
-            <div style={docH3}>8.2 Specifications of the Equipment</div>
+            <div style={docH3}>8.2 Specifications of the Equipment:</div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
@@ -404,7 +408,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
 
       {/* ---- 10. Financial proposal ---- */}
       <DocSection no={10} title="Financial Proposal" breakBefore>
-        <div style={docH3}>10.1 Quotation</div>
+        <div style={docH3}>10.1 Quotation:</div>
         <p style={docP}>
           The total project estimate envisages the price for the designing, detailed engineering,
           supply of all equipment, erection, commissioning, consumables for the stabilization test run
@@ -421,7 +425,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
           <tbody>
             {boq.map((b, i) => (
               <tr key={b.id}>
-                <td style={{ ...docCell, textAlign: "center" }}>{i + 1}</td>
+                <td style={{ ...docCell, textAlign: "center" }}>{i + 1}.</td>
                 <td style={docCell}>{b.item}</td>
                 <td style={num}>{formatDocRs(b.amount)}</td>
               </tr>
@@ -462,12 +466,12 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
           by the promoter. Packing and forwarding extra at actuals.
         </p>
 
-        <div style={docH3}>10.2 Taxes & Duties</div>
+        <div style={docH3}>10.2 Taxes & Duties:</div>
         <DocProse text={company.doc.taxesDuties} />
 
         {terms.length > 0 && (
           <>
-            <div style={docH3}>10.3 Payment Terms</div>
+            <div style={docH3}>10.3 Payment Terms:</div>
             <ul style={{ fontSize: 12.5, lineHeight: 1.6, paddingLeft: 18, listStyleType: "disc" }}>
               {terms.map((t, i) => (
                 <li key={i} style={{ marginBottom: 3 }}>
@@ -498,7 +502,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
             standard above rather than replacing it. */}
         {Object.keys(scope).length > 0 && (
           <div style={avoidBreak}>
-            <div style={docH3}>13.1 Scope for this Project</div>
+            <div style={docH3}>13.1 Scope for this Project:</div>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
                 {Object.entries(scope).map(([k, val]) => (
@@ -577,4 +581,13 @@ function plantLabel(plantType: string): string {
     WTP: "Water Treatment Plant",
   };
   return map[plantType] ?? plantType;
+}
+
+/** "Green Ecocare Private Limited" → "Green Ecocare". Their Greetings heading and
+ *  their "For GREEN ECOCARE," sign-off both drop the legal suffix; the cover and the
+ *  running letterhead keep it. */
+function tradingName(name: string): string {
+  return name
+    .replace(/[,.]?\s*\b(private limited|pvt\.? ?ltd\.?|limited|ltd\.?|llp|inc\.?)\b\.?$/i, "")
+    .trim();
 }
