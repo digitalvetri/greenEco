@@ -127,6 +127,15 @@ async function main() {
       amc.includes(settings.name),
     );
     check("…with page numbering", /Page \| 1/.test(amc));
+    // Same two-pass rule as the Project Report: the AMC cover is clean and unnumbered.
+    // `amc` is whitespace-squashed, so read the raw text for a line-level assertion.
+    const amcRaw = pdfText(amcPdf.url);
+    const amcFirstLine = amcRaw.split("\n").find((l) => l.trim().length > 0) ?? "";
+    check(
+      `the AMC cover carries no running letterhead either (opens: "${amcFirstLine.trim().slice(0, 30)}…")`,
+      !/Green Ecocare/.test(amcFirstLine),
+    );
+    check("…and the street address prints in Submitted By", /Kasthuri Nagar/.test(amc));
 
     // ================= Service Proforma =================
     const svcId = await make(`Service Print Co ${Date.now()}`, "Service Proposal");

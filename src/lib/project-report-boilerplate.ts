@@ -324,3 +324,15 @@ export function documentRefNo(
         : (plantType || "STP").toUpperCase();
   return `${org}/${kind}-QUOT/${year}-${seq}`;
 }
+
+/**
+ * The registered office address, exactly as it prints on every one of the client's
+ * own documents.
+ *
+ * A default rather than a required setting, for the same reason as every other
+ * `DEFAULT_DOC_*` constant: an unset field left the cover's *Submitted By* block
+ * printing the company name, phone and email but NO street address — on the first
+ * page a customer reads. Overridden the moment Settings → Company details is filled.
+ */
+export const DEFAULT_COMPANY_ADDRESS = `2/72, C1, Kasthuri Nagar, Kasthuri Nayakkan Palayam, Vadavalli Post,
+Coimbatore - 641041.`;

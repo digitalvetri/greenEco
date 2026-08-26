@@ -41,6 +41,42 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v54 — The last two gaps closed: clean cover page, and the address that was never printing
+
+The two items v53 could not close. **Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) ·
+152 unit · `next build` clean · `verify-proposals-p8` 94 checks (+6) · `verify-proposals-p10` 38
+(+2) · p6/p7/p9 + won-routing + sell + invoices-p0/p1 + **verify-pdf** green (the invoice/PO/closeout
+pipeline is on the same renderer) · every format re-rendered and inspected.**
+
+- **The cover is now rendered in its own pass.** Their proposals carry the letterhead and the page
+  numbering from the page AFTER the cover: the cover is clean and unnumbered, and the page following
+  it is "Page | 1". A single Chromium render can satisfy **neither** — `displayHeaderFooter` paints
+  into every page's top margin box with no per-page switch, and its page counter always starts at the
+  first physical page. (v53 tried a named `@page cover { margin-top: 0 }`; it does not suppress it.)
+  So: render the cover alone with no header/footer, render the body alone WITH them — its own page 1
+  is therefore the first numbered page, exactly as theirs — and concatenate. **Both passes reuse the
+  same loaded page**, so this costs one extra `pdf()` call, not a second browser launch or navigation.
+  `[data-doc-cover]` is the hook; the passes are switched with `addStyleTag`, so no route, template or
+  component needed a `part=` parameter.
+- **New dependency: `pdf-lib`** (pure JS, no native bindings, so the container image is unaffected;
+  `npm audit` findings are unchanged — all pre-existing, none from it). Used in exactly one place,
+  `concatPdfs` in `lib/pdf.ts`.
+- **Documents WITHOUT a cover are untouched**: the Service proforma, the generic layout, and the
+  invoice/PO/closeout PDFs all take the single-render path, which is byte-for-byte the previous code.
+  `verify-pdf` was run specifically to prove that.
+- **`Company.address` now has a real default**, like every other `DEFAULT_DOC_*` field. It was the one
+  setting with `?? ""`, so an unset value printed the *Submitted By* block with the company name,
+  phone and email but **no street address** — on the first page a customer reads. Note `||` rather
+  than `??`: the live row holds an **empty string**, which `??` passes straight through. Filling
+  Settings → Company details still overrides it.
+- **What is still Settings data, not code** — these print from the live row and differ from the
+  samples, so change them in Settings → Company details if they should match:
+  - Company **name** prints "Green Ecocare Pvt Ltd"; the samples say "Green Ecocare Private Limited".
+    Deliberately NOT changed here — the name appears on invoices, POs and every other document, so
+    it is a business-identity decision, not a formatting one.
+  - **Phone** prints "6304984052, 8122773433"; the samples show "0 8122773433 / 0 7200402560".
+  - **Branches** print "…Mangalore, Chennai"; the samples list "Bangalore, Chennai, Cochin & Hyderabad".
+
 ### v53 — Generated proposals matched line-by-line against the client's own PDFs
 
 Client: "the generated proposal should exactly match the given file `~/Downloads/STP`". Extracted all

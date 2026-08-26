@@ -140,6 +140,18 @@ async function main() {
     // ---- formatting the client's documents rely on ----
     check("section headings are numbered AND end with a colon", /\b4\. Introduction:/.test(T));
     contains(T, "GEC/STP-QUOT/", "cover: their own Ref. No format, not the internal number");
+
+    // ---- the cover is rendered in its own pass, so it carries no letterhead ----
+    // Their cover is clean and unnumbered, and the page after it is "Page | 1".
+    // A single Chromium render can satisfy neither; see the two-pass note in pdf.ts.
+    const coverPage = T.split(/Page \| 1/)[0];
+    const firstLine = T.split("\n").find((l) => l.trim().length > 0) ?? "";
+    check("the cover page carries NO running letterhead", !/Green Ecocare/.test(firstLine));
+    check("…it opens on the Ref. No, exactly as theirs does", /Ref\. No/.test(firstLine));
+    check("…and is not numbered", !/Page \|/.test(coverPage.split("Submitted By")[0]));
+    check("page numbering starts on the page AFTER the cover", /Page \| 1/.test(T));
+    contains(T, "Kasthuri Nagar", "cover: Submitted By prints the street address");
+    contains(T, "Coimbatore - 641041", "…through to the PIN code");
     check("cover dates with dots, not slashes", /Date:\s*\d{2}\.\d{2}\.\d{4}/.test(T));
     check("the cover does NOT print GSTIN (their proposal covers don't)", !/GSTIN/.test(T.slice(0, 1200)));
     check("§10.3 closes with Force Majeure", /FORCE MAJEURE/i.test(T));

@@ -29,7 +29,9 @@ export function DocCover({
   kindAttn?: string | null;
 }) {
   return (
-    <section style={{ ...pageBreak, pageBreakAfter: "always", minHeight: "23cm" }}>
+    // `data-doc-cover` is the hook the PDF renderer uses to render this page in a
+    // separate pass without the running letterhead — see lib/pdf.ts.
+    <section data-doc-cover style={{ ...pageBreak, pageBreakAfter: "always", minHeight: "23cm" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 40 }}>
         <span>
           <strong>Ref. No:</strong> {refNo}

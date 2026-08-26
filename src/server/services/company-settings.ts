@@ -73,7 +73,9 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     name: c?.name ?? "Green Ecocare Pvt Ltd",
     gstin: c?.gstin ?? env.companyGstin,
     stateCode: c?.stateCode ?? env.companyStateCode,
-    address: c?.address ?? "",
+    // `||` not `??`: the live row has this set to an EMPTY STRING, which `??` would
+    // happily pass through, leaving the proposal cover without a street address.
+    address: c?.address || B.DEFAULT_COMPANY_ADDRESS,
     logoUrl: c?.logoUrl ?? "",
     invoicePrefix: c?.invoicePrefix || env.invoicePrefix,
     orderPrefix: c?.orderPrefix || env.orderPrefix,
