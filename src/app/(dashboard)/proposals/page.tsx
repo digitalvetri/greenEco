@@ -65,6 +65,9 @@ export default async function ProposalsPage({
       aiGenerated: v?.aiGenerated ?? false,
       orderNo: p.order?.orderNo ?? null,
       expiry: p.expiry,
+      requestedBy: p.requestedBy
+        ? { name: p.requestedBy.name, at: p.requestedBy.at.toISOString() }
+        : null,
     };
   });
 

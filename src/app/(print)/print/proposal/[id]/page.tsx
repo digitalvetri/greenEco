@@ -6,6 +6,8 @@ import { PrintShell } from "@/components/print/print-shell";
 import { PrintActionButton } from "@/components/print/print-button";
 import { ProjectReportDocument } from "../project-report";
 import { BoqProposalDocument } from "../boq-proposal";
+import { AmcProposalDocument } from "../amc-proposal";
+import { ServiceProformaDocument } from "../service-proforma";
 import { GenericProposalDocument } from "../generic-proposal";
 import type { ProposalPrintData } from "../print-data";
 
@@ -86,21 +88,25 @@ export default async function ProposalPrint({
     company,
   };
 
-  // The Project Report and BOQ carry their own cover page with the full letterhead,
-  // so the generic branded header would duplicate it — those render bare.
-  const structured = p.proposalType === "Project Proposal" || p.proposalType === "BOQ Proposal";
-  if (structured) {
+  // Every format the client has supplied a sample for carries its OWN letterhead —
+  // a cover page (Project Report / BOQ / AMC) or its own header block (the Service
+  // proforma) — so the generic branded shell would duplicate it. Those render bare.
+  // Anything else (Others, or a proposal predating types) keeps the generic layout.
+  const Structured = {
+    "Project Proposal": ProjectReportDocument,
+    "BOQ Proposal": BoqProposalDocument,
+    "AMC Proposal": AmcProposalDocument,
+    "Service Proposal": ServiceProformaDocument,
+  }[p.proposalType ?? ""];
+
+  if (Structured) {
     return (
       <div data-print-shell>
         <style>{`@media print { .no-print { display: none !important; } @page { margin: 16mm 14mm; } }`}</style>
         <div className="no-print" style={{ marginBottom: 16, textAlign: "right" }}>
           <PrintActionButton />
         </div>
-        {p.proposalType === "Project Proposal" ? (
-          <ProjectReportDocument {...data} />
-        ) : (
-          <BoqProposalDocument {...data} />
-        )}
+        <Structured {...data} />
       </div>
     );
   }

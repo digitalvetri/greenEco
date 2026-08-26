@@ -41,6 +41,67 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v51 — The last two proposal formats: AMC Quotation + Service Proforma Invoice
+
+The client supplied the two sample documents v45/v46 deliberately refused to invent
+(`~/Downloads/AMC Quotation for STP & ETP.pdf`, `Proforma for Service Maintenance.pdf`). Both formats
+are now built, with an admin form sized to what each document actually needs. **Gate: tsc 0 ·
+lint 0 new (30 warnings, same as `main`) · 145 unit · `next build` clean · new `verify-proposals-p9`
+(26 checks, live DB) + `verify-proposals-p10` (36 checks against the REAL rendered PDFs) ·
+p6/p7/p8(76) + won-routing + followups-p0 + sell + drawings-p0 green · the AMC wizard driven
+end-to-end in the browser at 1440px + 390px, zero console errors.**
+
+- **The storage decision was proven against the sample's own arithmetic before any template was
+  written.** An AMC's four charge lines are ordinary `BOQItem` rows read as **qty = months, rate =
+  per-month charge**: ₹75,000 + ₹10,000 + ₹65,000 + ₹25,000 = ₹1,75,000/month × 12 → ₹21,00,000
+  subtotal → ₹3,78,000 GST → ₹24,78,000, and "Rupees Twenty Four Lakh Seventy Eight Thousand Only".
+  All five figures match the client's document exactly, so **no schema change and no migration**, and
+  v48's rule holds untouched: `ServiceContract.annualValue` still seeds from the PRE-GST subtotal, so
+  winning this AMC creates a ₹21,00,000 contract and not a 18%-inflated ₹24,78,000 one.
+- **~80% of the AMC document is READ FROM what already exists**, not re-authored: `PLANT_TYPE_ABOUT`
+  for the plant description, `PROJECT_REPORT_TEMPLATES[tech]` for the SBR six-stage write-up, the
+  units and the machinery list. A wording fix now lands in both documents. Only the per-site parts
+  (how many SBR tanks, how many pumps) are snapshotted into `documentData` and editable there.
+- **The Service Proforma shares nothing with the BOQ table, on purpose.** It **has a rate column**
+  (`S.No | Description | Quantity | Rate per Quantity | Total`) — the exact opposite of the BOQ
+  Proposal, where the rate column was deliberately removed. It also prints **GSTIN** in its own
+  letterhead (the Project Report cover does not), carries no cover page, and its "This rate is valid
+  for N days only" reads the proposal's own `validityDays` rather than the sample's hardcoded 45.
+- **Dual-plant AMC without widening the schema.** The sample covers an STP (1000 KLD) **and** an ETP
+  (100 KLD) on one contract with separate unit lists. `Proposal.plantType`/`capacityKLD` stay the
+  canonical pair every existing consumer reads; extra plants live in `amcProposalDataSchema.
+  additionalPlants`, so the title line and units section render both when filled and read exactly as
+  a single-plant document when not.
+- **The admin form now collects what the documents need.** The pricing step is type-aware: AMC shows
+  *Per month ₹ · Months · Total*, Service shows *Rate ₹ · Qty · Total*, and in both the amount is
+  **derived, never typed** — that is what keeps the printed table and the stored subtotal the same
+  numbers. AMC pre-fills the sample's four charge lines **with blank rates** (a seeded price would be
+  the fabricated ₹0 of v38), and changing the contract term rewrites the months column, so a 24-month
+  AMC can't print 12-month totals. `amcRatesValidityNote()` restates the term rather than hardcoding
+  "1 year".
+- **Bug found by RENDERING, not by types** — the reason p10 exists at all: the units list printed
+  "…SBR Tank, **SBR Treatment Process**, Filter Feed Tank". The technology write-up is one of the
+  template's process units, but it is a narrative block, not a piece of plant. Excluded in both the
+  seeder and the template's fallback, with a regression assertion.
+- **`verify-proposals-p8` updated, not silenced.** Its generic-fallback case rendered a *Service
+  Proposal*, which correctly stopped using the generic layout — retargeted to **"Others"**, the type
+  that genuinely has no format and, with pre-types proposals, is what that path still serves.
+- **Request trail on the proposals list** (the client's other ask): rows raised from a field request
+  now show "⤷ Requested by <name>", reading "not yet sent" while still DRAFT. Flattened in **both**
+  `page.tsx` and `/api/proposals` — the API feeds "Load more", so omitting it there would make the
+  trail vanish from row 51 onwards. The request→create→send→employee-sees-it flow itself is unchanged
+  (v44) and was re-verified: 65 checks green.
+- **Note on writing these checks**: `pdftotext -layout` interleaves multi-line table headers across
+  their columns, so "PER MONTH CHARGES" and "RUPEES TWENTY FOUR LAKH SEVENTY EIGHT THOUSAND" do not
+  survive as phrases even though the PDF is correct. Assert tokens, not phrases. Also assert the
+  running header against the **configured** company name — it is "Green Ecocare Pvt Ltd" in this DB,
+  not the sample's "Green Ecocare Private Limited".
+- ⚠️ **Operator note, unchanged from v46**: `Company.address` is still empty in the live DB, so the
+  proforma's letterhead prints the name, GSTIN and phone but **no street address**. Settings →
+  Company details. Data, not code.
+- **Running p10 needs a dev server** on `NEXT_PUBLIC_APP_URL` plus `pdftotext`:
+  `NEXT_PUBLIC_APP_URL=http://localhost:3007 npx tsx scripts/verify-proposals-p10.ts`.
+
 ### v50 — Two new modules: Proposal Requests (Operations) + Follow-ups (list + calendar)
 
 Client: "bring the proposal request as a separate module in the operation module" and "another one
@@ -1689,4 +1750,4 @@ team un-assign (`removeTeam`); `setDrawingApproval`/`assignTeam` now audited. **
 ### Verification scripts
 `npx tsx scripts/verify-sell.ts` · `verify-execute.ts` · `verify-control.ts` · `verify-amc.ts` ·
 `verify-pdf.ts` · `verify-leads-p0.ts` … `verify-leads-p8.ts` · `verify-proposals-p0.ts` …
-`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-drawings-p0.ts` · `verify-won-routing.ts` · `verify-followups-p0.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.
+`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-proposals-p9.ts` · `verify-proposals-p10.ts` · `verify-drawings-p0.ts` · `verify-won-routing.ts` · `verify-followups-p0.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.

@@ -2,8 +2,20 @@ import { projectReportTemplate, processUnitsFor } from "../project-report-templa
 import {
   DEFAULT_INLET_PARAMETERS,
   DEFAULT_OUTLET_PARAMETERS,
+  DEFAULT_AMC_NOTES,
+  amcRatesValidityNote,
 } from "../project-report-boilerplate";
-import type { ProposalDocumentData, ProjectReportData, BoqProposalData } from "./proposal-document";
+import type {
+  ProposalDocumentData,
+  ProjectReportData,
+  BoqProposalData,
+  AmcProposalData,
+} from "./proposal-document";
+import {
+  DEFAULT_AMC_TERM_MONTHS,
+  DEFAULT_AMC_FREQUENCY,
+  DEFAULT_AMC_VISITS_PER_YEAR,
+} from "./proposal-document";
 
 /**
  * Seed a new proposal's `documentData` from the per-technology template.
@@ -27,10 +39,52 @@ export function seedDocumentData(input: {
       return seedProjectReport(input);
     case "BOQ Proposal":
       return seedBoqProposal(input);
+    case "AMC Proposal":
+      return seedAmcProposal(input);
+    case "Service Proposal":
+      // The Proforma Invoice is entirely per-job: its table lines, its "To." block
+      // and its validity all come from the deal. Nothing to seed but the notes-free
+      // default; the wizard collects the rest.
+      return {};
     default:
-      // Service / AMC have no sample format yet — start empty rather than invent one.
       return {};
   }
+}
+
+/**
+ * An AMC Quotation is ~80% the same document as the Project Report — same plant
+ * description, same technology write-up, same units and machinery lists. Those are
+ * READ FROM the shared template rather than copied into a second source of truth,
+ * so a wording fix lands in both documents.
+ *
+ * `units` and `equipment` ARE snapshotted into documentData, because a real site's
+ * tank count and pump count differ from the generic template (the sample has 3 SBR
+ * tanks and 5 collection pumps) and the admin must be able to correct them without
+ * editing the shared template every other technology also uses.
+ */
+function seedAmcProposal(input: { technology: string }): AmcProposalData {
+  const tpl = projectReportTemplate(input.technology);
+  const base: AmcProposalData = {
+    termMonths: DEFAULT_AMC_TERM_MONTHS,
+    frequency: DEFAULT_AMC_FREQUENCY,
+    visitsPerYear: DEFAULT_AMC_VISITS_PER_YEAR,
+    notes: DEFAULT_AMC_NOTES,
+    ratesValidityNote: amcRatesValidityNote(DEFAULT_AMC_TERM_MONTHS),
+  };
+  // Same rule as the Project Report: no template for this technology (SAFF/DAF)
+  // means seed nothing rather than another technology's equipment list.
+  if (!tpl) return base;
+  return {
+    ...base,
+    // The technology's process write-up ("SBR Treatment Process") is one of the
+    // template's process units, but it is a NARRATIVE block, not a tank — it prints
+    // as its own section. Including it made the units list read "…SBR Tank, SBR
+    // Treatment Process, Filter Feed Tank", which is not a piece of plant.
+    units: processUnitsFor(input.technology)
+      .filter((u) => !/process$/i.test(u.unit))
+      .map((u) => u.unit),
+    equipment: tpl.equipment.map((e) => ({ name: e.name, qty: e.quantity })),
+  };
 }
 
 function seedProjectReport(input: {

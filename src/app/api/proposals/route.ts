@@ -26,6 +26,11 @@ export const GET = api(async (session, req) => {
         aiGenerated: v?.aiGenerated ?? false,
         orderNo: x.order?.orderNo ?? null,
         expiry: x.expiry,
+        // Flattened here as well as in page.tsx — this route feeds "Load more", so
+        // omitting it would make the trail vanish from row 51 onwards.
+        requestedBy: x.requestedBy
+          ? { name: x.requestedBy.name, at: x.requestedBy.at.toISOString() }
+          : null,
       };
     }),
     nextCursor,

@@ -63,10 +63,15 @@ async function resolve(ctx: Ctx, docType: PdfDocType, docId: string): Promise<Re
         select: { id: true, currentVersion: true, proposalType: true },
       });
       if (!p) throw new Error("Proposal not found");
-      // Only the two structured formats run to many pages and carry the client's
-      // running letterhead; the generic layout keeps the existing single-doc styling.
-      const structured = p.proposalType === "Project Proposal" || p.proposalType === "BOQ Proposal";
-      const company = structured ? await getCompanySettings(ctx.companyId) : null;
+      // Only the MULTI-PAGE formats carry the client's running letterhead and
+      // "Page | N" footer. The Service proforma is deliberately excluded even though
+      // it is a structured format: their sample is a single page with its own header
+      // block, so a running header would print a second letterhead on top of it.
+      const multiPage =
+        p.proposalType === "Project Proposal" ||
+        p.proposalType === "BOQ Proposal" ||
+        p.proposalType === "AMC Proposal";
+      const company = multiPage ? await getCompanySettings(ctx.companyId) : null;
       return {
         printPath: `/print/proposal/${docId}`,
         storageKey: randomKey("proposal", `${docId}-v${p.currentVersion}`),

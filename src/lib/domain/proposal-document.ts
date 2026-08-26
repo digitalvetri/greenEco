@@ -109,6 +109,39 @@ export const amcProposalDataSchema = z.object({
       exclusions: z.string().trim().max(2000).optional(),
     })
     .optional(),
+
+  // ── Fields the printed AMC Quotation needs (the client's own format) ──────
+  /**
+   * A second plant covered by the SAME contract. The sample quotes an STP (1000 KLD)
+   * AND an ETP (100 KLD) as one AMC, with its own unit list. `Proposal` holds one
+   * plantType/capacityKLD and that stays the canonical pair every existing consumer
+   * reads — the extra plants live here, so the title line and the units section
+   * render both when filled and read exactly as a single-plant document when not.
+   */
+  additionalPlants: z
+    .array(
+      z.object({
+        plantType: z.string().trim().max(60),
+        capacityValue: z.number().min(0).optional(),
+        capacityUnit: z.string().trim().max(20).optional(),
+        units: z.array(z.string().trim().max(200)).max(40).optional(),
+      }),
+    )
+    .max(4)
+    .optional(),
+  /** Treatment units of the PRIMARY plant (§A in the sample). Seeded from the
+   *  technology template, then editable — a real site's tank list varies. */
+  units: z.array(z.string().trim().max(200)).max(40).optional(),
+  /** "Machinery & Equipment's used" — name + how many. Seeded from the template. */
+  equipment: z
+    .array(z.object({ name: z.string().trim().max(200), qty: z.string().trim().max(40).optional() }))
+    .max(60)
+    .optional(),
+  /** The line under the charge table. The sample reads "The Above rates are for
+   *  1 year only." — it restates the term, so it is derived, not free-typed. */
+  ratesValidityNote: z.string().trim().max(400).optional(),
+  /** The sample's 11 numbered scope exclusions. Seeded from DEFAULT_AMC_NOTES. */
+  notes: z.string().trim().max(8000).optional(),
 });
 export type AmcProposalData = z.infer<typeof amcProposalDataSchema>;
 
@@ -122,6 +155,17 @@ export const serviceProposalDataSchema = z.object({
   /** Becomes the ticket's description. */
   jobDescription: z.string().trim().max(8000).optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
+
+  // ── Fields the printed Proforma Invoice needs ────────────────────────────
+  /**
+   * The "To." block. Defaults to the enquiry's own customer + address, so this is
+   * only filled when the bill-to differs from the site contact (the sample is
+   * addressed to a PWD section office, not to the plant).
+   */
+  addressedTo: z.string().trim().max(1000).optional(),
+  /** Overrides the "This rate is valid for N days only." line. Normally derived
+   *  from the proposal's own validityDays — never hardcode 45. */
+  declaration: z.string().trim().max(500).optional(),
 });
 export type ServiceProposalData = z.infer<typeof serviceProposalDataSchema>;
 

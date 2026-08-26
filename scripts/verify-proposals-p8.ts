@@ -210,8 +210,13 @@ async function main() {
     // two of the four types the client asked for. It was produced by refactoring the
     // old page into a pure component, so nothing had rendered it since; tsc being
     // clean is not evidence it runs.
-    const l3 = await mkLead(`P8 Service ${Date.now()}`, "MBBR");
-    const sv = await convertToProposal(A, l3, { proposalType: "Service Proposal" });
+    // NOTE: this used to use a Service Proposal, which was the right choice while
+    // Service had no format of its own. It now prints as the client's Proforma
+    // Invoice (covered by verify-proposals-p10), so the fallback is exercised with
+    // "Others" — the type that genuinely has no document format and, with
+    // pre-types proposals, is what this path actually still serves.
+    const l3 = await mkLead(`P8 Generic ${Date.now()}`, "MBBR");
+    const sv = await convertToProposal(A, l3, { proposalType: "Others" });
     proposalIds.push(sv.proposalId);
     await saveVersion(A, sv.proposalId, {
       technicalText: "Quarterly preventive maintenance of the installed plant.",
@@ -221,7 +226,7 @@ async function main() {
       ],
     });
 
-    console.log("\nRendering a Service Proposal (generic fallback) …");
+    console.log("\nRendering an 'Others' proposal (generic fallback) …");
     const svPdf = await generatePdf(A, "proposal", sv.proposalId);
     check(`generic layout renders a real PDF (${svPdf.bytes} bytes)`, svPdf.bytes > 20_000);
     const S = pdfText(svPdf.url);

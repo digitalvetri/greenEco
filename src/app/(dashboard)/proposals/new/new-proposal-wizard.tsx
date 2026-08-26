@@ -19,7 +19,11 @@ import {
   PROJECT_REPORT_TECHNOLOGIES,
   projectReportTemplate,
 } from "@/lib/project-report-templates";
-import { PROJECT_REPORT_COST_BUCKETS, PROJECT_REPORT_PLANT_TYPES } from "@/lib/project-report-boilerplate";
+import {
+  PROJECT_REPORT_COST_BUCKETS,
+  PROJECT_REPORT_PLANT_TYPES,
+  DEFAULT_AMC_CHARGE_LINES,
+} from "@/lib/project-report-boilerplate";
 import {
   computeCapacity,
   computeLoadTotals,
@@ -44,9 +48,26 @@ export interface WizardLead {
   existingTypes: string[];
 }
 
+/**
+ * One priced line.
+ *
+ * `amount` is what the Project Report and BOQ quote directly (a lump sum per line).
+ * The AMC and the Service proforma both quote a UNIT and a RATE instead — an AMC's
+ * table reads "per month × months", the proforma's reads "quantity × rate per
+ * quantity" — so for those two the amount is DERIVED and never typed, which is what
+ * keeps the printed table and the stored subtotal the same numbers.
+ */
 interface CostLine {
   item: string;
   amount: string;
+  qty?: string;
+  rate?: string;
+}
+
+/** The line's effective value, whichever way this proposal type is priced. */
+function lineAmount(l: CostLine, derived: boolean): number {
+  if (!derived) return Number(l.amount) || 0;
+  return (Number(l.qty) || 0) * (Number(l.rate) || 0);
 }
 
 const GST_RATE = 18;
@@ -123,12 +144,19 @@ export function NewProposalWizard({
     consumablesIncluded: "",
     exclusions: "",
   });
+  const [secondPlant, setSecondPlant] = useState({
+    plantType: "",
+    capacityValue: "",
+    capacityUnit: "KLD",
+  });
   const [service, setService] = useState({
     jobDescription: "",
     priority: "MEDIUM" as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   });
 
-  const subtotal = costLines.reduce((a, l) => a + (Number(l.amount) || 0), 0);
+  // AMC and Service price by unit × rate; everything else by a typed amount.
+  const derivedPricing = isAmc || isService;
+  const subtotal = costLines.reduce((a, l) => a + lineAmount(l, derivedPricing), 0);
   const gst = Math.round(subtotal * GST_RATE) / 100;
   const grand = subtotal + gst;
 
@@ -148,7 +176,19 @@ export function NewProposalWizard({
     setCostLines(
       next === "Project Proposal"
         ? PROJECT_REPORT_COST_BUCKETS.map((b) => ({ item: b, amount: "" }))
-        : [{ item: "", amount: "" }],
+        : next === "AMC Proposal"
+          ? // The four lines every AMC in the client's sample quotes, as editable
+            // defaults. Rates are deliberately blank — a per-month figure is per-deal,
+            // and seeding a number would fabricate a price (the v38 ₹0 lesson).
+            DEFAULT_AMC_CHARGE_LINES.map((l) => ({
+              item: l.description,
+              amount: "",
+              qty: String(DEFAULT_AMC_TERM_MONTHS),
+              rate: "",
+            }))
+          : next === "Service Proposal"
+            ? [{ item: "", amount: "", qty: "1", rate: "" }]
+            : [{ item: "", amount: "" }],
     );
   }
 
@@ -206,14 +246,31 @@ export function NewProposalWizard({
                   consumablesIncluded: amc.consumablesIncluded.trim() || undefined,
                   exclusions: amc.exclusions.trim() || undefined,
                 },
+                additionalPlants: secondPlant.plantType
+                  ? [
+                      {
+                        plantType: secondPlant.plantType,
+                        capacityValue: Number(secondPlant.capacityValue) || undefined,
+                        capacityUnit: secondPlant.capacityUnit.trim() || "KLD",
+                      },
+                    ]
+                  : undefined,
               }
             : undefined,
           service: isService
             ? { jobDescription: service.jobDescription.trim() || undefined, priority: service.priority }
             : undefined,
           costLines: costLines
-            .filter((l) => l.item.trim() && Number(l.amount) > 0)
-            .map((l) => ({ item: l.item.trim(), amount: Number(l.amount) })),
+            .filter((l) => l.item.trim() && lineAmount(l, derivedPricing) > 0)
+            .map((l) => ({
+              item: l.item.trim(),
+              amount: lineAmount(l, derivedPricing),
+              // Only sent for the unit-priced formats, so the printed AMC table can
+              // show "₹75,000 × 12 Month" and the proforma "2 Nos × ₹1,500".
+              ...(derivedPricing
+                ? { qty: Number(l.qty) || 1, rate: Number(l.rate) || 0, unit: isAmc ? "Month" : "No" }
+                : {}),
+            })),
         });
         toast(res.already ? "That proposal already existed — opening it." : "Proposal created.");
         router.push(`/proposals/${res.proposalId}`);
@@ -387,15 +444,22 @@ export function NewProposalWizard({
             ) : isAmc ? (
               <>
                 <p className="text-sm text-muted">
-                  These build the actual maintenance contract when the proposal is won — the term and
-                  visits per year generate its visit schedule.
+                  Prints as the AMC Quotation. These also build the actual maintenance contract when
+                  the proposal is won — the term and visits per year generate its visit schedule.
                 </p>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field label="Contract term" hint="Months">
                     <Input
                       type="number"
                       value={amc.termMonths}
-                      onChange={(e) => setAmc({ ...amc, termMonths: e.target.value })}
+                      onChange={(e) => {
+                        const months = e.target.value;
+                        setAmc({ ...amc, termMonths: months });
+                        // Every charge line is quoted per month FOR THE TERM, so the
+                        // months column follows the term. Leaving it at 12 while the
+                        // contract says 24 would print totals that don't match it.
+                        setCostLines((rows) => rows.map((r) => ({ ...r, qty: months })));
+                      }}
                     />
                   </Field>
                   <Field label="Visit frequency">
@@ -452,11 +516,58 @@ export function NewProposalWizard({
                     </Field>
                   ))}
                 </div>
+
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium">A second plant on the same contract</div>
+                      <div className="text-xs text-muted">
+                        Optional. Their sample AMC covers an STP and an ETP together — leave blank for
+                        a single-plant contract.
+                      </div>
+                    </div>
+                    {!secondPlant.plantType && (
+                      <Button variant="ghost" size="sm" onClick={() => setSecondPlant({ ...secondPlant, plantType: "ETP" })}>
+                        <Plus className="size-4" /> Add
+                      </Button>
+                    )}
+                  </div>
+                  {secondPlant.plantType && (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Field label="Plant type">
+                        <Select
+                          value={secondPlant.plantType}
+                          onChange={(e) => setSecondPlant({ ...secondPlant, plantType: e.target.value })}
+                        >
+                          {PLANT_TYPES.map((t) => (
+                            <option key={t} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label="Capacity">
+                        <Input
+                          type="number"
+                          value={secondPlant.capacityValue}
+                          onChange={(e) => setSecondPlant({ ...secondPlant, capacityValue: e.target.value })}
+                        />
+                      </Field>
+                      <Field label="Unit">
+                        <Input
+                          value={secondPlant.capacityUnit}
+                          onChange={(e) => setSecondPlant({ ...secondPlant, capacityUnit: e.target.value })}
+                        />
+                      </Field>
+                    </div>
+                  )}
+                </div>
               </>
             ) : isService ? (
               <>
                 <p className="text-sm text-muted">
-                  Winning this books the job in the Service module, carrying its quoted value.
+                  Prints as a one-page Proforma Invoice. Winning it books the job in the Service
+                  module, carrying its quoted value.
                 </p>
                 <Field label="What is the job?" hint="Becomes the service job's description.">
                   <Textarea
@@ -486,13 +597,13 @@ export function NewProposalWizard({
             ) : (
               <Field
                 label="Scope"
-                hint="What this covers. A dedicated document layout for this type is pending the client's sample format."
+                hint="What this covers. This type has no document format of its own, so it prints in the general proposal layout."
               >
                 <Textarea
                   className="min-h-32"
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
-                  placeholder="Describe the service / AMC scope…"
+                  placeholder="Describe what this proposal covers…"
                 />
               </Field>
             )}
@@ -511,7 +622,13 @@ export function NewProposalWizard({
               <THead>
                 <TR className="border-t-0">
                   <TH>{isProjectReport ? "Details" : "Description"}</TH>
-                  <TH className="text-right">Amount ₹</TH>
+                  {derivedPricing && (
+                    <>
+                      <TH className="text-right">{isAmc ? "Per month ₹" : "Rate ₹"}</TH>
+                      <TH className="text-center">{isAmc ? "Months" : "Qty"}</TH>
+                    </>
+                  )}
+                  <TH className="text-right">{derivedPricing ? "Total ₹" : "Amount ₹"}</TH>
                   <TH></TH>
                 </TR>
               </THead>
@@ -528,17 +645,53 @@ export function NewProposalWizard({
                         }
                       />
                     </TD>
-                    <TD className="text-right">
-                      <Input
-                        className="h-8 w-32 text-right"
-                        type="number"
-                        value={l.amount}
-                        aria-label={`Line ${i + 1} amount`}
-                        onChange={(e) =>
-                          setCostLines((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))
-                        }
-                      />
-                    </TD>
+                    {derivedPricing ? (
+                      <>
+                        <TD className="text-right">
+                          <Input
+                            className="h-8 w-28 text-right"
+                            type="number"
+                            value={l.rate ?? ""}
+                            aria-label={`Line ${i + 1} ${isAmc ? "per-month charge" : "rate"}`}
+                            onChange={(e) =>
+                              setCostLines((rows) =>
+                                rows.map((r, j) => (j === i ? { ...r, rate: e.target.value } : r)),
+                              )
+                            }
+                          />
+                        </TD>
+                        <TD className="text-center">
+                          <Input
+                            className="h-8 w-20 text-center"
+                            type="number"
+                            value={l.qty ?? ""}
+                            aria-label={`Line ${i + 1} ${isAmc ? "months" : "quantity"}`}
+                            onChange={(e) =>
+                              setCostLines((rows) =>
+                                rows.map((r, j) => (j === i ? { ...r, qty: e.target.value } : r)),
+                              )
+                            }
+                          />
+                        </TD>
+                        {/* Derived, never typed — so the printed table and the stored
+                            subtotal can't disagree. */}
+                        <TD className="text-right text-sm tabular-nums">
+                          {formatINR(lineAmount(l, true))}
+                        </TD>
+                      </>
+                    ) : (
+                      <TD className="text-right">
+                        <Input
+                          className="h-8 w-32 text-right"
+                          type="number"
+                          value={l.amount}
+                          aria-label={`Line ${i + 1} amount`}
+                          onChange={(e) =>
+                            setCostLines((rows) => rows.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))
+                          }
+                        />
+                      </TD>
+                    )}
                     <TD>
                       <button
                         aria-label="Remove line"
@@ -555,7 +708,14 @@ export function NewProposalWizard({
               variant="ghost"
               size="sm"
               className="mt-2"
-              onClick={() => setCostLines((rows) => [...rows, { item: "", amount: "" }])}
+              onClick={() =>
+                setCostLines((rows) => [
+                  ...rows,
+                  derivedPricing
+                    ? { item: "", amount: "", qty: isAmc ? amc.termMonths : "1", rate: "" }
+                    : { item: "", amount: "" },
+                ])
+              }
             >
               <Plus className="size-4" /> Add line
             </Button>
@@ -595,7 +755,7 @@ export function NewProposalWizard({
                 }
               />
             )}
-            <CalcRow label="Priced lines" value={String(costLines.filter((l) => Number(l.amount) > 0).length)} />
+            <CalcRow label="Priced lines" value={String(costLines.filter((l) => lineAmount(l, derivedPricing) > 0).length)} />
             <CalcRow label="Total with GST" value={formatINR(grand)} bold />
             <p className="pt-2 text-xs text-muted">
               The proposal is created as a draft. It stays inside the office until you approve and send

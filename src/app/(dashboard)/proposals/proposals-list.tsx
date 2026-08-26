@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Loader2, Sparkles, AlertTriangle, Clock, FileText } from "lucide-react";
+import { Loader2, Sparkles, AlertTriangle, Clock, FileText, CornerDownRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -23,6 +23,9 @@ export interface ProposalRow {
   aiGenerated: boolean;
   orderNo: string | null;
   expiry: ProposalExpiry;
+  /** Set when this proposal was raised from a field request, so the office can see
+   *  where it came from and the requester can watch theirs move to SENT. */
+  requestedBy: { name: string; at: string } | null;
 }
 
 function variant(s: string) {
@@ -109,6 +112,18 @@ export function ProposalsList({
             <div className="text-xs text-muted">
               {p.plantType} · {p.technology} · {p.capacityKLD} KLD
             </div>
+            {p.requestedBy && (
+              <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
+                <CornerDownRight className="size-3 shrink-0" aria-hidden />
+                Requested by {p.requestedBy.name} ·{" "}
+                {p.status === "DRAFT"
+                  ? "not yet sent"
+                  : new Date(p.requestedBy.at).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+              </div>
+            )}
           </Link>
           <div className="shrink-0 text-right">
             {p.grandTotal && <div className="font-semibold tabular-nums">{formatINR(p.grandTotal)}</div>}

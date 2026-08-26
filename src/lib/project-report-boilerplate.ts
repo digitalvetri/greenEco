@@ -230,3 +230,60 @@ export function resolvePointsToNote(
 function normalise(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
+
+// ---------------------------------------------------------------------------
+// AMC Quotation boilerplate (the client's "AMC Quotation for STP & ETP" format)
+// ---------------------------------------------------------------------------
+//
+// Deliberately constants rather than 14 more `Company.doc*` columns: these seed a
+// new AMC's own `documentData` at creation and are then editable per proposal,
+// because an AMC's exclusions genuinely vary by site (who disposes the sludge, who
+// pays the electricity). A company-level copy would have to be overridden on most
+// deals anyway. Same reasoning as the per-technology template blocks.
+
+/** The sample's 11 numbered scope notes, verbatim. */
+export const DEFAULT_AMC_NOTES = `1. All spares cost included in this offer.
+2. All chemicals and consumables included in this offer.
+3. The treated water disposal arrangements have to be properly done by the customer.
+4. The customer has to arrange for solid waste disposal which is collected in the inlet of the STP.
+5. Lighting in and around the STP is not our scope.
+6. Cleaning of bushes in and around the STP is not our scope.
+7. Any maintenance related to civil structures and infrastructure is not our scope.
+8. The electricity bills are not our scope.
+9. The customer has to bear all Pollution Control Board charges, if any.
+10. Tank cleaning charges and sludge drying bed cleaning charges are customer scope.
+11. If any new equipment or machinery is to be added to the STP as per the Pollution
+    Control Board's recommendation, it will be customer scope.`;
+
+/**
+ * The four charge lines every AMC in the sample quotes, as editable defaults.
+ *
+ * They carry NO rate — a per-month figure is per-deal, and a fabricated one is the
+ * ₹0 mistake rejected in v38. The admin fills the rate; qty is the contract's own
+ * month count, so the printed "per month × months = per year" table and the stored
+ * subtotal are the same numbers.
+ */
+export const DEFAULT_AMC_CHARGE_LINES: { description: string }[] = [
+  {
+    description:
+      "Operating cost for the operators (per shift one operator, 3 shifts per day, so 3 operators per day)",
+  },
+  { description: "Consumables required to run the plant smoothly" },
+  {
+    description:
+      "Machinery and equipment maintenance with required spares and fittings, including fixing labour charges",
+  },
+  {
+    description:
+      "Monthly one visit by an engineer, who will evaluate the plant and report on its status. Raw and treated water testing with a report for the STP/ETP.",
+  },
+];
+
+/** The line printed under the charge table. Restates the term rather than
+ *  hardcoding "1 year", so a 24-month AMC doesn't print a false statement. */
+export function amcRatesValidityNote(termMonths: number | null | undefined): string {
+  const m = termMonths && termMonths > 0 ? termMonths : 12;
+  if (m === 12) return "The above rates are for 1 year only.";
+  if (m % 12 === 0) return `The above rates are for ${m / 12} years only.`;
+  return `The above rates are for ${m} months only.`;
+}

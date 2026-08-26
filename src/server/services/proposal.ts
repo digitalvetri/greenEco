@@ -1101,17 +1101,42 @@ export async function listProposals(ctx: Ctx, filters: ProposalFilters = {}) {
     include: {
       versions: { orderBy: { versionNo: "desc" }, take: 1 },
       order: { select: { id: true, orderNo: true } },
+      // The originating field request, so the list can show where a proposal came
+      // from. `requests` is a list only because the relation is one-to-many on the
+      // schema; a request is claimed by exactly one proposal, so take the earliest.
+      requests: {
+        select: { id: true, requestedById: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
     },
     orderBy: { createdAt: "desc" },
     take: computedView ? 300 : take + 1,
     ...(filters.cursor && !computedView ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
   });
 
+  // Resolve requester names in one query rather than per row.
+  const requesterIds = Array.from(
+    new Set(rows.flatMap((r) => r.requests.map((q) => q.requestedById))),
+  );
+  const requesters =
+    requesterIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: requesterIds }, companyId: ctx.companyId },
+          select: { id: true, name: true },
+        })
+      : [];
+  const requesterName = new Map(requesters.map((u) => [u.id, u.name]));
+
   const withExpiry = stripPricing(rows, ctx.role).map((p) => {
     const v = p.versions[0];
+    const req = p.requests[0];
     return {
       ...p,
       expiry: v ? proposalExpiry({ status: p.status, versionCreatedAt: v.createdAt, validityDays: v.validityDays }) : null,
+      requestedBy: req
+        ? { name: requesterName.get(req.requestedById) ?? "A colleague", at: req.createdAt }
+        : null,
     };
   });
 

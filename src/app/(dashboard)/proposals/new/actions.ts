@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { convertToProposal } from "@/server/services/lead";
 import { saveVersion } from "@/server/services/proposal";
 import type { CapacityCalc } from "@/lib/domain/proposal-document";
+import { amcRatesValidityNote } from "@/lib/project-report-boilerplate";
 
 export interface WizardInput {
   leadId: string;
@@ -21,10 +22,13 @@ export interface WizardInput {
     frequency?: "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "YEARLY";
     visitsPerYear?: number;
     scope?: Record<string, string | undefined>;
+    /** A second plant covered by the same contract (the sample AMC quotes an STP
+     *  and an ETP together). Optional — absent reads as a single-plant document. */
+    additionalPlants?: { plantType: string; capacityValue?: number; capacityUnit?: string }[];
   };
   /** Service job details — these build the ServiceTicket when the proposal is won. */
   service?: { jobDescription?: string; priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" };
-  costLines: { item: string; amount: number }[];
+  costLines: { item: string; amount: number; qty?: number; rate?: number; unit?: string }[];
 }
 
 /**
@@ -57,15 +61,17 @@ export async function createProposalFromWizardAction(input: WizardInput) {
     const isProjectReport = input.proposalType === "Project Proposal";
     await saveVersion(session, res.proposalId, {
       boqItems: input.costLines.map((l) => ({
-        // The Project Report prices four rolled-up buckets; a BOQ prices many lines.
-        // Both are BOQItem rows — only the print template groups them differently —
-        // so subtotal/GST/grandTotal and the Won→Order milestone derivation are
-        // completely untouched by the proposal type.
+        // The Project Report prices four rolled-up buckets, a BOQ prices many lines,
+        // an AMC prices per-month × months, the Service proforma quantity × rate.
+        // ALL FOUR are ordinary BOQItem rows — only the print template reads them
+        // differently — so subtotal/GST/grandTotal and the Won→Order milestone
+        // derivation stay completely untouched by the proposal type.
         category: "Others",
         item: l.item,
-        unit: "Lot",
-        qty: 1,
-        rate: l.amount,
+        unit: l.unit ?? "Lot",
+        qty: l.qty ?? 1,
+        // rate × qty must equal amount, or the printed table contradicts the total.
+        rate: l.rate ?? l.amount,
         amount: l.amount,
         aiSuggested: false,
       })),
@@ -75,6 +81,9 @@ export async function createProposalFromWizardAction(input: WizardInput) {
         // Each type's own fields. saveVersion validates against THIS proposal's schema
         // and strips anything foreign, so sending the wrong shape can't corrupt it.
         ...(input.amc ?? {}),
+        // The line under the AMC charge table restates the term, so it is derived
+        // rather than typed — a 24-month AMC must not print "for 1 year only".
+        ...(input.amc ? { ratesValidityNote: amcRatesValidityNote(input.amc.termMonths) } : {}),
         ...(input.service ?? {}),
       },
     });
