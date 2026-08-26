@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/toast";
 import { PROPOSAL_TYPES, PROPOSAL_TYPE_HINTS, TECHNOLOGY_ONE_LINERS } from "@/lib/constants";
 import { PROJECT_REPORT_TECHNOLOGIES } from "@/lib/project-report-templates";
 import { convertLeadAction } from "../actions";
-import { createProposalRequestAction } from "../../proposals/requests/actions";
+import { createProposalRequestAction } from "../../proposal-requests/actions";
 
 /**
  * The quote entry point on a lead, which is now role-split:

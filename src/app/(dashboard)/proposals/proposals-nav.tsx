@@ -2,26 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Inbox, BarChart3 } from "lucide-react";
+import { FileText, BarChart3 } from "lucide-react";
 
 /**
- * Sub-nav for the Proposals sections, copying the Materials sub-nav pattern.
+ * Sub-nav for the Proposals sections.
  *
- * **Requests is `adminOnly: false` on purpose.** It is the FIELD-STAFF entry point —
- * the whole reason it exists is that an employee can ask the office for a quote.
- * Hiding it from employees would reproduce the exact v27 bug where the material
- * request flow was unreachable for the only people meant to use it.
+ * **Requests is deliberately NOT here.** It moved to its own top-level Operations
+ * module at /proposal-requests, because it is the field-staff → office handoff and
+ * not a view of the proposal list. It stays reachable to EVERY role there — hiding
+ * it from employees would reproduce the v27 bug where the material request flow was
+ * unreachable for the only people meant to use it.
  *
  * Role-filtering here is navigation only; the security boundary stays in the
- * service layer (`requireAdmin` on review, ownership scoping on the list).
+ * service layer.
  */
 const SECTIONS = [
   { href: "/proposals", label: "Proposals", icon: FileText, adminOnly: false },
-  { href: "/proposals/requests", label: "Requests", icon: Inbox, adminOnly: false },
   { href: "/proposals/analytics", label: "Analytics", icon: BarChart3, adminOnly: false },
 ] as const;
 
-export function ProposalsNav({ isAdmin, requestCount }: { isAdmin: boolean; requestCount?: number }) {
+export function ProposalsNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -44,16 +44,6 @@ export function ProposalsNav({ isAdmin, requestCount }: { isAdmin: boolean; requ
           >
             <Icon className="size-4" />
             {s.label}
-            {s.label === "Requests" && requestCount ? (
-              <span
-                className={
-                  "ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold " +
-                  (active ? "bg-white/20" : "bg-warn/15 text-warn")
-                }
-              >
-                {requestCount}
-              </span>
-            ) : null}
           </Link>
         );
       })}

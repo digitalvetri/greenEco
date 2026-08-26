@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { CalendarEvent } from "@/server/services/calendar";
 import { eventColor } from "./event-colors";
-import { completeFollowUpAction, rescheduleFollowUpAction } from "@/app/(dashboard)/calendar/actions";
+import { completeFollowUpAction, rescheduleFollowUpAction } from "@/app/(dashboard)/follow-ups/actions";
 
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-IN", {

@@ -105,7 +105,7 @@ export async function createProposalRequest(ctx: Ctx, input: CreateProposalReque
     type: "PROPOSAL_REQUESTED",
     title: `${data.proposalType} requested — ${lead.customerName}`,
     entityId: req.id,
-    href: `/proposals/requests`,
+    href: `/proposal-requests`,
   });
 
   return req;
@@ -283,7 +283,7 @@ export async function reviewProposalRequest(
       entity: "ProposalRequest",
       entityId: id,
       assigneeId: req.requestedById,
-      href: "/proposals/requests",
+      href: "/proposal-requests",
     }).catch(() => {});
   }
 

@@ -55,10 +55,14 @@ export function CalendarView({
   // ── URL navigation ────────────────────────────────────────────────────────
   const push = useCallback(
     (overrides: Record<string, string>) => {
+      // `view` in the URL belongs to the Follow-ups module's List|Calendar switch;
+      // the month/week/day choice rides on `calView` so the two can't clobber each
+      // other (picking "Week" here must not drop you back into the list).
       const params = new URLSearchParams({
+        view: "calendar",
         year: String(year),
         month: String(month),
-        view,
+        calView: view,
         ...(filters.type ? { type: filters.type } : {}),
         ...(filters.owner ? { owner: filters.owner } : {}),
         ...(filters.status ? { status: filters.status } : {}),
@@ -88,7 +92,7 @@ export function CalendarView({
     });
   }
   function setView(v: View) {
-    push({ view: v });
+    push({ calView: v });
   }
   function setFilter(key: string, value: string) {
     push({ [key]: value });

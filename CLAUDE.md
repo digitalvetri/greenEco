@@ -41,6 +41,62 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v50 — Two new modules: Proposal Requests (Operations) + Follow-ups (list + calendar)
+
+Client: "bring the proposal request as a separate module in the operation module" and "another one
+module where i can handle the follow ups". **Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) ·
+145 unit · `next build` clean · new `verify-followups-p0` (21 checks, live DB, rows cleaned up) ·
+verify-leads-p0/p2/p5/p7 + proposals-p6 (65) + drawings-p0 (49) green · browser-driven in BOTH roles
+at 1440px + 390px, plus a real reschedule→complete loop against a throwaway lead, zero console
+errors.**
+
+- **Proposal Requests is now its own Operations module** at `/proposal-requests`, not a Proposals
+  sub-tab. `/proposals/requests` **redirects** rather than 404s, because notification deep-links
+  written into `AutomationTask` rows before the move still point at the old path. The Proposals
+  sub-nav is down to Proposals | Analytics, and `/proposals` no longer runs the pending-count query
+  it was only using for that tab's badge. Access rules untouched.
+- **Follow-ups: BOTH pages already existed and NEITHER was in the sidebar.** `/follow-ups` (a
+  read-only bucket list) and `/calendar` (month/week/day, with working complete + reschedule) were
+  built and never mounted — no link anywhere in the app reached them. Same class as the v27 material
+  requests bug. They are now one module: `/follow-ups` with a **List | Calendar** switch over one
+  service, filters carrying across the two views, and `/calendar` redirecting in.
+- **Three real defects fixed, found by reading rather than reported:**
+  1. **Every proposal follow-up was invisible.** `addProposalFollowUp` writes `proposalId` and NO
+     `leadId`, but both queries filtered on `lead: {...}` — a required relation — so they were
+     silently dropped from the list AND the calendar. The calendar even carried a
+     `f.proposal?.projectName` title fallback that could never execute. `followUpScope` now covers
+     both anchors. **The office-only rule (v44) is applied to the proposal side**, so an employee
+     still cannot see activity on a DRAFT the admin hasn't released — asserted both ways.
+  2. **They couldn't be completed either.** `completeFollowUp`/`rescheduleFollowUp` opened with
+     `fu.lead?.companyId !== ctx.companyId`, which throws "Not found" whenever `lead` is null. Both
+     now load through `loadActionable`, which reuses `followUpScope` — so the write rule cannot drift
+     from the read rule that surfaced the row.
+  3. **A completed follow-up stayed overdue forever.** `upcomingFollowUps` ignored `completedAt`.
+- **One definition, not two.** `upcomingFollowUps` (in `lead.ts`) is **deleted**, not left alongside:
+  it was a second worklist that disagreed with the calendar's on both scope and completion. Both
+  views now read `listFollowUpWorklist` / `listCalendarEvents`, which share `followUpScope`,
+  `taskScope` and the event mappers. The v21 "four receivables definitions" lesson.
+  ⚠️ The two views' **defaults** differ on purpose: a calendar with no status filter shows the whole
+  window including what's done (it's a record of the month); a worklist with no filter means "what do
+  I still owe", so completed items drop out. `passesWorklistStatus` encodes exactly that, and the
+  filter reads **"Still open"**, not "All".
+- **Auto-tasks are in the worklist too**, marked ⚙, closable via the pre-existing
+  `markNotificationRead`/`dismissNotification` — reused rather than reimplemented, so a task can't be
+  closable here but not from the notification bell.
+- **A URL-param collision I introduced and caught in the browser**: `CalendarView` pushes `view` for
+  month/week/day, which is now the module's List|Calendar param — clicking "Week" would have dropped
+  the user back to the list. The calendar's own choice moved to `calView`. Verified by clicking it.
+  (Note for future browser checks: those buttons render lowercase text with CSS `capitalize`, so the
+  accessible name is `"week"`, not `"Week"` — an `exact: true` match on the visible casing times out.)
+- **Mobile bottom bar holds 5**, so adding Follow-ups would have silently pushed **Erection** off the
+  end. Proposals gives up its slot instead: drafting a proposal is office work, while logging erection
+  entries is the field job the bottom bar exists for. Now: Dashboard · Follow-ups · Leads · Projects ·
+  Erection.
+- **No schema change, no migration.** Both modules run on existing models.
+- **Not built** (flagged, not silently skipped): follow-ups on projects / service tickets / AMC visits
+  — `FollowUp` only links to a lead or a proposal, and those modules have their own scheduling.
+  Unifying them is a separate scope.
+
 ### v49 — A draughtsman could not deliver a drawing to a project (the producing path used the viewing gate)
 
 Client: a specific employee should see the requested drawings, draw them, and upload them "to the
@@ -1633,4 +1689,4 @@ team un-assign (`removeTeam`); `setDrawingApproval`/`assignTeam` now audited. **
 ### Verification scripts
 `npx tsx scripts/verify-sell.ts` · `verify-execute.ts` · `verify-control.ts` · `verify-amc.ts` ·
 `verify-pdf.ts` · `verify-leads-p0.ts` … `verify-leads-p8.ts` · `verify-proposals-p0.ts` …
-`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-drawings-p0.ts` · `verify-won-routing.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.
+`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-drawings-p0.ts` · `verify-won-routing.ts` · `verify-followups-p0.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.

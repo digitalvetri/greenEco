@@ -496,65 +496,14 @@ export async function searchExistingCustomers(ctx: Ctx, query: string): Promise<
   return out;
 }
 
-export type FollowUpBucket = "overdue" | "today" | "upcoming";
-export type UpcomingFollowUp = {
-  id: string;
-  nextDate: string;
-  type: string;
-  notes: string;
-  leadId: string | null;
-  leadName: string;
-  leadPhone: string | null;
-  leadStatus: string;
-  ownerName: string;
-  bucket: FollowUpBucket;
-};
-
 /**
- * The scheduled next-actions across all open leads (the "Follow-ups" worklist the
- * Dashboard calendar links to). RBAC-scoped: EMPLOYEE sees only follow-ups on
- * leads they own or created. Each row carries its lead so the UI can deep-link.
+ * `upcomingFollowUps` lived here and is gone: it was a SECOND definition of the
+ * follow-up worklist that disagreed with the calendar's — it ignored `completedAt`
+ * (so a completed follow-up showed as overdue forever) and required a `lead`
+ * relation, dropping every proposal follow-up. Both views now read
+ * `listFollowUpWorklist` / `listCalendarEvents` in services/calendar.ts, which share
+ * one scope. Do not reintroduce a per-page variant here.
  */
-export async function upcomingFollowUps(ctx: Ctx): Promise<UpcomingFollowUp[]> {
-  const leadWhere: Prisma.LeadWhereInput = {
-    companyId: ctx.companyId,
-    deletedAt: null,
-    status: { in: OPEN_STATUSES },
-  };
-  if (ctx.role !== "ADMIN") {
-    leadWhere.OR = [{ assignedToId: ctx.userId }, { createdById: ctx.userId }];
-  }
-
-  const rows = await prisma.followUp.findMany({
-    where: { nextDate: { not: null }, lead: leadWhere },
-    include: { lead: { select: { id: true, customerName: true, phone: true, status: true, assignedToId: true } } },
-    orderBy: { nextDate: "asc" },
-    take: 200,
-  });
-
-  const names = await userNameMap(ctx.companyId);
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
-
-  return rows.map((f) => {
-    const when = f.nextDate!;
-    const bucket: FollowUpBucket = when < dayStart ? "overdue" : when < dayEnd ? "today" : "upcoming";
-    return {
-      id: f.id,
-      nextDate: when.toISOString(),
-      type: f.type,
-      notes: f.notes,
-      leadId: f.leadId,
-      leadName: f.lead?.customerName ?? "Lead",
-      leadPhone: f.lead?.phone ?? null,
-      leadStatus: f.lead?.status ?? "",
-      ownerName: f.lead ? names.get(f.lead.assignedToId) ?? "Unassigned" : "Unassigned",
-      bucket,
-    };
-  });
-}
 
 export async function getLead(ctx: Ctx, id: string) {
   const lead = await prisma.lead.findFirst({

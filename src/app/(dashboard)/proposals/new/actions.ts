@@ -81,7 +81,7 @@ export async function createProposalFromWizardAction(input: WizardInput) {
   }
 
   revalidatePath("/proposals");
-  revalidatePath("/proposals/requests");
+  revalidatePath("/proposal-requests");
   revalidatePath(`/leads/${input.leadId}`);
   return res;
 }

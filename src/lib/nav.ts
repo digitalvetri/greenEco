@@ -17,6 +17,7 @@ export type IconName =
   | "materials"
   | "erection"
   | "drawings"
+  | "requests"
   | "invoices"
   | "reports"
   | "settings";
@@ -32,14 +33,16 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard", mobile: true },
+  { href: "/follow-ups", label: "Follow-ups", icon: "followups", mobile: true },
   { href: "/leads", label: "Leads", icon: "leads", mobile: true },
-  { href: "/proposals", label: "Proposals", icon: "proposals", mobile: true },
+  { href: "/proposals", label: "Proposals", icon: "proposals" },
   { href: "/projects", label: "Projects", icon: "projects", mobile: true },
   { href: "/service", label: "Service / AMC", icon: "service" },
   { href: "/clients", label: "Clients", icon: "clients" },
   { href: "/materials", label: "Materials", icon: "materials" },
   { href: "/erection", label: "Erection", icon: "erection", mobile: true },
   { href: "/drawings", label: "Drawings", icon: "drawings" },
+  { href: "/proposal-requests", label: "Proposal Requests", icon: "requests" },
   { href: "/invoices", label: "Invoices", icon: "invoices", adminOnly: true },
   { href: "/reports", label: "Reports", icon: "reports", adminOnly: true },
   { href: "/settings", label: "Settings", icon: "settings", adminOnly: true },
@@ -50,9 +53,9 @@ export const NAV_ITEMS: NavItem[] = [
  * role-filtered nav (EMPLOYEE has no Finance/System) collapses cleanly.
  */
 export const NAV_SECTIONS: { label: string | null; hrefs: string[] }[] = [
-  { label: null, hrefs: ["/dashboard"] },
+  { label: null, hrefs: ["/dashboard", "/follow-ups"] },
   { label: "Sales", hrefs: ["/leads", "/proposals", "/clients"] },
-  { label: "Operations", hrefs: ["/projects", "/service", "/materials", "/erection", "/drawings"] },
+  { label: "Operations", hrefs: ["/projects", "/service", "/materials", "/erection", "/drawings", "/proposal-requests"] },
   { label: "Finance", hrefs: ["/invoices", "/reports"] },
   { label: "System", hrefs: ["/settings"] },
 ];

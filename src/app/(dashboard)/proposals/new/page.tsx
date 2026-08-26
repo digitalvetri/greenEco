@@ -62,7 +62,7 @@ export default async function NewProposalPage({
             ? `From ${request.lead.customerName}'s request for a ${request.proposalType}`
             : "Pick the enquiry and the document format, then fill in the details"
         }
-        backHref={request ? "/proposals/requests" : "/proposals"}
+        backHref={request ? "/proposal-requests" : "/proposals"}
       />
       <NewProposalWizard
         leads={leads}

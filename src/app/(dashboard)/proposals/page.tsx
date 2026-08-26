@@ -2,7 +2,6 @@ import Link from "next/link";
 import { FileText, FileClock, AlarmClock, IndianRupee, BarChart3, Plus } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listProposals, proposalStats } from "@/server/services/proposal";
-import { pendingProposalRequestCount } from "@/server/services/proposal-request";
 import { PageHeader, StatTile } from "@/components/ui/stat";
 import { ProposalsList, type ProposalRow } from "./proposals-list";
 import { ProposalsSearch } from "./proposals-search";
@@ -37,10 +36,9 @@ export default async function ProposalsPage({
   const session = await getSession();
   const isAdmin = session.role === "ADMIN";
 
-  const [{ items, nextCursor }, stats, requestCount] = await Promise.all([
+  const [{ items, nextCursor }, stats] = await Promise.all([
     listProposals(session, { status: status || undefined, search: search || undefined, take: 50 }),
     proposalStats(session),
-    pendingProposalRequestCount(session),
   ]);
 
   const persist: Record<string, string> = {};
@@ -95,7 +93,7 @@ export default async function ProposalsPage({
         }
       />
 
-      <ProposalsNav isAdmin={isAdmin} requestCount={requestCount} />
+      <ProposalsNav isAdmin={isAdmin} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="In play" value={stats.inPlay} icon={FileText} tone="primary" href={tabHref("active")} />
