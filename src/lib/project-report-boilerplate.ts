@@ -141,7 +141,7 @@ export const DEFAULT_DOC_RECENT_PROJECTS: RecentProject[] = [
  * a proposal's `coverLetter` from it and the admin can then edit that copy freely.
  */
 export function defaultCoverLetter(input: { plantType: string; capacityLPD: number }): string {
-  const lpd = input.capacityLPD > 0 ? `${input.capacityLPD.toLocaleString("en-IN")} litres per day` : "the required";
+  const lpd = input.capacityLPD > 0 ? `${input.capacityLPD.toLocaleString("en-IN")} liters per day` : "the required";
   return `Dear Sirs,
 
 We thank you, your team members and your esteemed office for the kind courtesy extended to us when we visited you, for the interactions and the time transacted, and also for considering us for delivering environmental engineering solutions as per the need envisaged.
@@ -150,9 +150,11 @@ With reference to the discussions and as per your suggestion, we are placing a t
 
 The treated water can be used for gardening purposes, ground water recharging or for safe disposal, which would adhere to the discharge standards.
 
-We will be providing all the design and civil drawings to you on confirmation of the order.
+We will be providing all the design and civil drawings to you on confirmation of the order. We would request you to kindly go through the proposal and let us have your thoughts on this, such that we can engineer it for a valued order for the same.
 
-We look forward to the pleasure of working with you on this technology to solve your wastewater treatment needs.`;
+We look forward to the pleasure of working with you, with this exciting technology for solving the problems in wastewater in the near future. We wish to hear from you shortly.
+
+Thanking you,`;
 }
 
 /** §10.1 — the four rolled-up quotation lines the Project Report prices against.
@@ -286,4 +288,39 @@ export function amcRatesValidityNote(termMonths: number | null | undefined): str
   if (m === 12) return "The above rates are for 1 year only.";
   if (m % 12 === 0) return `The above rates are for ${m / 12} years only.`;
   return `The above rates are for ${m} months only.`;
+}
+
+/**
+ * §10.3's closing clause, present in every one of the client's samples and absent
+ * from the generated document until now.
+ */
+export const DEFAULT_DOC_FORCE_MAJEURE = `If at any time the execution of this order is affected by war, hostilities, invasion, acts of foreign enemies, civil war, rebellion, insurrection, riots and civil commotion, acts of state, or acts of God such as earthquake, floods and other acts of nature which could not have been reasonably foreseen or provided against or insured against, then an extension of time for supply as may be warranted by the circumstances should be granted without any liability, on intimation from us.`;
+
+/**
+ * The Ref. No as it appears on the client's own covers: `GEC/STP-QUOT/2026-249`
+ * (their Project Proposals) and `GEC/AMC-QUOT/2026-12` (their AMC quotation), rather
+ * than the internal `GEC-PRO-2026-249`.
+ *
+ * DISPLAY ONLY, and deliberately lossless: the year and the sequence number are
+ * carried through verbatim, so a customer quoting "GEC/STP-QUOT/2026-249" is quoting
+ * proposal 249 of 2026 and it is still findable by that number in the app. The stored
+ * `Proposal.number` — which the numbering ledger guarantees is never reused — is not
+ * touched. Anything that doesn't parse falls back to the number as-is rather than
+ * inventing a reference.
+ */
+export function documentRefNo(
+  number: string,
+  proposalType: string | null | undefined,
+  plantType: string | null | undefined,
+): string {
+  const m = /^([A-Z]+)-[A-Z]+-(\d{4})-(\d+)$/.exec(number.trim());
+  if (!m) return number;
+  const [, org, year, seq] = m;
+  const kind =
+    proposalType === "AMC Proposal"
+      ? "AMC"
+      : proposalType === "Service Proposal"
+        ? "SER"
+        : (plantType || "STP").toUpperCase();
+  return `${org}/${kind}-QUOT/${year}-${seq}`;
 }

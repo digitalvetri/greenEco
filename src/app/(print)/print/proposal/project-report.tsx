@@ -1,7 +1,13 @@
-import { formatINR, amountInWords } from "@/lib/money";
+import { formatDocRs, amountInWords } from "@/lib/money";
 import { asProjectReportData, computeCapacity, computeLoadTotals } from "@/lib/domain/proposal-document";
 import { TECHNOLOGY_COMPARISON } from "@/lib/project-report-templates";
-import { shouldPrintStandardTerms, resolvePointsToNote, PLANT_TYPE_ABOUT } from "@/lib/project-report-boilerplate";
+import {
+  shouldPrintStandardTerms,
+  resolvePointsToNote,
+  PLANT_TYPE_ABOUT,
+  DEFAULT_DOC_FORCE_MAJEURE,
+  documentRefNo,
+} from "@/lib/project-report-boilerplate";
 import {
   DocSection,
   DocProse,
@@ -91,9 +97,9 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
   return (
     <>
       <DocCover
-        refNo={p.number}
+        refNo={documentRefNo(p.number, p.proposalType, p.plantType)}
         date={p.createdAt}
-        title={`Proposal for the ${plantName} (Capacity ${lpd ? lpd.toLocaleString("en-IN") : "—"} litres per day) for ${p.projectName} at ${p.siteAddress}.`}
+        title={`Proposal for the ${plantName} (Capacity ${lpd ? lpd.toLocaleString("en-IN") : "—"} liters per day) for ${p.projectName} at ${p.siteAddress}.`}
         company={company}
         customerName={p.customerName}
         customerAddress={p.siteAddress}
@@ -160,16 +166,16 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
               <tbody>
                 {doc.capacityCalc?.people ? (
-                  <CalcRow label="Total number of people" value={`${doc.capacityCalc.people.toLocaleString("en-IN")} people per day`} />
+                  <CalcRow label="Total number of people working in all 3 shifts" value={`${doc.capacityCalc.people.toLocaleString("en-IN")} people per day`} />
                 ) : null}
                 {doc.capacityCalc?.usagePerHead ? (
-                  <CalcRow label="Water usage per head" value={`${doc.capacityCalc.usagePerHead} litres per day`} />
+                  <CalcRow label="Water usage per head" value={`${doc.capacityCalc.usagePerHead} liters per day`} />
                 ) : null}
-                <CalcRow label="Sewage generated per day" value={`${capacity.sewagePerDay.toLocaleString("en-IN")} litres per day`} />
+                <CalcRow label="Sewage generated per day" value={`${capacity.sewagePerDay.toLocaleString("en-IN")} liters per day`} />
                 {doc.capacityCalc?.factorOfSafety ? (
-                  <CalcRow label="Factor of safety" value={`${doc.capacityCalc.factorOfSafety.toLocaleString("en-IN")} litres`} />
+                  <CalcRow label="Factor of safety" value={`${doc.capacityCalc.factorOfSafety.toLocaleString("en-IN")} liters`} />
                 ) : null}
-                <CalcRow label="Total design capacity" value={`${capacity.designCapacityLPD.toLocaleString("en-IN")} litres per day`} bold />
+                <CalcRow label="Total design capacity" value={`${capacity.designCapacityLPD.toLocaleString("en-IN")} liters per day`} bold />
               </tbody>
             </table>
             <p style={docP}>
@@ -193,7 +199,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
           Choosing the right technology ensures efficient treatment, compliance with environmental
           norms, and reduced operational costs. The most common technologies are:
         </p>
-        <ol style={{ fontSize: 12.5, lineHeight: 1.6, paddingLeft: 20, marginBottom: 8 }}>
+        <ol style={{ fontSize: 12.5, lineHeight: 1.6, paddingLeft: 20, marginBottom: 8, listStyleType: "decimal" }}>
           {TECHNOLOGY_COMPARISON.map((t) => (
             <li key={t.key} style={{ marginBottom: 5 }}>
               <strong>{t.name}:</strong> {t.body}
@@ -417,14 +423,14 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
               <tr key={b.id}>
                 <td style={{ ...docCell, textAlign: "center" }}>{i + 1}</td>
                 <td style={docCell}>{b.item}</td>
-                <td style={num}>{formatINR(b.amount)}</td>
+                <td style={num}>{formatDocRs(b.amount)}</td>
               </tr>
             ))}
             <tr>
               <td style={{ ...docCell, fontWeight: 700 }} colSpan={2}>
                 TOTAL
               </td>
-              <td style={{ ...num, fontWeight: 700 }}>{formatINR(subtotal)}</td>
+              <td style={{ ...num, fontWeight: 700 }}>{formatDocRs(subtotal)}</td>
             </tr>
           </tbody>
         </table>
@@ -438,15 +444,15 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
                 {capacity.designCapacityKLD || kld} KLD {plantName} using {p.technology} technology with the
                 listed electro-mechanical and plumbing items
               </td>
-              <td style={{ ...num, width: 150 }}>{formatINR(subtotal)}</td>
+              <td style={{ ...num, width: 150 }}>{formatDocRs(subtotal)}</td>
             </tr>
             <tr>
               <td style={docCell}>GST 18%</td>
-              <td style={num}>{formatINR(gstAmount)}</td>
+              <td style={num}>{formatDocRs(gstAmount)}</td>
             </tr>
             <tr>
               <td style={{ ...docCell, fontWeight: 700 }}>Total Amount</td>
-              <td style={{ ...num, fontWeight: 700 }}>{formatINR(grandTotal)}</td>
+              <td style={{ ...num, fontWeight: 700 }}>{formatDocRs(grandTotal)}</td>
             </tr>
           </tbody>
         </table>
@@ -462,7 +468,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
         {terms.length > 0 && (
           <>
             <div style={docH3}>10.3 Payment Terms</div>
-            <ul style={{ fontSize: 12.5, lineHeight: 1.6, paddingLeft: 18 }}>
+            <ul style={{ fontSize: 12.5, lineHeight: 1.6, paddingLeft: 18, listStyleType: "disc" }}>
               {terms.map((t, i) => (
                 <li key={i} style={{ marginBottom: 3 }}>
                   <strong>{t.percent}%</strong> of the total contract value — {t.description}.
@@ -471,6 +477,10 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
             </ul>
           </>
         )}
+
+        {/* Closes §10.3 in all four samples. Boilerplate, not per-deal. */}
+        <div style={{ ...docH3, textTransform: "uppercase", fontSize: 12.5 }}>Force Majeure</div>
+        <DocProse text={DEFAULT_DOC_FORCE_MAJEURE} />
       </DocSection>
 
       {/* ---- 11–14 ---- */}
@@ -482,7 +492,7 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
         <DocProse text={company.doc.warranty} />
       </DocSection>
 
-      <DocSection no={13} title={`Scope of Work by ${company.name}`}>
+      <DocSection no={13} title="Scope of Work by Green Ecocare">
         <DocProse text={company.doc.scopeGreenEcocare} />
         {/* Project-specific scope from the AI generator — complements the company
             standard above rather than replacing it. */}
@@ -515,29 +525,18 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
 
       {/* ---- 15. Recent projects ---- */}
       {company.doc.recentProjects.length > 0 && (
-        <DocSection no={15} title="Our Recent Completed Projects">
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={docHeadCell}>Client</th>
-                <th style={docHeadCell}>Project</th>
-                <th style={docHeadCell}>Plant</th>
-                <th style={docHeadCell}>Technology</th>
-                <th style={{ ...docHeadCell, textAlign: "right" }}>Capacity</th>
-              </tr>
-            </thead>
-            <tbody>
-              {company.doc.recentProjects.map((r, i) => (
-                <tr key={i}>
-                  <td style={docCell}>{r.client}</td>
-                  <td style={docCell}>{r.project}</td>
-                  <td style={docCell}>{r.plant}</td>
-                  <td style={docCell}>{r.technology}</td>
-                  <td style={num}>{r.capacity}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <DocSection no={15} title="Our Recent Completed Plants in the Projects">
+          <ol style={{ fontSize: 12.5, lineHeight: 1.7, margin: 0, paddingLeft: 22, listStyleType: "lower-roman" }}>
+            {company.doc.recentProjects.map((r, i) => (
+              <li key={i} style={{ ...avoidBreak, marginBottom: 8 }}>
+                <div>Client: {r.client}</div>
+                <div>Project: {r.project}</div>
+                <div>Plant: {r.plant}</div>
+                <div>Technology: {r.technology}</div>
+                <div>Capacity: {r.capacity}</div>
+              </li>
+            ))}
+          </ol>
         </DocSection>
       )}
 

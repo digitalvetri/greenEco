@@ -1,6 +1,9 @@
-import { formatINR, amountInWords } from "@/lib/money";
+import { formatDocAmount, amountInWords } from "@/lib/money";
 import { asBoqProposalData } from "@/lib/domain/proposal-document";
-import { shouldPrintStandardTerms } from "@/lib/project-report-boilerplate";
+import {
+ shouldPrintStandardTerms,
+  documentRefNo,
+} from "@/lib/project-report-boilerplate";
 import { DocSection, DocProse, docCell, docHeadCell, docP, avoidBreak } from "@/components/print/doc-primitives";
 import { DocCover, DocSignature } from "@/components/print/doc-cover";
 import type { ProposalPrintData } from "./print-data";
@@ -39,7 +42,7 @@ export function BoqProposalDocument({ p, v, company }: ProposalPrintData) {
   return (
     <>
       <DocCover
-        refNo={p.number}
+        refNo={documentRefNo(p.number, p.proposalType, p.plantType)}
         date={p.createdAt}
         title={`Proposal for the ${p.plantType} machineries estimate for ${p.projectName} at ${p.siteAddress}.`}
         company={company}
@@ -76,26 +79,26 @@ export function BoqProposalDocument({ p, v, company }: ProposalPrintData) {
                 <td style={{ ...docCell, textAlign: "center", verticalAlign: "top", whiteSpace: "nowrap" }}>
                   {formatQty(b.qty, b.unit)}
                 </td>
-                <td style={{ ...docCell, textAlign: "right", verticalAlign: "top" }}>{formatINR(b.amount)}</td>
+                <td style={{ ...docCell, textAlign: "right", verticalAlign: "top" }}>{formatDocAmount(b.amount)}</td>
               </tr>
             ))}
             <tr>
               <td style={{ ...docCell, fontWeight: 700 }} colSpan={3}>
                 TOTAL
               </td>
-              <td style={{ ...docCell, textAlign: "right", fontWeight: 700 }}>{formatINR(subtotal)}</td>
+              <td style={{ ...docCell, textAlign: "right", fontWeight: 700 }}>{formatDocAmount(subtotal)}</td>
             </tr>
             <tr>
               <td style={docCell} colSpan={3}>
                 GST 18 %
               </td>
-              <td style={{ ...docCell, textAlign: "right" }}>{formatINR(gstAmount)}</td>
+              <td style={{ ...docCell, textAlign: "right" }}>{formatDocAmount(gstAmount)}</td>
             </tr>
             <tr>
               <td style={{ ...docCell, fontWeight: 700 }} colSpan={3}>
                 TOTAL AMOUNT WITH GST
               </td>
-              <td style={{ ...docCell, textAlign: "right", fontWeight: 700 }}>{formatINR(grandTotal)}</td>
+              <td style={{ ...docCell, textAlign: "right", fontWeight: 700 }}>{formatDocAmount(grandTotal)}</td>
             </tr>
           </tbody>
         </table>

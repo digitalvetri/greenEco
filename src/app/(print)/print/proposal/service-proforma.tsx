@@ -1,4 +1,4 @@
-import { formatINR, amountInWords } from "@/lib/money";
+import { formatDocAmount, amountInWords } from "@/lib/money";
 import { asServiceProposalData } from "@/lib/domain/proposal-document";
 import { docCell, docHeadCell, docP, avoidBreak } from "@/components/print/doc-primitives";
 import type { ProposalPrintData } from "./print-data";
@@ -88,27 +88,27 @@ export function ServiceProformaDocument({ p, v, company }: ProposalPrintData) {
                 {formatQty(b.qty, b.unit)}
               </td>
               <td style={{ ...docCell, textAlign: "right", verticalAlign: "top" }}>
-                {Number(b.rate) > 0 ? formatINR(b.rate) : ""}
+                {Number(b.rate) > 0 ? formatDocAmount(b.rate) : ""}
               </td>
               <td style={{ ...docCell, textAlign: "right", verticalAlign: "top" }}>
-                {Number(b.amount) > 0 ? formatINR(b.amount) : ""}
+                {Number(b.amount) > 0 ? formatDocAmount(b.amount) : ""}
               </td>
             </tr>
           ))}
           <tr>
             <td style={docCell} colSpan={3} />
             <td style={{ ...docCell, fontWeight: 600 }}>Total</td>
-            <td style={{ ...docCell, textAlign: "right" }}>{formatINR(subtotal)}</td>
+            <td style={{ ...docCell, textAlign: "right" }}>{formatDocAmount(subtotal)}</td>
           </tr>
           <tr>
             <td style={docCell} colSpan={3} />
             <td style={docCell}>GST 18%</td>
-            <td style={{ ...docCell, textAlign: "right" }}>{formatINR(gstAmount)}</td>
+            <td style={{ ...docCell, textAlign: "right" }}>{formatDocAmount(gstAmount)}</td>
           </tr>
           <tr>
             <td style={docCell} colSpan={3} />
             <td style={{ ...docCell, fontWeight: 700 }}>Grand Total</td>
-            <td style={{ ...docCell, textAlign: "right", fontWeight: 700 }}>{formatINR(grandTotal)}</td>
+            <td style={{ ...docCell, textAlign: "right", fontWeight: 700 }}>{formatDocAmount(grandTotal)}</td>
           </tr>
         </tbody>
       </table>

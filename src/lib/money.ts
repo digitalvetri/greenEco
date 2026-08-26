@@ -52,6 +52,36 @@ export function formatINR(v: Decimal.Value): string {
 }
 
 /**
+ * Two-decimal Indian grouping with NO currency prefix: `7,80,000.00`. Their BOQ and
+ * proforma tables print amounts this way and name the unit in the column header.
+ */
+/**
+ * The client's own document convention: `Rs. 7,80,000.00` — the "Rs." prefix and two
+ * decimal places, not the ₹ symbol. Used only by the `/print/*` proposal templates,
+ * which must reproduce their documents; every in-app surface keeps `formatINR`.
+ *
+ * The two decimals are not decoration: their quotations, tax breakups and totals all
+ * print them, and a figure shown as "₹7,80,000" beside one shown as "Rs. 7,80,000.00"
+ * reads as two different numbers to a customer comparing quotes.
+ */
+export function formatDocAmount(v: Decimal.Value): string {
+  const n = new Decimal(v ?? 0);
+  const [whole, frac] = n.abs().toFixed(2).split(".");
+  return `${n.isNegative() ? "-" : ""}${formatIndianNumber(whole)}.${frac}`;
+}
+
+/**
+ * As above, with the "Rs." prefix. Their Project Report quotation and AMC charge
+ * table both print it; their BOQ and proforma tables don't, because those carry the
+ * unit in the column header ("AMOUNT IN RS.") instead.
+ */
+export function formatDocRs(v: Decimal.Value): string {
+  const n = new Decimal(v ?? 0);
+  const [whole, frac] = n.abs().toFixed(2).split(".");
+  return `${n.isNegative() ? "-" : ""}Rs. ${formatIndianNumber(whole)}.${frac}`;
+}
+
+/**
  * Deep-converts every decimal.js/Prisma `Decimal` in a value to a string, recursing into
  * plain objects and arrays. `Date`s and other values pass through untouched.
  *

@@ -65,7 +65,7 @@ export function GenericProposalDocument({ p, v }: ProposalPrintData) {
       {Object.keys(scope).length > 0 && (
         <section style={{ marginBottom: 16 }}>
           <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Scope of Work</h3>
-          <ul style={{ fontSize: 14, lineHeight: 1.5 }}>
+          <ul style={{ fontSize: 14, lineHeight: 1.5, listStyleType: "disc", paddingLeft: 20 }}>
             {Object.entries(scope).map(([k, val]) => (
               <li key={k}>
                 <strong style={{ textTransform: "capitalize" }}>{k}:</strong> {val}
@@ -165,7 +165,7 @@ export function GenericProposalDocument({ p, v }: ProposalPrintData) {
       {terms.length > 0 && (
         <section style={{ marginBottom: 16 }}>
           <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Payment Terms</h3>
-          <ol style={{ fontSize: 14, lineHeight: 1.6 }}>
+          <ol style={{ fontSize: 14, lineHeight: 1.6, listStyleType: "decimal", paddingLeft: 20 }}>
             {terms.map((t, i) => (
               <li key={i}>
                 {t.percent}% — {t.description}
@@ -178,7 +178,7 @@ export function GenericProposalDocument({ p, v }: ProposalPrintData) {
       {v?.pointsToNote && (
         <section style={{ marginBottom: 16 }}>
           <h3 style={{ color: "#0f7a4d", fontSize: 15.5 }}>Points to Note</h3>
-          <ul style={{ fontSize: 14, lineHeight: 1.6 }}>
+          <ul style={{ fontSize: 14, lineHeight: 1.6, listStyleType: "disc", paddingLeft: 20 }}>
             {v.pointsToNote.split("\n").filter(Boolean).map((line, i) => (
               <li key={i}>{line.replace(/^[-•]\s*/, "")}</li>
             ))}

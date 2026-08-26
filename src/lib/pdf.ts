@@ -68,6 +68,14 @@ export async function renderDocPdf(
           headerTemplate: `<div style="width:100%;font-size:8px;color:#0f7a4d;text-align:right;padding:0 14mm;font-family:sans-serif;">${escapeHtml(doc.runningHeader)}</div>`,
           footerTemplate: `<div style="width:100%;font-size:8px;color:#888;text-align:right;padding:0 14mm;font-family:sans-serif;">Page | <span class="pageNumber"></span></div>`,
           // Extra top/bottom room so the running header/footer don't overlap content.
+          //
+          // ⚠️ The running header prints on the COVER page too, which the client's own
+          // documents don't do — their letterhead and page numbering both start on the
+          // page after it. Chromium paints `displayHeaderFooter` into every page's top
+          // margin box and offers no per-page switch; a named `@page cover { margin-top:
+          // 0 }` was tried and does NOT suppress it. Matching this exactly needs the
+          // cover rendered separately and the two PDFs concatenated (a pdf-lib
+          // dependency), which is not worth it for one line of letterhead.
           margin: { top: "18mm", bottom: "18mm", left: "12mm", right: "12mm" },
         })
       : await page.pdf({

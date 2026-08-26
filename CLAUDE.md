@@ -41,6 +41,57 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v53 — Generated proposals matched line-by-line against the client's own PDFs
+
+Client: "the generated proposal should exactly match the given file `~/Downloads/STP`". Extracted all
+five samples, generated ours from the same inputs, and diffed them section by section.
+**Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 152 unit · `next build` clean ·
+`verify-proposals-p8` now 88 checks (+12, all format assertions) · p6/p7/p9/p10 + won-routing + sell
++ invoices-p0 green · all FOUR technologies and the BOQ re-rendered as real PDFs and compared.**
+
+- **The big one: every numbered clause in every print document was printing UNNUMBERED.** Tailwind's
+  preflight sets `list-style: none` on `ol`/`ul` globally, and no print list overrode it — so the
+  nine "Points to be Noted", the Taxes & Duties clauses and both scope lists rendered as unmarked
+  indented text. A customer could not be told "as per point 5" because no point 5 was visible.
+  `DocProse` also collapsed a numbered source into a `<ul>`, discarding the numbering before CSS even
+  got a chance. Both fixed; every print list now states its own `listStyleType`.
+- **Money now prints in their format.** Their quotation reads `Rs. 7,80,000.00`; ours read `₹7,80,000`.
+  New `formatDocRs` (Rs. prefix, two decimals — Project Report and AMC) and `formatDocAmount` (bare,
+  two decimals — the BOQ and proforma tables, which name the unit in the column header instead).
+  `formatINR` is untouched and still used by every in-app surface. p8 now asserts the ₹ symbol does
+  **not** appear anywhere in a printed document.
+- **`documentRefNo()`** prints the cover reference the way they write it — `GEC/STP-QUOT/2026-249`
+  rather than the internal `GEC-PRO-2026-249`. **Display only and deliberately lossless**: the year
+  and sequence carry through verbatim, so a customer quoting that reference is quoting proposal 249 of
+  2026 and it stays findable in the app; `Proposal.number` and the never-reuse ledger are untouched.
+  Anything that doesn't parse falls back to the number as-is rather than inventing a reference.
+- **Smaller deltas, all from the diff**: dotted cover dates (`26.08.2026`); GSTIN removed from the
+  proposal cover (their covers don't carry it — the Service proforma's letterhead still does);
+  numbered headings end with a colon, as theirs do; `Parameter | Value` header on the inlet/outlet
+  tables; §6.1's row reads "Total number of people working in all 3 shifts"; §15 renamed to their
+  "Our Recent Completed Plants in the Projects" and rendered as a labelled roman-numeral list rather
+  than a grid; §13 titled "Scope of Work by Green Ecocare"; and the document says **liters**, their
+  spelling, throughout.
+- **Two things were MISSING outright and are now present**: the **Force Majeure** clause closing
+  §10.3, and the last two paragraphs of the §2 cover letter (the request-to-review and the sign-off).
+  The letter itself already existed — I nearly added a second copy of it before checking, which would
+  have created two sources of truth for the same text.
+- **Sample errors deliberately NOT copied**, extending the v45 rule: their ASP document's flow chart
+  is titled "30 KLD MBBR" and their MBBR quotation says "using SBR technology" — ours name the
+  technology actually quoted. Verified per technology: each of MBBR/SBR/ASP/MBR renders its own
+  flow-chart title.
+- ⚠️ **One difference that cannot be closed without a new dependency**: the running letterhead prints
+  on the **cover page**, which their documents don't do — theirs starts on the page after it.
+  Chromium paints `displayHeaderFooter` into every page's top margin box and offers no per-page
+  switch; a named `@page cover { margin-top: 0 }` was tried and does not suppress it. Matching it
+  exactly needs the cover rendered separately and the PDFs concatenated (a `pdf-lib` dependency). The
+  failed experiment was reverted rather than left in place, and the constraint is documented at the
+  call site in `lib/pdf.ts`.
+- ⚠️ **Still data, not code**: `Company.address` is empty in the live DB, so the cover's *Submitted By*
+  block prints no street address where the sample shows two lines. Settings → Company details.
+- **Page counts** land 1–2 short of the samples (MBBR 15 vs 17) — theirs carry blank placeholder
+  entries (`ii) Client: ___`) and looser spacing. Content is complete; nothing is omitted.
+
 ### v52 — The proposal editor shows only what each format actually prints
 
 Client, on a live AMC proposal: "if the proposal is developed from Proposal request page and been

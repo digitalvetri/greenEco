@@ -4,6 +4,7 @@ import {
   PLANT_TYPE_ABOUT,
   shouldPrintStandardTerms,
   amcRatesValidityNote,
+  documentRefNo,
 } from "@/lib/project-report-boilerplate";
 import { projectReportTemplate, processUnitsFor } from "@/lib/project-report-templates";
 import {
@@ -94,7 +95,7 @@ export function AmcProposalDocument({ p, v, company }: ProposalPrintData) {
   return (
     <>
       <DocCover
-        refNo={p.number}
+        refNo={documentRefNo(p.number, p.proposalType, p.plantType)}
         date={p.createdAt}
         title={title}
         company={company}
@@ -132,7 +133,7 @@ export function AmcProposalDocument({ p, v, company }: ProposalPrintData) {
               <h3 style={docH3}>
                 {String.fromCharCode(65 + i)}. {capacityPhrase(t)}
               </h3>
-              <ol style={{ margin: "0 0 10px 22px", padding: 0, ...docP }}>
+              <ol style={{ margin: "0 0 10px 22px", padding: 0, listStyleType: "lower-alpha", ...docP }}>
                 {t.units.map((u, j) => (
                   <li key={j}>{u}</li>
                 ))}
@@ -147,7 +148,7 @@ export function AmcProposalDocument({ p, v, company }: ProposalPrintData) {
               {String.fromCharCode(65 + plants.filter((t) => t.units.length > 0).length)}. Machinery &
               Equipment used
             </h3>
-            <ol style={{ margin: "0 0 10px 22px", padding: 0, ...docP }}>
+            <ol style={{ margin: "0 0 10px 22px", padding: 0, listStyleType: "lower-alpha", ...docP }}>
               {(doc.equipment ?? []).map((e, i) => (
                 <li key={i}>
                   {e.name}

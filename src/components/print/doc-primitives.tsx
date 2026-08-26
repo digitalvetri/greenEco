@@ -53,7 +53,8 @@ export function DocSection({
 }) {
   return (
     <section style={{ ...docSection, ...(breakBefore ? pageBreak : {}) }}>
-      <h2 style={docH2}>{no != null ? `${no}. ${title}` : title}</h2>
+      {/* Their section headings are numbered AND end with a colon — "4. Introduction:". */}
+      <h2 style={docH2}>{no != null ? `${no}. ${title}:` : title}</h2>
       {children}
     </section>
   );
@@ -63,16 +64,32 @@ export function DocSection({
 export function DocProse({ text }: { text: string }) {
   if (!text?.trim()) return null;
   const lines = text.split("\n").map((l) => l.trim());
-  const isBulleted = lines.filter(Boolean).every((l) => /^([•\-*]|\d+[.)])\s/.test(l));
+  const items = lines.filter(Boolean);
+  const isBulleted = items.length > 0 && items.every((l) => /^([•\-*]|\d+[.)])\s/.test(l));
   if (isBulleted) {
+    // A NUMBERED source must print numbered. The client's "Points to be Noted",
+    // "Taxes & Duties" and scope lists are all numbered in their own documents;
+    // rendering them as a <ul> silently stripped the numbering and made a nine-point
+    // list unreferenceable ("as per point 5" no longer resolves to anything).
+    const numbered = items.every((l) => /^\d+[.)]\s/.test(l));
+    const Tag = numbered ? "ol" : "ul";
     return (
-      <ul style={{ fontSize: 12.5, lineHeight: 1.6, margin: "0 0 8px", paddingLeft: 18 }}>
-        {lines.filter(Boolean).map((l, i) => (
+      <Tag
+        style={{
+          fontSize: 12.5,
+          lineHeight: 1.6,
+          margin: "0 0 8px",
+          paddingLeft: 20,
+          // Tailwind preflight sets `list-style: none` on ol/ul globally, so state it.
+          listStyleType: numbered ? "decimal" : "disc",
+        }}
+      >
+        {items.map((l, i) => (
           <li key={i} style={{ marginBottom: 3 }}>
             {l.replace(/^([•\-*]|\d+[.)])\s*/, "")}
           </li>
         ))}
-      </ul>
+      </Tag>
     );
   }
   return (
@@ -101,6 +118,13 @@ export function ParameterTable({
     <div style={{ ...avoidBreak, display: "inline-block", verticalAlign: "top", width: "48%", marginRight: "3%" }}>
       <div style={docH3}>{heading}</div>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        {/* The client's own inlet/outlet tables carry a Parameter | Value header row. */}
+        <thead>
+          <tr>
+            <th style={{ ...docHeadCell, width: "45%" }}>Parameter</th>
+            <th style={docHeadCell}>Value</th>
+          </tr>
+        </thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>

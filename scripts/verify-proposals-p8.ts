@@ -94,7 +94,8 @@ async function main() {
     contains(T, "Submitted To", "cover: Submitted To");
     contains(T, "Submitted By", "cover: Submitted By");
     contains(T, "Branch Office:", "cover: branch offices");
-    contains(T, "litres per day", "cover: title names the capacity");
+    // "liters", their spelling — see the dedicated assertion below.
+    contains(T, "liters per day", "cover: title names the capacity");
     contains(T, "Table of Contents", "table of contents");
 
     // ---- the numbered sections, in the samples' order ----
@@ -120,18 +121,36 @@ async function main() {
       "12. Warranty Details",
       "13. Scope of Work by",
       "14. Scope of Work for the Client",
-      "15. Our Recent Completed Projects",
+      "15. Our Recent Completed Plants in the Projects",
     ]) {
       contains(T, s, `section "${s}"`);
     }
 
     // ---- the sample's own worked numbers ----
     contains(T, "22,500", "capacity: sewage generated per day");
-    contains(T, "30,000 litres per day", "capacity: total design capacity");
+    contains(T, "30,000 liters per day", "capacity: total design capacity");
     check("capacity: ≈ 30 KLD", /30,000 LPD ≈ 30 KLD/.test(T));
-    contains(T, "₹7,80,000", "financial: TOTAL");
-    contains(T, "₹1,40,400", "financial: GST 18%");
-    contains(T, "₹9,20,400", "financial: total amount");
+    // The client's documents quote "Rs. 7,80,000.00" — the Rs. prefix and two
+    // decimals — not the ₹ symbol used everywhere in the app.
+    contains(T, "Rs. 7,80,000.00", "financial: TOTAL in the client's own money format");
+    contains(T, "Rs. 1,40,400.00", "financial: GST 18%");
+    contains(T, "Rs. 9,20,400.00", "financial: total amount");
+    check("…and the ₹ symbol does NOT appear in the printed document", !T.includes("₹"));
+
+    // ---- formatting the client's documents rely on ----
+    check("section headings are numbered AND end with a colon", /\b4\. Introduction:/.test(T));
+    contains(T, "GEC/STP-QUOT/", "cover: their own Ref. No format, not the internal number");
+    check("cover dates with dots, not slashes", /Date:\s*\d{2}\.\d{2}\.\d{4}/.test(T));
+    check("the cover does NOT print GSTIN (their proposal covers don't)", !/GSTIN/.test(T.slice(0, 1200)));
+    check("§10.3 closes with Force Majeure", /FORCE MAJEURE/i.test(T));
+    contains(T, "Parameter", "inlet/outlet tables carry a Parameter | Value header");
+    // Tailwind's preflight strips list markers globally; without an explicit
+    // list-style every numbered clause printed as unmarked indented text.
+    check("numbered clauses actually print their numbers", /\n\s*1\.\s+The GST will be 18% extra/.test(T));
+    check("…through the whole list", /\n\s*9\.\s+/.test(T));
+    contains(T, "Total number of people working in all 3 shifts", "§6.1 states the headcount as their document does");
+    check("recent projects print as a labelled roman-numeral list", /\n\s*i\.\s+Client:/.test(T));
+    check("the document says 'liters', the client's spelling", T.includes("liters per day") && !T.includes("litres per day"));
     contains(T, "Rupees Seven Lakh Eighty Thousand Only", "financial: amount in words");
     contains(T, "Rupees Nine Lakh Twenty Thousand Four Hundred Only", "financial: words incl. GST");
     check("payment terms: 60 / 35 / 5", /60%/.test(T) && /35%/.test(T) && /5%/.test(T));
@@ -188,10 +207,11 @@ async function main() {
     contains(B, "Authorized Signatory", "BOQ: signatory");
 
     // The distinguishing feature vs the Project Report: NO rate column.
-    check("BOQ prints no rate column", !/\bRate\b/.test(B) && !B.includes("₹80,000\n") === !B.includes("₹80,000\n"));
+    check("BOQ prints no rate column", !/\bRate\b/.test(B));
     check(
       "…proven by the 2-unit line: the ₹80,000 unit rate is absent, only the ₹1,60,000 amount prints",
-      B.includes("₹1,60,000") && !B.includes("₹80,000"),
+      // Their BOQ prints bare two-decimal amounts; the unit is in the column header.
+      B.includes("1,60,000.00") && !B.includes("80,000.00"),
     );
     check("BOQ: quantities pluralise like the sample (2 SETS / 3 KGS)", B.includes("2 SETS") && B.includes("3 KGS"));
 
@@ -233,7 +253,7 @@ async function main() {
     contains(S, "PROPOSAL", "generic: branded PrintShell header");
     contains(S, "Preventive maintenance visit", "generic: BOQ line");
     contains(S, "Quarterly preventive maintenance", "generic: technical write-up");
-    check("generic: totals present", S.includes("Grand Total") || S.includes("₹28,320"));
+    check("generic: totals present", S.includes("Grand Total") || S.includes("28,320"));
     check(
       "generic: does NOT use the Project Report structure",
       !S.includes("Table of Contents") && !S.includes("10.1 Quotation"),

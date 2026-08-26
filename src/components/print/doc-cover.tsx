@@ -36,7 +36,10 @@ export function DocCover({
         </span>
         <span>
           <strong>Date:</strong>{" "}
-          {date.toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+          {/* Their covers date as 05.08.2026 — dots, not slashes. */}
+          {date
+            .toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })
+            .replace(/[/-]/g, ".")}
         </span>
       </div>
 
@@ -76,7 +79,6 @@ export function DocCover({
         {company.branches.length > 0 && (
           <div style={{ fontSize: 12.5, marginTop: 4 }}>Branch Office: {company.branches.join(", ")}.</div>
         )}
-        {company.gstin && <div style={{ fontSize: 11.5, color: "#555", marginTop: 4 }}>GSTIN: {company.gstin}</div>}
       </div>
     </section>
   );
