@@ -345,3 +345,62 @@ export function computeLoadTotals(rows: LoadRow[], fosPct = 10): LoadTotals {
     supplyKw: Math.ceil(kw * 2) / 2,
   };
 }
+
+/**
+ * Which editor sections a proposal type actually uses.
+ *
+ * ONE table, because the alternative is the editor and the print template drifting:
+ * before this, every proposal type showed every card, so an AMC offered a Plant
+ * Illustration, a Technical Write-up, a Technical Specifications table and an
+ * Electrical Load Summary — six editable, saveable sections that its document never
+ * prints. The mirror of the v46 bug (five blocks that WERE printed but had no editor).
+ *
+ * Keep this in step with `src/app/(print)/print/proposal/*` — if a template starts
+ * printing a field, add it here, and vice versa.
+ */
+export type ProposalSection =
+  | "aiGenerate"
+  | "heroImage"
+  | "coverLetter"
+  | "technicalText"
+  | "technologyExplainer"
+  | "technicalSpecs"
+  | "electricalLoad"
+  | "projectReportSections"
+  | "amcSections"
+  | "serviceSections"
+  | "paymentTerms"
+  | "terms";
+
+const ALL_GENERIC: ProposalSection[] = [
+  "aiGenerate",
+  "heroImage",
+  "coverLetter",
+  "technicalText",
+  "technologyExplainer",
+  "technicalSpecs",
+  "electricalLoad",
+  "paymentTerms",
+  "terms",
+];
+
+const SECTIONS_BY_TYPE: Record<string, ProposalSection[]> = {
+  // The 15-section report — the only format that prints all of the narrative blocks.
+  "Project Proposal": [...ALL_GENERIC, "projectReportSections"],
+  // An itemised machinery estimate: cover + table + T&Cs. Payment terms are kept even
+  // though the document doesn't print them, because winning a BOQ creates an Order and
+  // they seed its milestones.
+  "BOQ Proposal": ["aiGenerate", "paymentTerms", "terms"],
+  // Cover letter is its "Greetings" block; the rest of its content is AMC-specific.
+  // No payment terms: winning an AMC creates a ServiceContract, not an Order, so
+  // nothing derives milestones from them.
+  "AMC Proposal": ["coverLetter", "amcSections", "terms"],
+  // A one-page proforma. No cover letter, no T&Cs page — it carries a declaration.
+  "Service Proposal": ["serviceSections"],
+};
+
+/** Sections to show for a proposal type. Unknown/absent → the generic layout, which
+ *  prints every narrative block, so a pre-types proposal keeps its full editor. */
+export function proposalSections(proposalType: string | null | undefined): Set<ProposalSection> {
+  return new Set(SECTIONS_BY_TYPE[proposalType ?? ""] ?? ALL_GENERIC);
+}

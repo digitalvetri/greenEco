@@ -41,6 +41,50 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v52 — The proposal editor shows only what each format actually prints
+
+Client, on a live AMC proposal: "if the proposal is developed from Proposal request page and been
+maintained by proposal module so remove the unwanted content from the Proposal module."
+**Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 152 unit (+7) · `next build` clean ·
+p6(65)/p7(74)/p8(76)/p9(26)/p10(36) + won-routing green · all FIVE type paths browser-driven at
+1440px, card-by-card, zero console errors.**
+
+- **The editor rendered every card for every type.** On the AMC they screenshotted, six of the eight
+  cards fed nothing: Plant Illustration, AI Generate, Technical Write-up, How-This-Technology-Works,
+  Technical Specifications and the Electrical Load Summary are all Project-Report sections — editable,
+  saveable, and never printed by the AMC document. Payment terms too: winning an AMC creates a
+  `ServiceContract`, not an `Order`, so nothing derives milestones from them either.
+- **`proposalSections(type)` in `lib/domain/proposal-document.ts` is now the single table** driving
+  which cards render, kept deliberately next to the `as*` parsers so it is read alongside them. The
+  pre-existing `proposalType === "Project Proposal"` check was rerouted through it rather than left
+  as a second rule. Unknown/absent type ⇒ the FULL editor, because the generic layout genuinely
+  prints every narrative block — a pre-types proposal must not silently lose its content.
+- **The mirror-image bug, fixed in the same change.** The AMC's 11 scope notes, its units list, its
+  machinery list and its second plant were seeded at creation and **printed**, but had no editor
+  anywhere — correcting a pump count meant a database edit. That is the v45 "editable afterwards"
+  bug repeating. New `[id]/amc-service-sections.tsx`, collapsed-by-default like
+  `project-report-sections.tsx`, plus the Service proforma's own overridable "Addressed to" and
+  "Declaration". Round-trip verified in the browser: editing the notes saves them **and leaves the
+  seeded units intact** (the `saveVersion` shallow-merge rule).
+- **`docData` is now loosely typed on purpose.** One `documentData` column serves four heterogeneous
+  formats, so the editor holds `Record<string, unknown>` and each section component narrows it with
+  its own `as*` parser; `saveVersion` still validates against the proposal's type before storing.
+  Typing the state as `ProjectReportData` was what made a second format's editor impossible to add.
+- **Validity was lifted OUT of the payment-terms block** — it lived inside it, but the Service
+  proforma's "This rate is valid for N days only." reads it, and every format's expiring-soon
+  worklist depends on it. Hiding payment terms would have taken validity with it.
+- **`verify-proposals-p8` untouched this round but re-run**: the generic path still renders every
+  block, which is exactly why "Others" keeps the full editor.
+- **Result per type** (browser-verified card counts): Project Report 12 · Others 11 · BOQ 5 · AMC 5 ·
+  Service 3.
+- **Note for future browser checks**: `locator("body").innerText()` silently omits off-screen text and
+  reported six cards missing that were plainly rendering. Use
+  `page.evaluate(() => document.body.textContent)` when asserting a card's presence.
+- **Environment reminder, not a regression**: `/api/pdf` 400s with "Rendered page is not a print
+  document" when `NEXT_PUBLIC_APP_URL` (`http://localhost:3000` in `.env`) points at the *other* app
+  on this machine. Start the dev server with `NEXT_PUBLIC_APP_URL=http://localhost:3007` to exercise
+  PDFs locally — the console error disappears entirely once it points at the right port.
+
 ### v51 — The last two proposal formats: AMC Quotation + Service Proforma Invoice
 
 The client supplied the two sample documents v45/v46 deliberately refused to invent

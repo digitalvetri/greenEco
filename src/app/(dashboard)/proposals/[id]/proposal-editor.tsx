@@ -30,8 +30,15 @@ import {
   CAPACITY_UNITS,
   deriveCapacityKLD,
 } from "@/lib/constants";
-import { asProjectReportData, computeLoadTotals, type ProjectReportData } from "@/lib/domain/proposal-document";
+import {
+  asProjectReportData,
+  asAmcProposalData,
+  asServiceProposalData,
+  computeLoadTotals,
+  proposalSections,
+} from "@/lib/domain/proposal-document";
 import { ProjectReportSections } from "./project-report-sections";
+import { AmcSections, ServiceSections } from "./amc-service-sections";
 import { ProposalStageTracker } from "./proposal-stage-tracker";
 import { ProposalTimeline } from "./proposal-timeline";
 import { ProposalDocumentsCard } from "./proposal-documents-card";
@@ -218,10 +225,12 @@ export function ProposalEditor({
   const [technicalSpecs, setTechnicalSpecs] = useState<TechSpecRow[]>(view.version?.technicalSpecs ?? []);
   const [electricalLoad, setElectricalLoad] = useState<ElectricalLoadRow[]>(view.version?.electricalLoad ?? []);
   const [tcs, setTcs] = useState(view.version?.terms ?? "");
-  // Project Report engineering content — this proposal's own editable copy of the
-  // per-technology template it was seeded from.
-  const [docData, setDocData] = useState<ProjectReportData>(() =>
-    asProjectReportData(view.version?.documentData),
+  // This proposal's own editable copy of the document content it was seeded with.
+  // Held loosely typed because ONE `documentData` column serves four heterogeneous
+  // formats; each section component narrows it with its own `as*` parser, and
+  // `saveVersion` validates the result against the proposal's type before storing.
+  const [docData, setDocData] = useState<Record<string, unknown>>(
+    () => (view.version?.documentData as Record<string, unknown> | null) ?? {},
   );
   // Pre-fill from the sizing already captured on the lead, so the Generate button
   // isn't stuck disabled-with-no-explanation on a freshly-converted proposal — the
@@ -233,6 +242,11 @@ export function ProposalEditor({
   );
   const [estCost, setEstCost] = useState(view.version?.estimatedCost ?? "");
   const [terms, setTerms] = useState(view.version?.paymentTerms ?? []);
+  // Which editor cards this proposal type actually uses. Before this every type
+  // showed every card, so an AMC offered a Plant Illustration, a Technical Write-up,
+  // a Specifications table and an Electrical Load Summary — all editable, all saved,
+  // none of them printed by the AMC document.
+  const show = proposalSections(view.proposalType);
   const [validity, setValidity] = useState(view.version?.validityDays ?? 30);
   const [marginWarn, setMarginWarn] = useState<null | { requiredFloor: string }>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -666,7 +680,7 @@ export function ProposalEditor({
       </Card>
 
       {/* AI generate */}
-      {editable && (
+      {editable && show.has("aiGenerate") && (
         <Card className="mb-4 border-primary/30">
           <CardContent className="space-y-2 pt-4">
             <div className="flex items-center justify-between">
@@ -696,7 +710,7 @@ export function ProposalEditor({
       )}
 
       {/* AI plant illustration */}
-      {(heroImageUrl || editable) && (
+      {show.has("heroImage") && (heroImageUrl || editable) && (
         <Card className="mb-4">
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Plant Illustration</CardTitle>
@@ -738,7 +752,7 @@ export function ProposalEditor({
       )}
 
       {/* Cover letter */}
-      {(coverLetter || editable) && (
+      {show.has("coverLetter") && (coverLetter || editable) && (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>Cover Letter</CardTitle>
@@ -759,7 +773,7 @@ export function ProposalEditor({
       )}
 
       {/* Technical write-up */}
-      {(techText || editable) && (
+      {show.has("technicalText") && (techText || editable) && (
         <Card className="mb-4">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -847,7 +861,7 @@ export function ProposalEditor({
       )}
 
       {/* Technology explainer + points to note */}
-      {(technologyExplainer || pointsToNote || editable) && (
+      {show.has("technologyExplainer") && (technologyExplainer || pointsToNote || editable) && (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>How This Technology Works &amp; Points to Note</CardTitle>
@@ -889,16 +903,35 @@ export function ProposalEditor({
       )}
 
       {/* Project Report engineering content — only this type has it. */}
-      {view.proposalType === "Project Proposal" && (
+      {show.has("projectReportSections") && (
         <ProjectReportSections
-          doc={docData}
+          doc={asProjectReportData(docData)}
           editable={editable}
           onChange={(patch) => setDocData((d) => ({ ...d, ...patch }))}
         />
       )}
 
+      {/* The AMC's own content — printed, and until now not editable anywhere. */}
+      {show.has("amcSections") && (
+        <AmcSections
+          doc={asAmcProposalData(docData)}
+          editable={editable}
+          onChange={(patch) => setDocData((d) => ({ ...d, ...patch }))}
+        />
+      )}
+
+      {/* The Service proforma's overridable fields. */}
+      {show.has("serviceSections") && (
+        <ServiceSections
+          doc={asServiceProposalData(docData)}
+          editable={editable}
+          validityDays={validity}
+          onChange={(patch) => setDocData((d) => ({ ...d, ...patch }))}
+        />
+      )}
+
       {/* Technical specifications + electrical load */}
-      {(technicalSpecs.length > 0 || electricalLoad.length > 0 || editable) && (
+      {show.has("technicalSpecs") && (technicalSpecs.length > 0 || electricalLoad.length > 0 || editable) && (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>Technical Specifications</CardTitle>
@@ -1330,7 +1363,11 @@ export function ProposalEditor({
             )}
           </div>
 
-          {/* Payment terms — always editable by admin, even on WON/LOST proposals. */}
+          {/* Payment terms — always editable by admin, even on WON/LOST proposals.
+              Hidden for AMC and Service: their documents don't print them, and
+              winning one creates a ServiceContract or a ServiceTicket, not an Order,
+              so nothing derives milestones from them either. */}
+          {show.has("paymentTerms") && (
           <div className="mt-4 border-t border-border pt-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-semibold">Payment terms</span>
@@ -1379,15 +1416,22 @@ export function ProposalEditor({
                 </Button>
               )}
             </div>
-            <div className="mt-3 max-w-[10rem]">
-              <Field label="Validity (days)">
-                <Input type="number" value={validity} disabled={!isAdmin} onChange={(e) => setValidity(Number(e.target.value))} />
-              </Field>
-            </div>
+          </div>
+          )}
+
+          {/* Validity stays visible for EVERY type — the Service proforma's
+              "This rate is valid for N days only." declaration reads it, and the
+              other formats use it for the expiring-soon worklist. */}
+          <div className="mt-3 max-w-[10rem]">
+            <Field label="Validity (days)">
+              <Input type="number" value={validity} disabled={!isAdmin} onChange={(e) => setValidity(Number(e.target.value))} />
+            </Field>
           </div>
 
           {/* Terms & Conditions — collapsed by default (client feedback: don't show this
-              inline), Edit reveals it. Fixed template (Reset) or AI-tailored per deal. */}
+              inline), Edit reveals it. Fixed template (Reset) or AI-tailored per deal.
+              The Service proforma has no T&Cs page — it carries a declaration line. */}
+          {show.has("terms") && (
           <div className="mt-4 border-t border-border pt-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-semibold">Terms &amp; Conditions</span>
@@ -1446,6 +1490,7 @@ export function ProposalEditor({
               <p className="text-xs italic text-muted">Click Edit to view or change the Terms &amp; Conditions.</p>
             )}
           </div>
+          )}
 
           {isAdmin && (
             <Button className="mt-3" disabled={pending || generatingPdf} onClick={saveBoq}>
