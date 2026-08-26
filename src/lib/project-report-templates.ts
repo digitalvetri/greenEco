@@ -240,7 +240,7 @@ const SPEC_ACF: MaterialSpecRow = {
   ],
 };
 const SPEC_DOSING: MaterialSpecRow = {
-  title: "Dosing Pump & Dosing Tank",
+  title: "Dosing Pump",
   lines: [
     "Type:",
     "Model:",
@@ -578,4 +578,31 @@ export function processUnitsFor(technology: string): ProcessUnit[] {
   const tpl = projectReportTemplate(technology);
   if (!tpl) return [];
   return [...PROCESS_UNITS_PRE, ...tpl.processUnits, ...PROCESS_UNITS_POST];
+}
+
+/**
+ * Their §8.2 spec headings carry the quantity — "Collection Pump – 2 Nos" — while the
+ * shared spec blocks above are quantity-free, because the SAME pump appears in
+ * different numbers per technology.
+ *
+ * So the count is taken from that proposal's own §8.1 equipment table rather than
+ * duplicated here: one source of truth, and an SBR's six decanting pumps can never
+ * disagree between the two sections. Entries with no equipment-table match print bare,
+ * which is also what their document does for Plumbing / Cable / Diffuser / Tools.
+ */
+const SPEC_EQUIPMENT_ALIASES: Record<string, string> = {
+  "dosing pump": "dosing tank with dosing pump",
+  "flow meter": "electro magnetic flow meter",
+};
+
+/** "1 Number" → "1 No", "2 Numbers" → "2 Nos" — their spec headings abbreviate. */
+function abbreviateQty(qty: string): string {
+  return qty.replace(/\bNumbers\b/i, "Nos").replace(/\bNumber\b/i, "No");
+}
+
+export function specTitleWithQty(title: string, equipment: EquipmentRow[]): string {
+  const key = title.trim().toLowerCase();
+  const target = SPEC_EQUIPMENT_ALIASES[key] ?? key;
+  const match = equipment.find((e) => e.name.trim().toLowerCase() === target);
+  return match ? `${title} – ${abbreviateQty(match.quantity)}` : title;
 }

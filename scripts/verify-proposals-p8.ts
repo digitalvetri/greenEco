@@ -182,6 +182,19 @@ async function main() {
     check("load: ≈ 13 HP", /≈ 13 HP/.test(T));
     check("load: supply 10 kW", /= 10 kW/.test(T));
 
+    // ---- the conversion block, word for word against their document ----
+    check("the exact HP→kW conversion prints, not a rounded one", /1 HP = 0\.7457 kW/.test(T));
+    check("…on its own line, with the total beside the supply figure", /HP = [\d.]+ kW ≈ [\d.]+ kW/.test(T));
+    contains(T, "Electrical Power Supply Required for", "…and their supply-required wording");
+    contains(T, "We need incoming electrical cable to the", "…and their cable sentence");
+    // §8.2 headings take their count from §8.1, so the two sections cannot disagree.
+    contains(T, "Collection Pump – 2 Nos", "spec headings carry the equipment-table quantity");
+    contains(T, "Dosing Pump – 1 No", "…including the two that need a name alias");
+    check(
+      "…while the un-counted entries stay bare, as theirs do",
+      /\bTools\b/.test(T) && !/Tools – /.test(T),
+    );
+
     // ---- no duplicated boilerplate (the Phase-B precedence rule, proven on paper) ----
     check("Taxes & Duties appears exactly once", (T.match(/Taxes & Duties/g) ?? []).length === 1);
     check("Points to be Noted appears exactly once", (T.match(/Points to be Noted/g) ?? []).length === 1);

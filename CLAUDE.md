@@ -41,6 +41,34 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v56 — The last two content deltas closed: spec-sheet quantities and the exact kW conversion
+
+**Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 152 unit · `next build` clean ·
+`verify-proposals-p8` 101 checks (+7) · p10 (38) · p6/p7/p9 + won-routing + sell + verify-pdf green ·
+all four technologies re-rendered and their §8.2 headings compared.**
+
+- **§8.2 spec headings now carry the quantity** — "Collection Pump – 2 Nos", exactly as theirs read.
+  They were bare, because the shared spec blocks can't hold a count: the same pump appears in
+  different numbers per technology. **`specTitleWithQty()` takes the count from that proposal's own
+  §8.1 equipment table** instead of duplicating it, so an SBR's six decanting pumps can never
+  disagree between the two sections. Two entries need a name alias (their spec sheet says "Dosing
+  Pump" and "Flow meter" where the equipment table says "Dosing Tank with Dosing Pump" and "Electro
+  Magnetic Flow Meter"); anything with no match prints bare, which is also what their document does
+  for Plumbing / Cable / Diffuser / Tools. Verified against all four technologies.
+- **`SPEC_DOSING.title` corrected to "Dosing Pump"** — their §8.2 entry is the pump, with the tank as
+  a line *inside* that block. The combined "Dosing Tank with Dosing Pump" name belongs to §8.1 only.
+- **`computeLoadTotals().kw` now carries four decimals**, so §9 prints their exact conversion:
+  `1 HP = 0.7457 kW` / `11 HP = 8.2027 kW ≈ 8.5 kW`, on their own two centred lines rather than one
+  rounded sentence. **`supplyKw` is unchanged** — rounding up to the next half kW gives 8.5 either
+  way, and the existing unit tests (which already noted "sample prints 8.2027") still pass untouched.
+- **Their §9 closing wording adopted verbatim**: "Electrical Power Supply Required for STP Plant =
+  8.5 kW" and "We need incoming electrical cable to the STP control panel to withstand the 8.5 kW
+  power load." Both are plant-type aware rather than hardcoded to STP.
+- **Remaining known difference, unchanged and deliberate**: the table of contents carries no page
+  numbers. HTML→PDF cannot resolve them without an extra render per section (~15 per document,
+  roughly doubling generation time), and their own contents page is wrong regardless — it lists
+  Recent Projects on p.22 of a 16-page document.
+
 ### v55 — Cover and contents page reproduced line-for-line, once real company details existed
 
 The client filled in Settings → Company details, which made a further set of deltas visible for the

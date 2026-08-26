@@ -332,7 +332,10 @@ export function computeLoadTotals(rows: LoadRow[], fosPct = 10): LoadTotals {
   const factorOfSafetyHp = r2((hp * fosPct) / 100);
   const totalHp = r2(hp + factorOfSafetyHp);
   const requiredHp = Math.round(totalHp);
-  const kw = r2(requiredHp * HP_TO_KW);
+  // FOUR decimals, not two: their document prints the exact conversion
+  // ("11 HP = 8.2027 kW ≈ 8.5 kW"). `supplyKw` is unaffected — rounding up to the
+  // next half kW gives the same figure either way, which the tests pin.
+  const kw = Math.round(requiredHp * HP_TO_KW * 10_000) / 10_000;
   return {
     units,
     running,

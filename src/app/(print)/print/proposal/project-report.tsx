@@ -1,6 +1,11 @@
 import { formatDocRs, amountInWords } from "@/lib/money";
-import { asProjectReportData, computeCapacity, computeLoadTotals } from "@/lib/domain/proposal-document";
-import { TECHNOLOGY_COMPARISON } from "@/lib/project-report-templates";
+import {
+  asProjectReportData,
+  computeCapacity,
+  computeLoadTotals,
+  HP_TO_KW,
+} from "@/lib/domain/proposal-document";
+import { TECHNOLOGY_COMPARISON, specTitleWithQty } from "@/lib/project-report-templates";
 import {
   shouldPrintStandardTerms,
   resolvePointsToNote,
@@ -326,7 +331,9 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
                   <tr key={i} style={avoidBreak}>
                     <td style={{ ...docCell, textAlign: "center", verticalAlign: "top" }}>{i + 1}</td>
                     <td style={docCell}>
-                      <div style={{ fontWeight: 700, marginBottom: 2 }}>{m.title}</div>
+                      <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                        {specTitleWithQty(m.title, doc.equipment ?? [])}
+                      </div>
                       {m.lines.filter(Boolean).map((l, j) => (
                         <div key={j} style={{ fontSize: 11.5, lineHeight: 1.45 }}>
                           {l}
@@ -391,16 +398,20 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
               </tr>
             </tbody>
           </table>
+          {/* Their document sets the conversion out on its own two lines, exactly so. */}
           <p style={docP}>
             Total electrical power capacity required to run the plant ≈ {loadTotals.requiredHp} HP.
-            {"\n"}1 HP = 0.7457 kW, so {loadTotals.requiredHp} HP = {loadTotals.kw} kW ≈{" "}
-            {loadTotals.supplyKw} kW.
           </p>
-          <p style={{ ...docP, fontWeight: 700 }}>
-            Electrical power supply required for the plant = {loadTotals.supplyKw} kW.
+          <p style={{ ...docP, textAlign: "center" }}>
+            1 HP = {HP_TO_KW} kW
+            <br />
+            {loadTotals.requiredHp} HP = {loadTotals.kw} kW ≈ {loadTotals.supplyKw} kW
+          </p>
+          <p style={{ ...docP, fontWeight: 700, textAlign: "center" }}>
+            Electrical Power Supply Required for {p.plantType} Plant = {loadTotals.supplyKw} kW
           </p>
           <p style={docP}>
-            We need an incoming electrical cable to the control panel able to withstand the{" "}
+            We need incoming electrical cable to the {p.plantType} control panel to withstand the{" "}
             {loadTotals.supplyKw} kW power load.
           </p>
         </DocSection>
