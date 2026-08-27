@@ -103,8 +103,9 @@ export function BoqProposalDocument({ p, v, company }: ProposalPrintData) {
           </tbody>
         </table>
 
-        <p style={{ ...docP, marginTop: 10, fontWeight: 600, textTransform: "uppercase" }}>
-          {amountInWords(grandTotal)}
+        <p style={{ ...docP, marginTop: 10, fontWeight: 600 }}>
+          {/* Literal caps — CSS casing does not survive the Word export. */}
+          {amountInWords(grandTotal).toUpperCase()}
         </p>
 
         <DocSignature

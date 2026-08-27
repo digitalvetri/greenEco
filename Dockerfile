@@ -35,7 +35,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # openssl: same reason as the builder stage (Prisma's query engine needs it to match
 # its detected libssl build). curl: used by the /api/cron Scheduled Task command
 # (see DEPLOYMENT.md Step 8) — bookworm-slim doesn't ship it by default.
-RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+# fonts-dejavu-core: the /print/* documents are set in Verdana, which can't be
+# redistributed in a container. DejaVu Sans is the closest free substitute and keeps
+# headless Chromium from falling back to a default with quite different metrics.
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates curl fonts-dejavu-core \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules

@@ -108,6 +108,39 @@ export async function renderDocPdf(
       content:
         "[data-doc-cover] ~ * { display: revert !important; } [data-doc-cover] { display: none !important; }",
     });
+
+    // ── Table of contents: a measurement pass, only when the document has one ──
+    //
+    // Nothing knows how many pages §6's process descriptions will run to until the
+    // document is actually laid out, so the page numbers cannot be written on the
+    // first pass. Chromium can emit a document OUTLINE from the headings, and the
+    // outline's destinations resolve to page indices — so one measurement render
+    // answers every entry at once, rather than the ~15 renders a naive
+    // hide-everything-after-section-N approach would need.
+    //
+    // The numbers written are the BODY's own page numbers, which is exactly what the
+    // running footer prints — so a reader who looks up "10" and turns to the page
+    // whose footer says "Page | 10" lands on the right one. (The client's own
+    // contents page is off by one against its own footers, and lists a section on
+    // p.22 of a 16-page document; theirs is not a usable reference here.)
+    const tocCells = await page.locator("[data-toc-entry]").count();
+    if (tocCells > 0) {
+      const measured = await page.pdf({ ...withHeader, outline: true, tagged: true });
+      const pages = await outlinePageNumbers(measured);
+      if (pages.size > 0) {
+        await page.evaluate((entries: [number, number][]) => {
+          const byEntry = new Map(entries);
+          document.querySelectorAll("[data-toc-entry]").forEach((cell) => {
+            const n = Number(cell.getAttribute("data-toc-entry"));
+            const pageNo = byEntry.get(n);
+            // The cover is deliberately left blank: it carries no page number in
+            // the printed document, so claiming one would send a reader nowhere.
+            cell.textContent = pageNo ? String(pageNo) : "";
+          });
+        }, Array.from(pages.entries()));
+      }
+    }
+
     const bodyPdf = await page.pdf(withHeader);
 
     return await concatPdfs([coverPdf, bodyPdf]);
@@ -135,4 +168,145 @@ async function concatPdfs(parts: Buffer[]): Promise<Buffer> {
     for (const pg of pages) out.addPage(pg);
   }
   return Buffer.from(await out.save());
+}
+
+/**
+ * Page number of each numbered section, read from a tagged PDF's own outline.
+ *
+ * Chromium builds the outline from the document's headings, so the entry titles are
+ * the section headings verbatim ("4. Introduction:"). The leading number IS the table
+ * of contents row for §4 onwards; Greetings and Table of Contents are rows 2 and 3 and
+ * are matched by title, and row 1 (the cover) is left unnumbered by design.
+ *
+ * Returns an empty map rather than throwing if the outline is missing or malformed —
+ * a contents page without numbers is a cosmetic loss; a PDF that fails to generate is
+ * not.
+ */
+async function outlinePageNumbers(pdf: Buffer): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  try {
+    const { PDFDocument, PDFName, PDFDict, PDFArray, PDFRef, PDFHexString, PDFString } =
+      await import("pdf-lib");
+    const doc = await PDFDocument.load(pdf);
+    const pageTags = doc.getPages().map((p) => p.ref.tag);
+    const root = doc.catalog.lookup(PDFName.of("Outlines"));
+    if (!(root instanceof PDFDict)) return out;
+
+    const titleToEntry = (title: string): number | null => {
+      const numbered = /^\s*(\d+)\./.exec(title);
+      if (numbered) return Number(numbered[1]);
+      if (/^greetings\b/i.test(title)) return 2;
+      if (/^table of contents\b/i.test(title)) return 3;
+      return null;
+    };
+
+    // Structural rather than `InstanceType<typeof PDFDict>`: pdf-lib's class has a
+    // protected constructor, so the instance type can't be named from the value.
+    type DictLike = { lookup(name: ReturnType<typeof PDFName.of>): unknown };
+    const walk = (node: DictLike) => {
+      let cur = node.lookup(PDFName.of("First"));
+      while (cur instanceof PDFDict) {
+        const rawTitle = cur.lookup(PDFName.of("Title"));
+        const title =
+          rawTitle instanceof PDFHexString || rawTitle instanceof PDFString
+            ? rawTitle.decodeText()
+            : "";
+        const action = cur.lookup(PDFName.of("A"));
+        const dest =
+          cur.lookup(PDFName.of("Dest")) ??
+          (action instanceof PDFDict ? action.lookup(PDFName.of("D")) : undefined);
+        if (dest instanceof PDFArray) {
+          const target = dest.get(0);
+          if (target instanceof PDFRef) {
+            const idx = pageTags.indexOf(target.tag);
+            const entry = titleToEntry(title);
+            // First occurrence wins: a section spanning pages starts on the earliest.
+            if (idx >= 0 && entry != null && !out.has(entry)) out.set(entry, idx + 1);
+          }
+        }
+        walk(cur);
+        cur = cur.lookup(PDFName.of("Next"));
+      }
+    };
+    walk(root);
+  } catch {
+    return new Map();
+  }
+  return out;
+}
+
+/**
+ * The fully-rendered HTML of a print document, for the Word export.
+ *
+ * Deliberately the SAME page the PDF renderer loads, taken after hydration — so the
+ * .docx is generated from the exact document that was reviewed as a PDF rather than
+ * from a second, drifting template. The `.no-print` toolbar is stripped, and the
+ * table of contents gets its page numbers filled the same way (Word repaginates, so
+ * they are the PDF's numbers — the honest alternative would be no numbers at all).
+ */
+export async function renderDocHtml(
+  doc: PdfDoc,
+  requester: Pick<PrintClaims, "userId" | "role" | "companyId">,
+): Promise<string> {
+  const { chromium } = await import("playwright-core");
+  const token = signPrintToken({ ...doc, ...requester });
+  const url = `${env.appUrl.replace(/\/$/, "")}${doc.printPath}?t=${encodeURIComponent(token)}`;
+  const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+  try {
+    const page = await browser.newPage();
+    const res = await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+    if (!res || !res.ok()) throw new Error(`Print page returned ${res?.status() ?? "no response"}`);
+    if ((await page.locator("[data-print-shell]").count()) === 0) {
+      throw new Error(`Rendered page is not a print document for ${doc.printPath}`);
+    }
+
+    if ((await page.locator("[data-toc-entry]").count()) > 0) {
+      await page.addStyleTag({ content: "[data-doc-cover] { display: none !important; }" });
+      const measured = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        outline: true,
+        tagged: true,
+        margin: { top: "18mm", bottom: "18mm", left: "12mm", right: "12mm" },
+      });
+      const pages = await outlinePageNumbers(measured);
+      await page.evaluate((entries: [number, number][]) => {
+        const byEntry = new Map(entries);
+        document.querySelectorAll("[data-doc-cover]").forEach((el) => {
+          (el as HTMLElement).style.removeProperty("display");
+        });
+        document.querySelectorAll("[data-toc-entry]").forEach((cell) => {
+          const n = Number(cell.getAttribute("data-toc-entry"));
+          // `byEntry` is the serialized map — `pages` lives in Node and is NOT in
+          // scope inside the page.
+          const pageNo = byEntry.get(n);
+          cell.textContent = pageNo ? String(pageNo) : "";
+        });
+      }, Array.from(pages.entries()));
+      // The style tag hid the cover; drop it so the exported document keeps it.
+      await page.evaluate(() => {
+        document.querySelectorAll("style").forEach((st) => {
+          if (st.textContent?.includes("[data-doc-cover]")) st.remove();
+        });
+      });
+    }
+
+    await page.evaluate(() => {
+      document.querySelectorAll(".no-print").forEach((el) => el.remove());
+
+      // The HTML→docx converter can only read PIXEL widths on table cells: a bare
+      // number, a percentage or `auto` makes it emit an invalid XML attribute name
+      // and throw, taking the whole export with it. Resolving each cell to its
+      // COMPUTED width keeps the column proportions instead of stripping them.
+      document.querySelectorAll("td, th").forEach((cell) => {
+        const el = cell as HTMLElement;
+        const w = getComputedStyle(el).width;
+        if (w && w.endsWith("px")) el.style.width = w;
+        else el.style.removeProperty("width");
+      });
+    });
+    return await page.content();
+  } finally {
+    await browser.close();
+  }
 }

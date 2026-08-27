@@ -41,6 +41,53 @@ Full spec: `ECOFLOW-MASTER-BUILD-SPEC-v1.0.md` (in the parent Downloads folder).
 
 ## Status
 
+### v57 — Contents-page numbers, the client's font, and a Word download beside the PDF
+
+**Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 152 unit · `next build` clean ·
+new `verify-proposals-p11` (23 checks, incl. TOC numbers checked against the REAL pages and the
+generated .docx unzipped and read) · p8 (101) · p10 (38) · p6/p7/p9 + won-routing + sell + verify-pdf
+green · both download buttons driven in the browser, zero console errors.**
+
+- **The table of contents now carries real page numbers**, and they are *correct* — each is checked
+  against the page whose running footer prints the same number. v53/v54 recorded this as infeasible
+  because the obvious method needs ~15 renders (hide everything after section N, count pages). The
+  cheap route is **Chromium's own document outline**: `page.pdf({ outline: true, tagged: true })`
+  emits an outline built from the headings, whose destinations resolve to page indices via pdf-lib.
+  **One** measurement render answers every entry at once. Generation went 2.0s → 2.5s, not 10s.
+  - The numbers written are the BODY's page numbers, which is exactly what the footer prints — so
+    looking up "10" and turning to "Page | 10" lands correctly. ⚠️ **The client's own contents page
+    is off by one against its own footers** (it counts the cover as page 1) and lists a section on
+    p.22 of a 16-page document; theirs is not a usable reference, so ours is internally consistent
+    instead of bug-compatible. The Cover Letter row is left blank, because the cover carries no
+    printed number.
+  - The page-number column is **width-reserved** in the TOC markup, so writing digits into it cannot
+    reflow the document and invalidate the very numbers being written.
+  - Documents without a TOC (BOQ, AMC) skip the measurement pass entirely and still render in two.
+- **The print documents are now set in Verdana**, the client's own body font, replacing Georgia. The
+  Dockerfile installs `fonts-dejavu-core` as the Linux fallback — Verdana can't be redistributed in a
+  container, and without a close substitute headless Chromium drops to a default with quite different
+  metrics. On any machine that has Verdana (Word, macOS, Windows) the first entry wins.
+  ⚠️ The font change **re-wraps every line**, which broke two `verify-proposals-p8` assertions that
+  were matching literal multi-word phrases across extraction line breaks. Both were rewritten to be
+  wrapping-independent (squash whitespace; assert BOQ ordering on the atomic amount tokens rather
+  than on descriptions that wrap and interleave with the qty/amount columns). Neither was a content
+  regression — a lesson for any future font change.
+- **"Word" download beside "PDF"**, on the proposal editor. `generateDocx` converts the **same
+  rendered page** the PDF comes from (`renderDocHtml` → `html-to-docx`), so there is no second
+  template to drift; the .docx carries the real tables, numbered lists, fonts, TOC numbers and money
+  formatting. Word repaginates on open, so it is a faithful port rather than a pixel copy — which is
+  the point: it is the editable one, the PDF is the one to send.
+  - **Two conversion gotchas, both fixed at the source rather than worked around:**
+    1. `html-to-docx` throws `Invalid XML name: @w` on any table cell whose width is a bare number, a
+       percentage or `auto` — it can only read pixels. Every cell is now resolved to its **computed**
+       width before conversion, keeping the column proportions instead of stripping them.
+    2. **CSS `text-transform` does not survive the export**, so three uppercase headings (Force
+       Majeure, and the amount-in-words on the BOQ and AMC) printed mixed-case in Word. They now emit
+       **literal** capitals, which is also more honest in the PDF.
+- **Two new dependencies**, both pure JS with no native bindings, so the container image is
+  unaffected: `pdf-lib` (already added in v54, now also reading the outline) and `html-to-docx`.
+  `npm audit` findings are unchanged — all pre-existing, none from either.
+
 ### v56 — The last two content deltas closed: spec-sheet quantities and the exact kW conversion
 
 **Gate: tsc 0 · lint 0 new (30 warnings, same as `main`) · 152 unit · `next build` clean ·
@@ -1943,4 +1990,4 @@ team un-assign (`removeTeam`); `setDrawingApproval`/`assignTeam` now audited. **
 ### Verification scripts
 `npx tsx scripts/verify-sell.ts` · `verify-execute.ts` · `verify-control.ts` · `verify-amc.ts` ·
 `verify-pdf.ts` · `verify-leads-p0.ts` … `verify-leads-p8.ts` · `verify-proposals-p0.ts` …
-`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-proposals-p9.ts` · `verify-proposals-p10.ts` · `verify-drawings-p0.ts` · `verify-won-routing.ts` · `verify-followups-p0.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.
+`verify-proposals-p4.ts` · `verify-projects-p0.ts` … `verify-projects-p3.ts` · `verify-service-p0.ts` · `verify-service-p1.ts` · `verify-service-p1-4.ts` · `verify-service-p2.ts` · `verify-materials-p0.ts` · `verify-materials-p1.ts` · `verify-materials-p1-4.ts` · `verify-materials-p2.ts` · `verify-erection-p0.ts` · `verify-erection-p1.ts` · `verify-erection-p1-4.ts` · `verify-erection-p2.ts` · `verify-invoices-p0.ts` · `verify-invoices-p1.ts` · `verify-clients-p0.ts` · `verify-clients-p1.ts` · `verify-proposals-p6.ts` · `verify-proposals-p7.ts` · `verify-proposals-p8.ts` · `verify-proposals-p9.ts` · `verify-proposals-p10.ts` · `verify-proposals-p11.ts` · `verify-drawings-p0.ts` · `verify-won-routing.ts` · `verify-followups-p0.ts` · `verify-dashboard-p0.ts` · `verify-dashboard-p1.ts` — exercise each area end-to-end against the live DB.

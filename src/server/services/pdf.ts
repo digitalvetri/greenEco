@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Ctx } from "@/lib/rbac";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
-import { renderDocPdf } from "@/lib/pdf";
+import { renderDocPdf, renderDocHtml } from "@/lib/pdf";
 import { putObject } from "@/lib/storage";
 import { getCompanySettings } from "./company-settings";
 
@@ -124,6 +124,56 @@ async function resolve(ctx: Ctx, docType: PdfDocType, docId: string): Promise<Re
       };
     }
   }
+}
+
+/**
+ * Generate + store the document as an editable Word file.
+ *
+ * Converted from the SAME rendered page the PDF comes from, so the two can never
+ * drift — there is no second template to keep in step. Word repaginates on open, so
+ * the layout is a faithful port rather than a pixel copy: the sections, tables,
+ * numbering, fonts and figures are all preserved, but a page break may land
+ * differently. That is the point of the Word version — it is the editable one.
+ */
+export async function generateDocx(
+  ctx: Ctx,
+  docType: PdfDocType,
+  docId: string,
+): Promise<{ url: string; bytes: number }> {
+  requireAdmin(ctx);
+  const { printPath, storageKey, runningHeader } = await resolve(ctx, docType, docId);
+
+  const html = await renderDocHtml(
+    { docType, docId, printPath, runningHeader },
+    { userId: ctx.userId, role: ctx.role, companyId: ctx.companyId },
+  );
+
+  const { default: HTMLtoDOCX } = await import("html-to-docx");
+  const buf = (await HTMLtoDOCX(html, null, {
+    // A4 in twips, with the same margins the PDF uses.
+    pageSize: { width: 11906, height: 16838 },
+    margins: { top: 1020, right: 680, bottom: 1020, left: 680 },
+    font: "Verdana",
+    fontSize: 25, // half-points ×2 → 12.5pt, the document's body size
+    table: { row: { cantSplit: true } },
+    footer: true,
+    pageNumber: true,
+  })) as ArrayBuffer;
+  const bytes = Buffer.from(buf);
+
+  const url = await putObject(
+    storageKey.replace(/\.pdf$/, "") + ".docx",
+    bytes,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  );
+
+  await logAudit(ctx, {
+    action: "UPDATE",
+    entity: "Proposal",
+    entityId: docId,
+    after: { docx: url, docType },
+  });
+  return { url, bytes: bytes.byteLength };
 }
 
 export async function generatePdf(

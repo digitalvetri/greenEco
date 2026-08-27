@@ -444,6 +444,9 @@ export function ProposalEditor({
               <Printer className="size-3.5" /> Print
             </a>
             <DownloadPdfButton docType="proposal" docId={view.id} />
+            {/* The Word version is the editable one — same renderer, same content —
+                for adjusting wording before sending. The PDF is what goes out. */}
+            <DownloadPdfButton docType="proposal" docId={view.id} format="docx" label="Word" />
             <Badge variant={statusVariant}>{view.status.replace(/_/g, " ")}</Badge>
             {view.order && (
               <Link href={`/projects/${view.order.id}`}>

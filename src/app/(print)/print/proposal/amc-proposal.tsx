@@ -211,8 +211,9 @@ export function AmcProposalDocument({ p, v, company }: ProposalPrintData) {
               <td style={{ ...docCell, textAlign: "right" }}>{formatINR(gstAmount)}</td>
             </tr>
             <tr>
-              <td style={{ ...docCell, fontWeight: 700, textTransform: "uppercase" }} colSpan={2}>
-                {amountInWords(grandTotal)}
+              <td style={{ ...docCell, fontWeight: 700 }} colSpan={2}>
+                {/* Literal caps — CSS casing does not survive the Word export. */}
+                {amountInWords(grandTotal).toUpperCase()}
               </td>
               <td style={{ ...docCell, fontWeight: 700 }} colSpan={2}>
                 TOTAL AMOUNT WITH 18% GST

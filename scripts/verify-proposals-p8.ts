@@ -172,7 +172,10 @@ async function main() {
     contains(T, "SLUDGE DIGESTER", "flow chart: sludge branch");
     contains(T, "CHLORINE DOSING TANK", "flow chart: dosing branch");
     contains(T, "Decanting Pump", "SBR's decanting pump in the equipment/spec tables");
-    check("SBR recommendation paragraph", /So, we suggested to use the SBR technology/.test(T));
+    // Whitespace-squashed: the body font wraps prose differently from the extraction's
+    // line breaks, so a literal phrase match is a test of line-wrapping, not content.
+    const squash = (t: string) => t.replace(/\s+/g, " ");
+    check("SBR recommendation paragraph", squash(T).includes("So, we suggested to use the SBR technology"));
     check("MBBR's content did NOT leak in", !T.includes("MBBR TANK"));
 
     // ---- electrical load: the sample's exact chain ----
@@ -244,7 +247,11 @@ async function main() {
     // `pdftotext -layout` pads cells with runs of spaces to preserve column geometry,
     // so collapse whitespace before searching or a multi-word needle won't match.
     const flat = B.replace(/\s+/g, " ");
-    const order = ["RETURN SLUDGE PUMPS", "ELECTRICAL PANEL BOARD", "BACTERIAL CULTURES"].map((s) => flat.indexOf(s));
+    // Ordered on the AMOUNTS, not the descriptions: a long supply-and-installation
+    // line wraps, and `-layout` puts the qty/amount columns on the first visual line
+    // only — so a multi-word needle from the description gets interleaved with them
+    // and can't be matched. Each amount is a single atomic token and unique here.
+    const order = ["42,000.00", "1,60,000.00", "15,000.00"].map((s) => flat.indexOf(s));
     check(
       "BOQ lines print in the order entered (not re-sorted by category)",
       order.every((i) => i > -1) && order[0] < order[1] && order[1] < order[2],

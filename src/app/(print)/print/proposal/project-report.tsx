@@ -150,6 +150,15 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
               <tr key={s}>
                 <td style={{ ...docCell, width: 44, textAlign: "center" }}>{i + 1}.</td>
                 <td style={docCell}>{s}</td>
+                {/* Filled in by the renderer AFTER a measurement pass — see the
+                    outline logic in lib/pdf.ts. The width is reserved so writing a
+                    number into it cannot reflow the document and invalidate the very
+                    page numbers being written. `data-toc-entry` is the 1-based TOC
+                    row, which matches the section number for §4 onwards. */}
+                <td
+                  data-toc-entry={i + 1}
+                  style={{ ...docCell, width: 56, textAlign: "right" }}
+                />
               </tr>
             ))}
           </tbody>
@@ -494,7 +503,9 @@ export function ProjectReportDocument({ p, v, company }: ProposalPrintData) {
         )}
 
         {/* Closes §10.3 in all four samples. Boilerplate, not per-deal. */}
-        <div style={{ ...docH3, textTransform: "uppercase", fontSize: 12.5 }}>Force Majeure</div>
+        {/* Literal caps rather than `text-transform` — CSS casing is a rendering hint
+            the Word export cannot carry, so it would print mixed-case there. */}
+        <div style={{ ...docH3, fontSize: 12.5 }}>FORCE MAJEURE:</div>
         <DocProse text={DEFAULT_DOC_FORCE_MAJEURE} />
       </DocSection>
 
